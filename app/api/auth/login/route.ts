@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSessionToken, decodeBase64Url, encodeBase64Url, SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/auth-token";
+import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 
@@ -48,34 +49,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Email atau password salah." }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
 
-  const configuredEmail = process.env.INTERNAL_ADMIN_EMAIL?.trim().toLowerCase();
-  const configuredAliases = (process.env.INTERNAL_ADMIN_EMAIL_ALIASES ?? "")
-    .split(",")
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
-  const salt = process.env.INTERNAL_ADMIN_PASSWORD_SALT;
-  const configuredHash = process.env.INTERNAL_ADMIN_PASSWORD_HASH;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const secret = process.env.INTERNAL_AUTH_SECRET;
-  if (!configuredEmail || !salt || !configuredHash || !secret || secret.length < 32) {
+  if (!supabaseUrl || !supabaseKey || !secret || secret.length < 32) {
     return NextResponse.json({ error: "Autentikasi internal belum dikonfigurasi." }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
-
-  let passwordMatches = false;
-  try {
-    const actualHash = await derivePasswordHash(password, salt);
-    passwordMatches = constantTimeEqual(actualHash, decodeBase64Url(configuredHash));
-  } catch { passwordMatches = false; }
-  const emailMatches = email === configuredEmail || configuredAliases.includes(email);
-
-  if (!emailMatches || !passwordMatches) {
+  const authClient = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data, error } = await authClient.auth.signInWithPassword({ email, password });
+  if (error || !data.user) {
     const active = attempts.get(ip)!;
     active.count += 1;
     return NextResponse.json({ error: "Email atau password salah." }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
 
   attempts.delete(ip);
-  const token = await createSessionToken(configuredEmail, "admin", secret);
-  const response = NextResponse.json({ ok: true, role: "admin" }, { headers: { "Cache-Control": "no-store" } });
+  const superAdminEmail = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
+  const role = email === superAdminEmail ? "super_admin" : ((data.user.app_metadata?.role || "viewer") as "admin" | "viewer");
+  const token = await createSessionToken(email, role, secret);
+  const response = NextResponse.json({ ok: true, role }, { headers: { "Cache-Control": "no-store" } });
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "strict",

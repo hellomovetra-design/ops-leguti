@@ -33,7 +33,7 @@ export async function middleware(request: NextRequest) {
     loginUrl.searchParams.set("next", request.nextUrl.pathname);
     return withSecurityHeaders(NextResponse.redirect(loginUrl));
   }
-  if (session?.role !== "admin" && adminPrefixes.some((prefix) => request.nextUrl.pathname.startsWith(prefix))) {
+  if (!["super_admin", "admin"].includes(session?.role || "") && adminPrefixes.some((prefix) => request.nextUrl.pathname.startsWith(prefix))) {
     return withSecurityHeaders(NextResponse.redirect(new URL("/dashboard", request.url)));
   }
   if (request.nextUrl.pathname === "/login" && session) {

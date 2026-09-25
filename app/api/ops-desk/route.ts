@@ -36,12 +36,12 @@ export async function GET(req: NextRequest) {
 }
 export async function POST(req: NextRequest) {
   const session = await getSession(req);
-  if (!session || session.role !== "admin") return NextResponse.json({ ok: false, error: "Akses administrator diperlukan." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  if (!session || !["super_admin", "admin"].includes(session.role)) return NextResponse.json({ ok: false, error: "Akses administrator diperlukan." }, { status: 403, headers: { "Cache-Control": "no-store" } });
   const supabase = db(); if (!supabase) return NextResponse.json({ ok: false, preview: true, error: "Mode preview: Supabase belum dikonfigurasi" }, { status: 200 });
   const isMultipart = req.headers.get("content-type")?.includes("multipart/form-data");
   const multipart = isMultipart ? await req.formData() : null;
   const body = multipart ? Object.fromEntries(multipart.entries()) : await req.json();
-  if (body.action === "role" && session.email.toLowerCase() !== SUPER_ADMIN_EMAIL) return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat membuat role." }, { status: 403 });
+  if (body.action === "role" && session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat membuat role." }, { status: 403 });
   const photoFiles = multipart ? multipart.getAll("photos").filter((x): x is File => x instanceof File) : [];
   if (body.action === "bulkEmployees") { const result = await supabase.from("ops_employees").upsert(body.rows || [], { onConflict: "nik" }); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   if (body.action === "deleteEmployee") { const result = await supabase.from("ops_employees").delete().eq("nik", body.nik); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
