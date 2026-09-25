@@ -1,0 +1,12 @@
+node_modules
+.next
+.next-cache
+.next-build
+.next-dev
+.tmp-sheet-inspect
+.tmp
+.pnpm-store
+.env*.local
+*.tsbuildinfo
+*.log
+.DS_Store
