@@ -50,6 +50,24 @@ export async function POST(req: NextRequest) {
     const created = await supabase.auth.admin.createUser({ email, password, email_confirm: true, app_metadata: { role: body.role } });
     if (created.error && !created.error.message.toLowerCase().includes("already registered")) return NextResponse.json({ ok: false, error: created.error.message }, { status: 400 });
   }
+  if (body.action === "resetUserPassword" || body.action === "deleteUser") {
+    if (session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat mengelola akun." }, { status: 403 });
+    const email = String(body.email || "").trim().toLowerCase();
+    if (!email || email === SUPER_ADMIN_EMAIL) return NextResponse.json({ ok: false, error: "Akun super admin utama tidak dapat diubah dari sini." }, { status: 400 });
+    const listed = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+    const authUser = listed.data.users.find(user => user.email?.toLowerCase() === email);
+    if (!authUser) return NextResponse.json({ ok: false, error: "User Supabase tidak ditemukan." }, { status: 404 });
+    if (body.action === "resetUserPassword") {
+      const password = String(body.password || "");
+      if (password.length < 8) return NextResponse.json({ ok: false, error: "Password minimal 8 karakter." }, { status: 400 });
+      const updated = await supabase.auth.admin.updateUserById(authUser.id, { password });
+      return NextResponse.json({ ok: !updated.error, error: updated.error?.message });
+    }
+    const removed = await supabase.auth.admin.deleteUser(authUser.id);
+    if (removed.error) return NextResponse.json({ ok: false, error: removed.error.message }, { status: 400 });
+    const roleRemoved = await supabase.from("ops_users").delete().eq("email", email);
+    return NextResponse.json({ ok: !roleRemoved.error, error: roleRemoved.error?.message });
+  }
   const photoFiles = multipart ? multipart.getAll("photos").filter((x): x is File => x instanceof File) : [];
   if (body.action === "bulkEmployees") { const result = await supabase.from("ops_employees").upsert(body.rows || [], { onConflict: "nik" }); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   if (body.action === "deleteEmployee") { const result = await supabase.from("ops_employees").delete().eq("nik", body.nik); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
