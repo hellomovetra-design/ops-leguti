@@ -1,2 +1,2 @@
 import { AppShell } from "@/components/app-shell";
-export default function Layout({ children }: { children: React.ReactNode }) { return <AppShell title="Share & Access">{children}</AppShell>; }
+export default function Layout({ children }: { children: React.ReactNode }) { return <AppShell title="Administrator">{children}</AppShell>; }

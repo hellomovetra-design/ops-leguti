@@ -19,7 +19,7 @@ const navGroups = [
       { href: "/dashboard/ops-desk/problems", label: "Problem Barang", icon: Boxes },
     ],
   },
-  { label: "PENGATURAN", items: [{ href: "/settings/ops-access", label: "Akses Leader", icon: Settings }] },
+  { label: "PENGATURAN", items: [{ href: "/settings/ops-access", label: "Administrator", icon: Settings }] },
 ];
 
 export function AppShell({ title, children }: { title: string; children: React.ReactNode }) {
