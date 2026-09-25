@@ -1,2 +1,2 @@
-import { EmployeeDashboard } from "@/components/employee-dashboard";
-export default function Page() { return <EmployeeDashboard />; }
+import { TeamStructure } from "@/components/team-structure";
+export default function Page() { return <TeamStructure />; }
