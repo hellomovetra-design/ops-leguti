@@ -1729,3 +1729,4 @@ tbody tr:hover { background: #fafbff; }
 .employee-summary-strip button:hover { color: var(--navy); }
 .bar-row-button { width: 100%; background: transparent; padding: 0; }
 .bar-row-button:hover span, .bar-row-button:hover b { color: var(--navy); }
+ .staff-breakdown { margin-bottom: 16px; }.staff-breakdown-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; padding: 16px; }.staff-breakdown-card { border: 1px solid var(--line); background: #f8fafc; border-radius: 10px; padding: 14px 10px; text-align: left; color: #52677d; cursor: pointer; }.staff-breakdown-card span { display: block; font-size: 11px; }.staff-breakdown-card strong { display: block; margin-top: 7px; color: var(--navy); font-size: 22px; }.staff-breakdown-card:hover, .staff-breakdown-card.active { border-color: #176ac0; background: #eef6ff; box-shadow: 0 0 0 2px rgba(23,106,192,.1); }
