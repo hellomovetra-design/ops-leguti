@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 
 const db = () => getSupabaseServerClient();
+const SUPER_ADMIN_EMAIL = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
 async function getSession(req: NextRequest) {
   return verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
 }
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
   const isMultipart = req.headers.get("content-type")?.includes("multipart/form-data");
   const multipart = isMultipart ? await req.formData() : null;
   const body = multipart ? Object.fromEntries(multipart.entries()) : await req.json();
+  if (body.action === "role" && session.email.toLowerCase() !== SUPER_ADMIN_EMAIL) return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat membuat role." }, { status: 403 });
   const photoFiles = multipart ? multipart.getAll("photos").filter((x): x is File => x instanceof File) : [];
   if (body.action === "bulkEmployees") { const result = await supabase.from("ops_employees").upsert(body.rows || [], { onConflict: "nik" }); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   if (body.action === "deleteEmployee") { const result = await supabase.from("ops_employees").delete().eq("nik", body.nik); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
