@@ -3,9 +3,15 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import fs from "node:fs";
 import path from "node:path";
 import * as XLSX from "xlsx";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 
 const db = () => getSupabaseServerClient();
+async function getSession(req: NextRequest) {
+  return verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
+}
 export async function GET(req: NextRequest) {
+  const session = await getSession(req);
+  if (!session) return NextResponse.json({ items: [], error: "Sesi tidak valid." }, { status: 401, headers: { "Cache-Control": "no-store" } });
   const p = req.nextUrl.searchParams, type = p.get("type") || "overview", q = p.get("q") || "";
   const supabase = db();
   if (!supabase && type === "employees") {
@@ -28,6 +34,8 @@ export async function GET(req: NextRequest) {
   const result = await query; return NextResponse.json({ items: result.data || [], error: result.error?.message });
 }
 export async function POST(req: NextRequest) {
+  const session = await getSession(req);
+  if (!session || session.role !== "admin") return NextResponse.json({ ok: false, error: "Akses administrator diperlukan." }, { status: 403, headers: { "Cache-Control": "no-store" } });
   const supabase = db(); if (!supabase) return NextResponse.json({ ok: false, preview: true, error: "Mode preview: Supabase belum dikonfigurasi" }, { status: 200 });
   const isMultipart = req.headers.get("content-type")?.includes("multipart/form-data");
   const multipart = isMultipart ? await req.formData() : null;
@@ -42,7 +50,7 @@ export async function POST(req: NextRequest) {
   if (body.action === "comment") { const result = await supabase.from("ops_comments").insert({ case_id: body.id, author_name: body.authorName || "Admin OPS", body: body.body }); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   if (body.action === "close") { const result = await supabase.from("ops_cases").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", body.id); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   const table = body.action === "problem" ? "ops_problems" : body.action === "employee" ? "ops_employees" : "ops_users";
-  const payload = body.action === "role" ? { role: body.role, leader_name: body.leaderName } : body.action === "problem" ? { awb: body.awb, category: body.category, description: body.description, location: body.location, division: body.division } : body;
+  const payload = body.action === "role" ? { email: body.email, role: body.role, leader_name: body.leaderName || null } : body.action === "problem" ? { awb: body.awb, category: body.category, description: body.description, location: body.location, division: body.division } : body;
   const result = body.action === "employee" ? await supabase.from(table).insert(payload) : body.action === "updateEmployee" ? await supabase.from(table).update(payload).eq("nik", body.nik) : await supabase.from(table).insert(payload).select("id").single();
   if (body.action === "problem" && !result.error && photoFiles.length && result.data?.id) { for (const file of photoFiles) { const key = `problems/${result.data.id}/${crypto.randomUUID()}-${file.name}`; await supabase.storage.from("ops-problem-photos").upload(key, file, { contentType: file.type }); } }
   return NextResponse.json({ ok: !result.error, error: result.error?.message });
