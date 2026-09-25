@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
   const multipart = isMultipart ? await req.formData() : null;
   const body = multipart ? Object.fromEntries(multipart.entries()) : await req.json();
   if (body.action === "role" && session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat membuat role." }, { status: 403 });
+  if (body.action === "role" && !["pending", "leader", "admin", "spv", "jr_spv"].includes(String(body.role))) return NextResponse.json({ ok: false, error: "Jenis role tidak valid." }, { status: 400 });
   const photoFiles = multipart ? multipart.getAll("photos").filter((x): x is File => x instanceof File) : [];
   if (body.action === "bulkEmployees") { const result = await supabase.from("ops_employees").upsert(body.rows || [], { onConflict: "nik" }); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   if (body.action === "deleteEmployee") { const result = await supabase.from("ops_employees").delete().eq("nik", body.nik); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
