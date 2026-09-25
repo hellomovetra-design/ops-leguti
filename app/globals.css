@@ -1722,3 +1722,10 @@ tbody tr:hover { background: #fafbff; }
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+.employee-kpi, .employee-summary-strip button, .bar-row-button { border: 0; font: inherit; cursor: pointer; text-align: left; }
+.employee-kpi { transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+.employee-kpi:hover, .employee-kpi.segment-active { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(16,24,40,.12); border-color: #7b8bd5; }
+.employee-summary-strip button { display: flex; align-items: center; gap: 8px; color: #52677d; background: transparent; padding: 0; }
+.employee-summary-strip button:hover { color: var(--navy); }
+.bar-row-button { width: 100%; background: transparent; padding: 0; }
+.bar-row-button:hover span, .bar-row-button:hover b { color: var(--navy); }
