@@ -28,7 +28,7 @@ create table if not exists public.ops_comments (
 );
 create table if not exists public.ops_problems (
   id uuid primary key default gen_random_uuid(), awb text not null, category text not null,
-  description text, location text, division text, created_by uuid, created_at timestamptz not null default now()
+  description text, location text, division text, status text not null default 'open', created_by uuid, created_at timestamptz not null default now()
 );
 create index if not exists ops_problems_awb on public.ops_problems(awb);
 create table if not exists public.ops_problem_photos (
