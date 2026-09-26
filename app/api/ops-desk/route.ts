@@ -7,6 +7,8 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 
 const db = () => getSupabaseServerClient();
 const SUPER_ADMIN_EMAIL = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
+const HELP_DESK_TO = ["ithelpdesk@jne.co.id", "helpdesk3@jne.co.id", "helpdesk2@jne.co.id", "helpdesk4@jne.co.id", "tgr.itadmin@jne.co.id", "tgr.it@jne.co.id"].join(",");
+const HELP_DESK_CC = ["adhitya.nugraha@jne.co.id", "giga.pratama@jne.co.id", "feri.achmad555@gmail.com", "tgr.adm2@jne.co.id"].join(",");
 async function getSession(req: NextRequest) {
   return verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
 }
@@ -45,7 +47,7 @@ export async function GET(req: NextRequest) {
       if (!email || byEmail.has(email)) continue;
       byEmail.set(email, { id: user.id, email, role: user.app_metadata?.role || "viewer", leader_name: user.user_metadata?.leader_name || null, created_at: user.created_at });
     }
-    const items = Array.from(byEmail.values()).filter((row) => !q || row.email.includes(q.toLowerCase()));
+    const items = Array.from(byEmail.values()).map((row) => row.email === SUPER_ADMIN_EMAIL ? { ...row, role: "super_admin" } : row).filter((row) => !q || row.email.includes(q.toLowerCase()));
     return NextResponse.json({ items, error: roleRows.error?.message || authRows.error?.message });
   }
   if (type === "profile") {
@@ -71,6 +73,7 @@ export async function POST(req: NextRequest) {
   if (body.action === "role") {
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "");
+    if (email === SUPER_ADMIN_EMAIL) body.role = "super_admin";
     if (!email || password.length < 8) return NextResponse.json({ ok: false, error: "Email dan password minimal 8 karakter wajib diisi." }, { status: 400 });
     const created = await supabase.auth.admin.createUser({ email, password, email_confirm: true, app_metadata: { role: body.role } });
     if (created.error && !created.error.message.toLowerCase().includes("already registered")) return NextResponse.json({ ok: false, error: created.error.message }, { status: 400 });
@@ -94,6 +97,16 @@ export async function POST(req: NextRequest) {
       : "Dear Team IT JNE TGR\n\nMohon dibantu pengaktifan kembali User ID TGR\n\nUser ID              : " + userId + "\nNama Karyawan       : " + name + "\nNIK Karyawan        : " + nik + "\nDepartemen          : " + String(body.department || "") + "\nLokasi Kerja        : " + String(body.location || "") + "\nAlasan              : " + String(body.reason || "");
     const result = await supabase.from("ops_requests").insert({ type: body.type || "activation_user", status: "pending", user_id: userId, name, nik, department: body.department, location: body.location, reason: body.reason, email_subject: subject, email_body: emailBody }).select().single();
     return NextResponse.json({ ok: !result.error, id: result.data?.id, emailSubject: subject, emailBody, error: result.error?.message });
+  }
+  if (body.action === "approveRequest") {
+    if (!['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin atau Admin Pengelola yang dapat memproses request." }, { status: 403 });
+    const id = String(body.id || "");
+    if (!id) return NextResponse.json({ ok: false, error: "Request tidak valid." }, { status: 400 });
+    const current = await supabase.from("ops_requests").select("*").eq("id", id).single();
+    if (current.error || !current.data) return NextResponse.json({ ok: false, error: current.error?.message || "Request tidak ditemukan." }, { status: 404 });
+    const updated = await supabase.from("ops_requests").update({ status: "approved", approved_by: session.email, approved_at: new Date().toISOString() }).eq("id", id).select().single();
+    if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
+    return NextResponse.json({ ok: true, request: updated.data, mail: { to: HELP_DESK_TO, cc: HELP_DESK_CC, subject: current.data.email_subject || "Request Helpdesk OPS LEGUTI", body: current.data.email_body || "" } });
   }
   if (body.action === "profile") {
     const file = multipart?.get("photo");

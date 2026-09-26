@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, LogOut, Menu, RefreshCw, Settings, X, PackageSearch, Boxes, LayoutDashboard, Network, ArrowLeftRight, UserRound, Headphones } from "lucide-react";
 import { useApp } from "@/app/providers";
 import { cn } from "@/lib/utils";
@@ -27,8 +27,12 @@ export function AppShell({ title, children }: { title: string; children: React.R
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [profile, setProfile] = useState<{ email?: string; display_name?: string }>({});
   const { toast } = useApp();
   const displayTitle = title;
+  useEffect(() => { fetch("/api/ops-desk?type=profile").then(r => r.json()).then(x => setProfile(x.profile || {})).catch(() => {}); }, []);
+  const accountName = profile.display_name || profile.email?.split("@")[0] || "Pengguna";
+  const accountRole = profile.email?.toLowerCase() === "ibadnarpatih@gmail.com" ? "Super Admin" : "Internal";
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -69,8 +73,8 @@ export function AppShell({ title, children }: { title: string; children: React.R
         <div className="sidebar-user">
           <div className="avatar">AP</div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div className="user-name">Admin Pusat</div>
-            <div className="user-role">Internal</div>
+            <div className="user-name">{accountName}</div>
+            <div className="user-role">{accountRole}</div>
           </div>
           <button onClick={logout} title="Keluar" aria-label="Keluar" style={{ border: 0, background: "transparent", color: "#9ea9cc", cursor: "pointer", padding: 4 }}><LogOut size={15} /></button>
         </div>
