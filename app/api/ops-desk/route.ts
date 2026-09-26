@@ -12,6 +12,9 @@ const HELP_DESK_CC = ["adhitya.nugraha@jne.co.id", "giga.pratama@jne.co.id", "fe
 async function getSession(req: NextRequest) {
   return verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
 }
+async function audit(supabase: any, session: any, action: string, entityType: string, entityId?: string, metadata: Record<string, any> = {}) {
+  await supabase.from("ops_audit_logs").insert({ actor_email: session.email, actor_role: session.role, action, entity_type: entityType, entity_id: entityId || null, metadata });
+}
 export async function GET(req: NextRequest) {
   const session = await getSession(req);
   if (!session) return NextResponse.json({ items: [], error: "Sesi tidak valid." }, { status: 401, headers: { "Cache-Control": "no-store" } });
@@ -57,7 +60,20 @@ export async function GET(req: NextRequest) {
   }
   let query = supabase.from(table).select("*").order("created_at", { ascending: false });
   if (q) query = table === "ops_employees" ? query.or(`name.ilike.%${q}%,nik.ilike.%${q}%`) : table === "ops_problems" ? query.or(`awb.ilike.%${q}%,category.ilike.%${q}%`) : query.or(`awb.ilike.%${q}%,leader.ilike.%${q}%,zone.ilike.%${q}%`);
-  const result = await query; return NextResponse.json({ items: result.data || [], error: result.error?.message });
+  const result = await query;
+  if (table === "ops_problems" && result.data?.length) {
+    const ids = result.data.map((row: any) => row.id);
+    const photos = await supabase.from("ops_problem_photos").select("id,problem_id,file_name,content_type,storage_path,created_at").in("problem_id", ids).order("created_at", { ascending: true });
+    const photoRows = photos.data || [];
+    const photoMap = new Map<string, any[]>();
+    for (const photo of photoRows) {
+      const signed = await supabase.storage.from("ops-problem-photos").createSignedUrl(photo.storage_path, 3600);
+      const item = { id: photo.id, file_name: photo.file_name, content_type: photo.content_type, url: signed.data?.signedUrl || "", created_at: photo.created_at };
+      photoMap.set(photo.problem_id, [...(photoMap.get(photo.problem_id) || []), item]);
+    }
+    return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photos: photoMap.get(row.id) || [] })), error: (result as any).error?.message });
+  }
+  return NextResponse.json({ items: result.data || [], error: result.error?.message });
 }
 export async function POST(req: NextRequest) {
   const session = await getSession(req);
@@ -95,7 +111,8 @@ export async function POST(req: NextRequest) {
     const emailBody = isCl3
       ? "Dear Team IT\n\nMohon di bantu Open Status Shipment CL3  | CLOSE BY SYSTEM (ORIGIN)\nDikarenakan shipment sudah berada di destinasi\n\n" + shipments + "\n\n--\nTerima kasih , Barakallahu Fiikum"
       : "Dear Team IT JNE TGR\n\nMohon dibantu pengaktifan kembali User ID TGR\n\nUser ID              : " + userId + "\nNama Karyawan       : " + name + "\nNIK Karyawan        : " + nik + "\nDepartemen          : " + String(body.department || "") + "\nLokasi Kerja        : " + String(body.location || "") + "\nAlasan              : " + String(body.reason || "");
-    const result = await supabase.from("ops_requests").insert({ type: body.type || "activation_user", status: "pending", user_id: userId, name, nik, department: body.department, location: body.location, reason: body.reason, email_subject: subject, email_body: emailBody }).select().single();
+    const result = await supabase.from("ops_requests").insert({ type: body.type || "activation_user", status: "pending", user_id: userId, name, nik, department: body.department, location: body.location, reason: body.reason, email_subject: subject, email_body: emailBody, created_by: session.email, updated_at: new Date().toISOString() }).select().single();
+    if (!result.error && result.data?.id) await audit(supabase, session, "create", "request", result.data.id, { type: body.type || "activation_user" });
     return NextResponse.json({ ok: !result.error, id: result.data?.id, emailSubject: subject, emailBody, error: result.error?.message });
   }
   if (body.action === "approveRequest") {
@@ -106,6 +123,7 @@ export async function POST(req: NextRequest) {
     if (current.error || !current.data) return NextResponse.json({ ok: false, error: current.error?.message || "Request tidak ditemukan." }, { status: 404 });
     const updated = await supabase.from("ops_requests").update({ status: "approved", approved_by: session.email, approved_at: new Date().toISOString() }).eq("id", id).select().single();
     if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
+    await audit(supabase, session, "approve", "request", id);
     return NextResponse.json({ ok: true, request: updated.data, mail: { to: HELP_DESK_TO, cc: HELP_DESK_CC, subject: current.data.email_subject || "Request Helpdesk OPS LEGUTI", body: current.data.email_body || "" } });
   }
   if (body.action === "profile") {
@@ -149,8 +167,9 @@ export async function POST(req: NextRequest) {
   if (body.action === "comment") { const result = await supabase.from("ops_comments").insert({ case_id: body.id, author_name: body.authorName || "Admin OPS", body: body.body }); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   if (body.action === "close") { const result = await supabase.from("ops_cases").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", body.id); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   const table = body.action === "problem" ? "ops_problems" : body.action === "employee" ? "ops_employees" : "ops_users";
-  const payload = body.action === "role" ? { email: body.email, role: body.role, leader_name: body.leaderName || null } : body.action === "problem" ? { awb: body.awb, category: body.category, description: body.description, location: body.location, division: body.division } : body;
+  const payload = body.action === "role" ? { email: body.email, role: body.role, leader_name: body.leaderName || null } : body.action === "problem" ? { awb: body.awb, category: body.category, description: body.description, location: body.location, division: body.division, created_by: null, created_by_email: session.email, updated_at: new Date().toISOString() } : body;
   const result = body.action === "employee" ? await supabase.from(table).insert(payload) : body.action === "updateEmployee" ? await supabase.from(table).update(payload).eq("nik", body.nik) : body.action === "role" ? await supabase.from(table).upsert(payload, { onConflict: "email" }).select("id").single() : await supabase.from(table).insert(payload).select("id").single();
   if (body.action === "problem" && !result.error && photoFiles.length && result.data?.id) { for (const file of photoFiles) { const key = `problems/${result.data.id}/${crypto.randomUUID()}-${file.name}`; const uploaded = await supabase.storage.from("ops-problem-photos").upload(key, file, { contentType: file.type }); if (!uploaded.error) await supabase.from("ops_problem_photos").insert({ problem_id: result.data.id, storage_path: key, file_name: file.name, content_type: file.type }); } }
+  if (body.action === "problem" && !result.error && result.data?.id) await audit(supabase, session, "create", "problem", result.data.id, { photo_count: photoFiles.length, category: body.category });
   return NextResponse.json({ ok: !result.error, error: result.error?.message });
 }
