@@ -3,6 +3,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 
 const protectedPrefixes = ["/dashboard", "/reports", "/master", "/settings", "/public"];
 const adminPrefixes = ["/reports", "/master", "/settings"];
+const broadAccessRoles = ["super_admin", "admin", "coordinator", "spv", "jr_spv", "viewer"];
 
 function withSecurityHeaders(response: NextResponse) {
   const isDev = process.env.NODE_ENV !== "production";
@@ -33,7 +34,11 @@ export async function middleware(request: NextRequest) {
     loginUrl.searchParams.set("next", request.nextUrl.pathname);
     return withSecurityHeaders(NextResponse.redirect(loginUrl));
   }
-  if (!["super_admin", "admin", "spv", "jr_spv"].includes(session?.role || "") && adminPrefixes.some((prefix) => request.nextUrl.pathname.startsWith(prefix))) {
+  if (!broadAccessRoles.includes(session?.role || "") && adminPrefixes.some((prefix) => request.nextUrl.pathname.startsWith(prefix))) {
+    return withSecurityHeaders(NextResponse.redirect(new URL("/dashboard", request.url)));
+  }
+  const restrictedToSuperAdmin = ["/settings/ops-access", "/master/personnel-changes"];
+  if (restrictedToSuperAdmin.some((prefix) => request.nextUrl.pathname.startsWith(prefix)) && session?.role !== "super_admin") {
     return withSecurityHeaders(NextResponse.redirect(new URL("/dashboard", request.url)));
   }
   if (request.nextUrl.pathname === "/login" && session) {

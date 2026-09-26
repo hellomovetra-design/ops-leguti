@@ -45,19 +45,28 @@ export async function GET(req: NextRequest) {
 }
 export async function POST(req: NextRequest) {
   const session = await getSession(req);
-  if (!session || !["super_admin", "admin", "spv", "jr_spv"].includes(session.role)) return NextResponse.json({ ok: false, error: "Akses administrator diperlukan." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  if (!session || !["super_admin", "admin", "coordinator", "spv", "jr_spv", "viewer"].includes(session.role)) return NextResponse.json({ ok: false, error: "Akses administrator diperlukan." }, { status: 403, headers: { "Cache-Control": "no-store" } });
   const supabase = db(); if (!supabase) return NextResponse.json({ ok: false, preview: true, error: "Mode preview: Supabase belum dikonfigurasi" }, { status: 200 });
   const isMultipart = req.headers.get("content-type")?.includes("multipart/form-data");
   const multipart = isMultipart ? await req.formData() : null;
   const body = multipart ? Object.fromEntries(multipart.entries()) : await req.json();
+  const pwaWriteActions = ["createRequest", "problem", "profile", "comment"];
+  if (session.role === "viewer" && !pwaWriteActions.includes(String(body.action))) return NextResponse.json({ ok: false, error: "Staff Biasa hanya dapat melihat data di dashboard. Input transaksi dilakukan melalui PWA." }, { status: 403 });
   if (body.action === "role" && session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat membuat role." }, { status: 403 });
-  if (body.action === "role" && !["coordinator", "leader", "admin", "spv", "jr_spv"].includes(String(body.role))) return NextResponse.json({ ok: false, error: "Jenis role tidak valid." }, { status: 400 });
+  if (body.action === "role" && !["admin", "viewer"].includes(String(body.role))) return NextResponse.json({ ok: false, error: "Jenis akses tidak valid." }, { status: 400 });
   if (body.action === "role") {
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "");
     if (!email || password.length < 8) return NextResponse.json({ ok: false, error: "Email dan password minimal 8 karakter wajib diisi." }, { status: 400 });
     const created = await supabase.auth.admin.createUser({ email, password, email_confirm: true, app_metadata: { role: body.role } });
     if (created.error && !created.error.message.toLowerCase().includes("already registered")) return NextResponse.json({ ok: false, error: created.error.message }, { status: 400 });
+    if (created.error) {
+      const listed = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
+      const existing = listed.data.users.find(user => user.email?.toLowerCase() === email);
+      if (!existing) return NextResponse.json({ ok: false, error: "User sudah terdeteksi tetapi tidak dapat ditemukan di Supabase Auth." }, { status: 409 });
+      const updated = await supabase.auth.admin.updateUserById(existing.id, { password, user_metadata: { role: body.role }, app_metadata: { role: body.role } });
+      if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
+    }
   }
   if (body.action === "createRequest") {
     const name = String(body.name || "").trim(), nik = String(body.nik || "").trim(), userId = String(body.userId || "").trim().toUpperCase();
