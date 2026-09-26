@@ -34,6 +34,20 @@ export async function GET(req: NextRequest) {
     const result = await supabase.from("ops_requests").select("*").order("created_at", { ascending: false });
     return NextResponse.json({ items: result.data || [], error: result.error?.message });
   }
+  if (type === "users") {
+    const [roleRows, authRows] = await Promise.all([
+      supabase.from("ops_users").select("id,email,role,leader_name,created_at").order("created_at", { ascending: false }),
+      supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    ]);
+    const byEmail = new Map<string, any>((roleRows.data || []).map((row: any) => [String(row.email).toLowerCase(), row]));
+    for (const user of authRows.data.users || []) {
+      const email = user.email?.toLowerCase();
+      if (!email || byEmail.has(email)) continue;
+      byEmail.set(email, { id: user.id, email, role: user.app_metadata?.role || "viewer", leader_name: user.user_metadata?.leader_name || null, created_at: user.created_at });
+    }
+    const items = Array.from(byEmail.values()).filter((row) => !q || row.email.includes(q.toLowerCase()));
+    return NextResponse.json({ items, error: roleRows.error?.message || authRows.error?.message });
+  }
   if (type === "profile") {
     const result = await supabase.from("ops_user_profiles").select("email,display_name,photo_path,updated_at").eq("email", session.email.toLowerCase()).maybeSingle();
     const signed = result.data?.photo_path ? await supabase.storage.from("ops-profile-photos").createSignedUrl(result.data.photo_path, 3600) : null;
@@ -53,7 +67,7 @@ export async function POST(req: NextRequest) {
   const pwaWriteActions = ["createRequest", "problem", "profile", "comment"];
   if (session.role === "viewer" && !pwaWriteActions.includes(String(body.action))) return NextResponse.json({ ok: false, error: "Staff Biasa hanya dapat melihat data di dashboard. Input transaksi dilakukan melalui PWA." }, { status: 403 });
   if (body.action === "role" && session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat membuat role." }, { status: 403 });
-  if (body.action === "role" && !["admin", "viewer"].includes(String(body.role))) return NextResponse.json({ ok: false, error: "Jenis akses tidak valid." }, { status: 400 });
+  if (body.action === "role" && !["super_admin", "admin", "viewer"].includes(String(body.role))) return NextResponse.json({ ok: false, error: "Jenis akses tidak valid." }, { status: 400 });
   if (body.action === "role") {
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "");
