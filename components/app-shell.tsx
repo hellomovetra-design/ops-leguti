@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Bell, LogOut, Menu, RefreshCw, Settings, X, PackageSearch, Boxes, LayoutDashboard, Network, ArrowLeftRight, UserRound } from "lucide-react";
+import { Bell, LogOut, Menu, RefreshCw, Settings, X, PackageSearch, Boxes, LayoutDashboard, Network, ArrowLeftRight, UserRound, Headphones } from "lucide-react";
 import { useApp } from "@/app/providers";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +17,7 @@ const navGroups = [
       { href: "/master/personnel-changes", label: "Perubahan Personel", icon: ArrowLeftRight },
       { href: "/dashboard/ops-desk/ots", label: "Monitoring OTS", icon: PackageSearch },
       { href: "/dashboard/ops-desk/problems", label: "Problem Barang", icon: Boxes },
+      { href: "/dashboard/ops-desk/requests", label: "Request Helpdesk", icon: Headphones },
     ],
   },
   { label: "PENGATURAN", items: [{ href: "/settings/ops-access", label: "Administrator", icon: Settings }] },

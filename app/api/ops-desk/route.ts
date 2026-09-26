@@ -26,8 +26,8 @@ export async function GET(req: NextRequest) {
   }
   if (!supabase) return NextResponse.json({ items: [], problems: 0, preview: true });
   if (type === "overview") {
-    const [cases, problems] = await Promise.all([supabase.from("ops_cases").select("*").order("last_seen", { ascending: false }), supabase.from("ops_problems").select("id", { count: "exact", head: true })]);
-    return NextResponse.json({ items: cases.data || [], problems: problems.count || 0 });
+    const [cases, problems, requests] = await Promise.all([supabase.from("ops_cases").select("*").order("last_seen", { ascending: false }), supabase.from("ops_problems").select("id", { count: "exact", head: true }), supabase.from("ops_requests").select("*").order("created_at", { ascending: false })]);
+    return NextResponse.json({ items: cases.data || [], problems: problems.count || 0, requests: requests.data || [], requestsError: requests.error?.message });
   }
   const table = type === "employees" ? "ops_employees" : type === "problems" ? "ops_problems" : type === "users" ? "ops_users" : "ops_cases";
   if (type === "requests") {
