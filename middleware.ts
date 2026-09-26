@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 
-const protectedPrefixes = ["/dashboard", "/reports", "/master", "/settings", "/public"];
+const protectedPrefixes = ["/dashboard", "/reports", "/master", "/settings", "/public", "/pwa"];
 const adminPrefixes = ["/reports", "/master", "/settings"];
 const broadAccessRoles = ["super_admin", "admin", "coordinator", "spv", "jr_spv", "viewer"];
 
@@ -50,5 +50,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/login", "/dashboard/:path*", "/reports/:path*", "/master/:path*", "/settings/:path*", "/public/:path*"],
+  matcher: ["/login", "/dashboard/:path*", "/reports/:path*", "/master/:path*", "/settings/:path*", "/public/:path*", "/pwa"],
 };

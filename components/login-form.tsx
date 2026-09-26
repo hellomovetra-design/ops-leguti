@@ -21,7 +21,8 @@ export function LoginForm() {
       });
       const result = await response.json() as { error?: string };
       if (!response.ok) { setError(result.error || "Login gagal."); return; }
-      router.replace("/dashboard");
+      const next = new URLSearchParams(window.location.search).get("next");
+      router.replace(next && next.startsWith("/") ? next : "/dashboard");
       router.refresh();
     } catch { setError("Server tidak dapat dihubungi."); }
     finally { setLoading(false); }
