@@ -30,6 +30,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ items: cases.data || [], problems: problems.count || 0 });
   }
   const table = type === "employees" ? "ops_employees" : type === "problems" ? "ops_problems" : type === "users" ? "ops_users" : "ops_cases";
+  if (type === "requests") {
+    const result = await supabase.from("ops_requests").select("*").order("created_at", { ascending: false });
+    return NextResponse.json({ items: result.data || [], error: result.error?.message });
+  }
   let query = supabase.from(table).select("*").order("created_at", { ascending: false });
   if (q) query = table === "ops_employees" ? query.or(`name.ilike.%${q}%,nik.ilike.%${q}%`) : table === "ops_problems" ? query.or(`awb.ilike.%${q}%,category.ilike.%${q}%`) : query.or(`awb.ilike.%${q}%,leader.ilike.%${q}%,zone.ilike.%${q}%`);
   const result = await query; return NextResponse.json({ items: result.data || [], error: result.error?.message });
@@ -49,6 +53,18 @@ export async function POST(req: NextRequest) {
     if (!email || password.length < 8) return NextResponse.json({ ok: false, error: "Email dan password minimal 8 karakter wajib diisi." }, { status: 400 });
     const created = await supabase.auth.admin.createUser({ email, password, email_confirm: true, app_metadata: { role: body.role } });
     if (created.error && !created.error.message.toLowerCase().includes("already registered")) return NextResponse.json({ ok: false, error: created.error.message }, { status: 400 });
+  }
+  if (body.action === "createRequest") {
+    const name = String(body.name || "").trim(), nik = String(body.nik || "").trim(), userId = String(body.userId || "").trim().toUpperCase();
+    if (!name || !nik || !userId || !String(body.reason || "").trim()) return NextResponse.json({ ok: false, error: "User ID, nama, NIK, dan alasan wajib diisi." }, { status: 400 });
+    const isCl3 = body.type === "open_cl3";
+    const subject = isCl3 ? "Request Open Status Shipment CL3 | CLOSE BY SYSTEM (ORIGIN)" : "Request Aktivasi User TGR - " + userId;
+    const shipments = String(body.shipmentNumbers || "").split(/\r?\n|,/).map(x => x.trim()).filter(Boolean).join("\n");
+    const emailBody = isCl3
+      ? "Dear Team IT\n\nMohon di bantu Open Status Shipment CL3  | CLOSE BY SYSTEM (ORIGIN)\nDikarenakan shipment sudah berada di destinasi\n\n" + shipments + "\n\n--\nTerima kasih , Barakallahu Fiikum"
+      : "Dear Team IT JNE TGR\n\nMohon dibantu pengaktifan kembali User ID TGR\n\nUser ID              : " + userId + "\nNama Karyawan       : " + name + "\nNIK Karyawan        : " + nik + "\nDepartemen          : " + String(body.department || "") + "\nLokasi Kerja        : " + String(body.location || "") + "\nAlasan              : " + String(body.reason || "");
+    const result = await supabase.from("ops_requests").insert({ type: body.type || "activation_user", status: "pending", user_id: userId, name, nik, department: body.department, location: body.location, reason: body.reason, email_subject: subject, email_body: emailBody }).select().single();
+    return NextResponse.json({ ok: !result.error, id: result.data?.id, emailSubject: subject, emailBody, error: result.error?.message });
   }
   if (body.action === "resetUserPassword" || body.action === "deleteUser") {
     if (session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat mengelola akun." }, { status: 403 });
