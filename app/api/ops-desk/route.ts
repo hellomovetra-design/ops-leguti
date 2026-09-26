@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   const multipart = isMultipart ? await req.formData() : null;
   const body = multipart ? Object.fromEntries(multipart.entries()) : await req.json();
   if (body.action === "role" && session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat membuat role." }, { status: 403 });
-  if (body.action === "role" && !["pending", "leader", "admin", "spv", "jr_spv"].includes(String(body.role))) return NextResponse.json({ ok: false, error: "Jenis role tidak valid." }, { status: 400 });
+  if (body.action === "role" && !["coordinator", "leader", "admin", "spv", "jr_spv"].includes(String(body.role))) return NextResponse.json({ ok: false, error: "Jenis role tidak valid." }, { status: 400 });
   if (body.action === "role") {
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "");

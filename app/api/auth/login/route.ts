@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
   attempts.delete(ip);
   const superAdminEmail = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
-  const role = email === superAdminEmail ? "super_admin" : ((data.user.app_metadata?.role || "viewer") as "admin" | "spv" | "jr_spv" | "viewer");
+  const role = email === superAdminEmail ? "super_admin" : ((data.user.app_metadata?.role || "viewer") as "admin" | "spv" | "jr_spv" | "coordinator" | "viewer");
   const token = await createSessionToken(email, role, secret);
   const response = NextResponse.json({ ok: true, role }, { headers: { "Cache-Control": "no-store" } });
   response.cookies.set(SESSION_COOKIE, token, {

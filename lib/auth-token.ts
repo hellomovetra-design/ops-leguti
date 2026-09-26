@@ -3,7 +3,7 @@ export const SESSION_MAX_AGE = 60 * 60 * 8;
 
 export type SessionPayload = {
   email: string;
-  role: "super_admin" | "admin" | "spv" | "jr_spv" | "viewer";
+  role: "super_admin" | "admin" | "spv" | "jr_spv" | "coordinator" | "viewer";
   exp: number;
 };
 
@@ -60,7 +60,7 @@ export async function verifySessionToken(token: string | undefined, secret: stri
     const received = decodeBase64Url(signaturePart);
     if (!constantTimeEqual(expected, received)) return null;
     const payload = JSON.parse(new TextDecoder().decode(decodeBase64Url(payloadPart))) as SessionPayload;
-    if (!payload.email || !["super_admin", "admin", "spv", "jr_spv", "viewer"].includes(payload.role) || payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    if (!payload.email || !["super_admin", "admin", "spv", "jr_spv", "coordinator", "viewer"].includes(payload.role) || payload.exp <= Math.floor(Date.now() / 1000)) return null;
     return payload;
   } catch {
     return null;

@@ -6,7 +6,7 @@ create table if not exists public.ops_employees (
 );
 create table if not exists public.ops_users (
   id uuid primary key default gen_random_uuid(), email text not null unique,
-  role text not null default 'pending' check (role in ('pending','leader','admin','spv','jr_spv')),
+  role text not null default 'coordinator' check (role in ('coordinator','leader','admin','spv','jr_spv')),
   leader_name text, created_at timestamptz not null default now()
 );
 create table if not exists public.ops_requests (
