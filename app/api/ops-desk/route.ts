@@ -34,6 +34,11 @@ export async function GET(req: NextRequest) {
     const result = await supabase.from("ops_requests").select("*").order("created_at", { ascending: false });
     return NextResponse.json({ items: result.data || [], error: result.error?.message });
   }
+  if (type === "profile") {
+    const result = await supabase.from("ops_user_profiles").select("email,display_name,photo_path,updated_at").eq("email", session.email.toLowerCase()).maybeSingle();
+    const signed = result.data?.photo_path ? await supabase.storage.from("ops-profile-photos").createSignedUrl(result.data.photo_path, 3600) : null;
+    return NextResponse.json({ profile: result.data ? { ...result.data, photo_url: signed?.data?.signedUrl || "" } : { email: session.email, display_name: "", photo_url: "" }, error: result.error?.message });
+  }
   let query = supabase.from(table).select("*").order("created_at", { ascending: false });
   if (q) query = table === "ops_employees" ? query.or(`name.ilike.%${q}%,nik.ilike.%${q}%`) : table === "ops_problems" ? query.or(`awb.ilike.%${q}%,category.ilike.%${q}%`) : query.or(`awb.ilike.%${q}%,leader.ilike.%${q}%,zone.ilike.%${q}%`);
   const result = await query; return NextResponse.json({ items: result.data || [], error: result.error?.message });
@@ -56,8 +61,9 @@ export async function POST(req: NextRequest) {
   }
   if (body.action === "createRequest") {
     const name = String(body.name || "").trim(), nik = String(body.nik || "").trim(), userId = String(body.userId || "").trim().toUpperCase();
-    if (!name || !nik || !userId || !String(body.reason || "").trim()) return NextResponse.json({ ok: false, error: "User ID, nama, NIK, dan alasan wajib diisi." }, { status: 400 });
     const isCl3 = body.type === "open_cl3";
+    if (isCl3 && !String(body.shipmentNumbers || "").trim()) return NextResponse.json({ ok: false, error: "Minimal satu nomor shipment wajib diisi." }, { status: 400 });
+    if (!isCl3 && (!name || !nik || !userId || !String(body.reason || "").trim())) return NextResponse.json({ ok: false, error: "User ID, nama, NIK, dan alasan wajib diisi." }, { status: 400 });
     const subject = isCl3 ? "Request Open Status Shipment CL3 | CLOSE BY SYSTEM (ORIGIN)" : "Request Aktivasi User TGR - " + userId;
     const shipments = String(body.shipmentNumbers || "").split(/\r?\n|,/).map(x => x.trim()).filter(Boolean).join("\n");
     const emailBody = isCl3
@@ -65,6 +71,19 @@ export async function POST(req: NextRequest) {
       : "Dear Team IT JNE TGR\n\nMohon dibantu pengaktifan kembali User ID TGR\n\nUser ID              : " + userId + "\nNama Karyawan       : " + name + "\nNIK Karyawan        : " + nik + "\nDepartemen          : " + String(body.department || "") + "\nLokasi Kerja        : " + String(body.location || "") + "\nAlasan              : " + String(body.reason || "");
     const result = await supabase.from("ops_requests").insert({ type: body.type || "activation_user", status: "pending", user_id: userId, name, nik, department: body.department, location: body.location, reason: body.reason, email_subject: subject, email_body: emailBody }).select().single();
     return NextResponse.json({ ok: !result.error, id: result.data?.id, emailSubject: subject, emailBody, error: result.error?.message });
+  }
+  if (body.action === "profile") {
+    const file = multipart?.get("photo");
+    const displayName = String(body.displayName || session.email.split("@")[0]).trim();
+    let photoPath = (await supabase.from("ops_user_profiles").select("photo_path").eq("email", session.email.toLowerCase()).maybeSingle()).data?.photo_path || null;
+    if (file instanceof File && file.size > 0) {
+      if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) return NextResponse.json({ ok: false, error: "Foto harus berupa gambar maksimal 5 MB." }, { status: 400 });
+      photoPath = `${session.email.toLowerCase().replace(/[^a-z0-9]/g, "-")}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+      const uploaded = await supabase.storage.from("ops-profile-photos").upload(photoPath, file, { contentType: file.type });
+      if (uploaded.error) return NextResponse.json({ ok: false, error: uploaded.error.message }, { status: 400 });
+    }
+    const saved = await supabase.from("ops_user_profiles").upsert({ email: session.email.toLowerCase(), display_name: displayName, photo_path: photoPath, updated_at: new Date().toISOString() }).select().single();
+    return NextResponse.json({ ok: !saved.error, profile: saved.data, error: saved.error?.message });
   }
   if (body.action === "resetUserPassword" || body.action === "deleteUser") {
     if (session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat mengelola akun." }, { status: 403 });
@@ -96,6 +115,6 @@ export async function POST(req: NextRequest) {
   const table = body.action === "problem" ? "ops_problems" : body.action === "employee" ? "ops_employees" : "ops_users";
   const payload = body.action === "role" ? { email: body.email, role: body.role, leader_name: body.leaderName || null } : body.action === "problem" ? { awb: body.awb, category: body.category, description: body.description, location: body.location, division: body.division } : body;
   const result = body.action === "employee" ? await supabase.from(table).insert(payload) : body.action === "updateEmployee" ? await supabase.from(table).update(payload).eq("nik", body.nik) : await supabase.from(table).insert(payload).select("id").single();
-  if (body.action === "problem" && !result.error && photoFiles.length && result.data?.id) { for (const file of photoFiles) { const key = `problems/${result.data.id}/${crypto.randomUUID()}-${file.name}`; await supabase.storage.from("ops-problem-photos").upload(key, file, { contentType: file.type }); } }
+  if (body.action === "problem" && !result.error && photoFiles.length && result.data?.id) { for (const file of photoFiles) { const key = `problems/${result.data.id}/${crypto.randomUUID()}-${file.name}`; const uploaded = await supabase.storage.from("ops-problem-photos").upload(key, file, { contentType: file.type }); if (!uploaded.error) await supabase.from("ops_problem_photos").insert({ problem_id: result.data.id, storage_path: key, file_name: file.name, content_type: file.type }); } }
   return NextResponse.json({ ok: !result.error, error: result.error?.message });
 }

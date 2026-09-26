@@ -14,7 +14,13 @@ create table if not exists public.ops_requests (
   user_id text, name text not null, nik text not null, department text, location text, reason text not null,
   email_to text, email_subject text, email_body text, approved_by text, approved_at timestamptz, sent_at timestamptz, created_at timestamptz not null default now()
 );
+create table if not exists public.ops_user_profiles (
+  email text primary key, display_name text, photo_path text,
+  updated_at timestamptz not null default now()
+);
+insert into storage.buckets (id, name, public) values ('ops-profile-photos', 'ops-profile-photos', false) on conflict (id) do nothing;
 alter table public.ops_requests enable row level security;
+alter table public.ops_user_profiles enable row level security;
 create table if not exists public.ops_cases (
   id uuid primary key default gen_random_uuid(), awb text not null, leader text, zone text,
   consignee text, address text, goods text, service text, weight text, sla text, value text,
