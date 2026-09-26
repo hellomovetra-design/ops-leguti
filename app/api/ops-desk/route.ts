@@ -126,6 +126,43 @@ export async function POST(req: NextRequest) {
     await audit(supabase, session, "approve", "request", id);
     return NextResponse.json({ ok: true, request: updated.data, mail: { to: HELP_DESK_TO, cc: HELP_DESK_CC, subject: current.data.email_subject || "Request Helpdesk OPS LEGUTI", body: current.data.email_body || "" } });
   }
+  if (body.action === "updateRequestStatus") {
+    if (!['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin atau Admin Pengelola yang dapat memproses request." }, { status: 403 });
+    const id = String(body.id || ""), nextStatus = String(body.status || "");
+    if (!id || !['rejected', 'completed', 'sent'].includes(nextStatus)) return NextResponse.json({ ok: false, error: "Status request tidak valid." }, { status: 400 });
+    const patch: Record<string, any> = { status: nextStatus, updated_at: new Date().toISOString() };
+    if (nextStatus === "rejected") { patch.rejected_by = session.email; patch.rejected_at = new Date().toISOString(); patch.rejection_reason = String(body.reason || "Tidak ada alasan yang dicatat."); }
+    if (nextStatus === "completed") { patch.completed_by = session.email; patch.completed_at = new Date().toISOString(); }
+    if (nextStatus === "sent") patch.sent_at = new Date().toISOString();
+    const updated = await supabase.from("ops_requests").update(patch).eq("id", id).select().single();
+    if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
+    await audit(supabase, session, nextStatus, "request", id, { reason: patch.rejection_reason || null });
+    return NextResponse.json({ ok: true, request: updated.data });
+  }
+  if (body.action === "updateProblemStatus") {
+    if (!['super_admin', 'admin', 'coordinator', 'spv', 'jr_spv'].includes(session.role)) return NextResponse.json({ ok: false, error: "Anda tidak memiliki hak memproses problem." }, { status: 403 });
+    const id = String(body.id || ""), nextStatus = String(body.status || "");
+    if (!id || !['verified', 'in_progress', 'resolved', 'closed'].includes(nextStatus)) return NextResponse.json({ ok: false, error: "Status problem tidak valid." }, { status: 400 });
+    const patch: Record<string, any> = { status: nextStatus, status_note: String(body.note || ""), updated_at: new Date().toISOString() };
+    if (nextStatus === "verified") { patch.verified_by = session.email; patch.verified_at = new Date().toISOString(); }
+    if (nextStatus === "resolved" || nextStatus === "closed") { patch.resolved_by = session.email; patch.resolved_at = new Date().toISOString(); }
+    const updated = await supabase.from("ops_problems").update(patch).eq("id", id).select().single();
+    if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
+    await audit(supabase, session, nextStatus, "problem", id, { note: patch.status_note || null });
+    return NextResponse.json({ ok: true, problem: updated.data });
+  }
+  if (body.action === "deleteProblem") {
+    if (!['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin atau Admin Pengelola yang dapat menghapus problem." }, { status: 403 });
+    const id = String(body.id || "");
+    if (!id) return NextResponse.json({ ok: false, error: "Problem tidak valid." }, { status: 400 });
+    const photos = await supabase.from("ops_problem_photos").select("storage_path").eq("problem_id", id);
+    const paths = (photos.data || []).map((photo: any) => photo.storage_path).filter(Boolean);
+    if (paths.length) await supabase.storage.from("ops-problem-photos").remove(paths);
+    const removed = await supabase.from("ops_problems").delete().eq("id", id);
+    if (removed.error) return NextResponse.json({ ok: false, error: removed.error.message }, { status: 400 });
+    await audit(supabase, session, "delete", "problem", id, { photo_count: paths.length });
+    return NextResponse.json({ ok: true });
+  }
   if (body.action === "profile") {
     const file = multipart?.get("photo");
     const displayName = String(body.displayName || session.email.split("@")[0]).trim();
