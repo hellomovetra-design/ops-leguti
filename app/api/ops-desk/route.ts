@@ -37,6 +37,13 @@ export async function GET(req: NextRequest) {
     if (file.error || !file.data) return NextResponse.json({ error: file.error?.message || "Foto tidak ditemukan." }, { status: 404 });
     return new NextResponse(file.data, { headers: { "Content-Type": file.data.type || "application/octet-stream", "Cache-Control": "private, max-age=300" } });
   }
+  if (type === "employee-photo") {
+    const storagePath = p.get("path");
+    if (!storagePath) return NextResponse.json({ error: "Path foto tidak ditemukan." }, { status: 400 });
+    const file = await supabase.storage.from("ops-profile-photos").download(storagePath);
+    if (file.error || !file.data) return NextResponse.json({ error: file.error?.message || "Foto personel tidak ditemukan." }, { status: 404 });
+    return new NextResponse(file.data, { headers: { "Content-Type": file.data.type || "application/octet-stream", "Cache-Control": "private, max-age=300" } });
+  }
   if (type === "overview") {
     const [cases, problems, requests] = await Promise.all([supabase.from("ops_cases").select("*").order("last_seen", { ascending: false }), supabase.from("ops_problems").select("id", { count: "exact", head: true }), supabase.from("ops_requests").select("*").order("created_at", { ascending: false })]);
     return NextResponse.json({ items: cases.data || [], problems: problems.count || 0, requests: requests.data || [], requestsError: requests.error?.message });
@@ -85,7 +92,7 @@ export async function GET(req: NextRequest) {
   const result = await query;
   if (table === "ops_employees" && result.data?.length) {
     const employeePhotos = await supabase.from("ops_employee_photos").select("nik,storage_path").in("nik", result.data.map((row: any) => row.nik));
-    const photoMap = new Map((employeePhotos.data || []).map((photo: any) => [photo.nik, `/api/ops-desk?type=problem-photo&path=${encodeURIComponent(photo.storage_path)}`]));
+    const photoMap = new Map((employeePhotos.data || []).map((photo: any) => [photo.nik, `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photo.storage_path)}`]));
     return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photo_url: photoMap.get(row.nik) || "" })), error: (result as any).error?.message || (employeePhotos as any).error?.message });
   }
   if (table === "ops_problems" && result.data?.length) {
@@ -114,11 +121,11 @@ export async function POST(req: NextRequest) {
     const file = multipart?.get("photo");
     if (!nik || !(file instanceof File)) return NextResponse.json({ ok: false, error: "NIK dan foto wajib diisi." }, { status: 400 });
     const storagePath = `employees/${nik}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-    const uploaded = await supabase.storage.from("ops-problem-photos").upload(storagePath, file, { contentType: file.type, upsert: false });
+    const uploaded = await supabase.storage.from("ops-profile-photos").upload(storagePath, file, { contentType: file.type, upsert: false });
     if (uploaded.error) return NextResponse.json({ ok: false, error: uploaded.error.message }, { status: 400 });
     const saved = await supabase.from("ops_employee_photos").upsert({ nik, storage_path: storagePath, file_name: file.name, content_type: file.type, updated_at: new Date().toISOString() }, { onConflict: "nik" }).select().single();
     if (saved.error) return NextResponse.json({ ok: false, error: saved.error.message }, { status: 400 });
-    return NextResponse.json({ ok: true, photo_url: `/api/ops-desk?type=problem-photo&path=${encodeURIComponent(storagePath)}` });
+    return NextResponse.json({ ok: true, photo_url: `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(storagePath)}` });
   }
   if (session.role === "viewer" && !pwaWriteActions.includes(String(body.action))) return NextResponse.json({ ok: false, error: "Staff Biasa hanya dapat melihat data di dashboard. Input transaksi dilakukan melalui PWA." }, { status: 403 });
   if (body.action === "role" && session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat membuat role." }, { status: 403 });
