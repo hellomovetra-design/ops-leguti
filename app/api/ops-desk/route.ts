@@ -83,6 +83,11 @@ export async function GET(req: NextRequest) {
   let query = supabase.from(table).select("*").order("created_at", { ascending: false });
   if (q) query = table === "ops_employees" ? query.or(`name.ilike.%${q}%,nik.ilike.%${q}%`) : table === "ops_problems" ? query.or(`awb.ilike.%${q}%,category.ilike.%${q}%`) : query.or(`awb.ilike.%${q}%,leader.ilike.%${q}%,zone.ilike.%${q}%`);
   const result = await query;
+  if (table === "ops_employees" && result.data?.length) {
+    const employeePhotos = await supabase.from("ops_employee_photos").select("nik,storage_path").in("nik", result.data.map((row: any) => row.nik));
+    const photoMap = new Map((employeePhotos.data || []).map((photo: any) => [photo.nik, `/api/ops-desk?type=problem-photo&path=${encodeURIComponent(photo.storage_path)}`]));
+    return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photo_url: photoMap.get(row.nik) || "" })), error: (result as any).error?.message || (employeePhotos as any).error?.message });
+  }
   if (table === "ops_problems" && result.data?.length) {
     const ids = result.data.map((row: any) => row.id);
     const photos = await supabase.from("ops_problem_photos").select("id,problem_id,file_name,content_type,storage_path,created_at").in("problem_id", ids).order("created_at", { ascending: true });
@@ -246,7 +251,8 @@ export async function POST(req: NextRequest) {
   if (body.action === "comment") { const result = await supabase.from("ops_comments").insert({ case_id: body.id, author_name: body.authorName || "Admin OPS", body: body.body }); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   if (body.action === "close") { const result = await supabase.from("ops_cases").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", body.id); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   const table = body.action === "problem" ? "ops_problems" : body.action === "employee" ? "ops_employees" : "ops_users";
-  const payload = body.action === "role" ? { email: body.email, role: body.role, leader_name: body.leaderName || null } : body.action === "problem" ? { awb: body.awb, category: body.category, description: body.description, location: body.location, division: body.division, created_by: null, created_by_email: session.email, updated_at: new Date().toISOString() } : body;
+  const employeePayload = { nik: String(body.nik || "").trim(), name: String(body.name || "").trim(), position: body.position || "", dept: body.dept || "", hub: body.hub || "", level: body.level || "", superior: body.superior || "", employment: body.employment || (body.active === false ? "Nonaktif" : "Aktif"), active: body.active !== false };
+  const payload = body.action === "role" ? { email: body.email, role: body.role, leader_name: body.leaderName || null } : body.action === "problem" ? { awb: body.awb, category: body.category, description: body.description, location: body.location, division: body.division, created_by: null, created_by_email: session.email, updated_at: new Date().toISOString() } : body.action === "employee" || body.action === "updateEmployee" ? employeePayload : body;
   const result = body.action === "employee" ? await supabase.from(table).insert(payload) : body.action === "updateEmployee" ? await supabase.from(table).update(payload).eq("nik", body.nik) : body.action === "role" ? await supabase.from(table).upsert(payload, { onConflict: "email" }).select("id").single() : await supabase.from(table).insert(payload).select("id").single();
   if (body.action === "problem" && !result.error && photoFiles.length && result.data?.id) { for (const file of photoFiles) { const key = `problems/${result.data.id}/${crypto.randomUUID()}-${file.name}`; const uploaded = await supabase.storage.from("ops-problem-photos").upload(key, file, { contentType: file.type }); if (!uploaded.error) await supabase.from("ops_problem_photos").insert({ problem_id: result.data.id, storage_path: key, file_name: file.name, content_type: file.type }); } }
   if (body.action === "problem" && !result.error && result.data?.id) await audit(supabase, session, "create", "problem", result.data.id, { photo_count: photoFiles.length, category: body.category });
