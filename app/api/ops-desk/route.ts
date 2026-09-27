@@ -40,9 +40,9 @@ export async function GET(req: NextRequest) {
   if (type === "employee-photo") {
     const storagePath = p.get("path");
     if (!storagePath) return NextResponse.json({ error: "Path foto tidak ditemukan." }, { status: 400 });
-    const file = await supabase.storage.from("ops-profile-photos").download(storagePath);
-    if (file.error || !file.data) return NextResponse.json({ error: file.error?.message || "Foto personel tidak ditemukan." }, { status: 404 });
-    return new NextResponse(file.data, { headers: { "Content-Type": file.data.type || "application/octet-stream", "Cache-Control": "private, max-age=300" } });
+    const signed = await supabase.storage.from("ops-profile-photos").createSignedUrl(storagePath, 3600);
+    if (signed.error || !signed.data?.signedUrl) return NextResponse.json({ error: signed.error?.message || "Foto personel tidak ditemukan." }, { status: 404 });
+    return NextResponse.redirect(signed.data.signedUrl, { status: 307, headers: { "Cache-Control": "private, max-age=300" } });
   }
   if (type === "overview") {
     const [cases, problems, requests] = await Promise.all([supabase.from("ops_cases").select("*").order("last_seen", { ascending: false }), supabase.from("ops_problems").select("id", { count: "exact", head: true }), supabase.from("ops_requests").select("*").order("created_at", { ascending: false })]);
