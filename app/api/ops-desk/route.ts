@@ -36,7 +36,12 @@ export async function GET(req: NextRequest) {
   }
   const table = type === "employees" ? "ops_employees" : type === "problems" ? "ops_problems" : type === "users" ? "ops_users" : "ops_cases";
   if (type === "requests") {
-    const result = await supabase.from("ops_requests").select("*").order("created_at", { ascending: false });
+    let requestQuery = supabase.from("ops_requests").select("*").is("archived_at", null).order("created_at", { ascending: false });
+    if (q) requestQuery = requestQuery.or(`shipment_numbers.ilike.%${q}%,name.ilike.%${q}%,nik.ilike.%${q}%`);
+    const from = p.get("from"), to = p.get("to");
+    if (from) requestQuery = requestQuery.gte("created_at", `${from}T00:00:00.000Z`);
+    if (to) requestQuery = requestQuery.lte("created_at", `${to}T23:59:59.999Z`);
+    const result = await requestQuery.limit(10);
     return NextResponse.json({ items: result.data || [], error: result.error?.message });
   }
   if (type === "users") {
@@ -111,7 +116,7 @@ export async function POST(req: NextRequest) {
     const emailBody = isCl3
       ? "Dear Team IT\n\nMohon di bantu Open Status Shipment CL3  | CLOSE BY SYSTEM (ORIGIN)\nDikarenakan shipment sudah berada di destinasi\n\n" + shipments + "\n\n--\nTerima kasih , Barakallahu Fiikum"
       : "Dear Team IT JNE TGR\n\nMohon dibantu pengaktifan kembali User ID TGR\n\nUser ID              : " + userId + "\nNama Karyawan       : " + name + "\nNIK Karyawan        : " + nik + "\nDepartemen          : " + String(body.department || "") + "\nLokasi Kerja        : " + String(body.location || "") + "\nAlasan              : " + String(body.reason || "");
-    const result = await supabase.from("ops_requests").insert({ type: body.type || "activation_user", status: "pending", user_id: userId, name, nik, department: body.department, location: body.location, reason: body.reason, email_subject: subject, email_body: emailBody, created_by: session.email, updated_at: new Date().toISOString() }).select().single();
+    const result = await supabase.from("ops_requests").insert({ type: body.type || "activation_user", status: "pending", user_id: userId, name, nik, department: body.department, location: body.location, reason: body.reason, shipment_numbers: isCl3 ? shipments : null, email_subject: subject, email_body: emailBody, created_by: session.email, updated_at: new Date().toISOString(), last_action_at: new Date().toISOString() }).select().single();
     if (!result.error && result.data?.id) await audit(supabase, session, "create", "request", result.data.id, { type: body.type || "activation_user" });
     return NextResponse.json({ ok: !result.error, id: result.data?.id, emailSubject: subject, emailBody, error: result.error?.message });
   }
@@ -121,7 +126,7 @@ export async function POST(req: NextRequest) {
     if (!id) return NextResponse.json({ ok: false, error: "Request tidak valid." }, { status: 400 });
     const current = await supabase.from("ops_requests").select("*").eq("id", id).single();
     if (current.error || !current.data) return NextResponse.json({ ok: false, error: current.error?.message || "Request tidak ditemukan." }, { status: 404 });
-    const updated = await supabase.from("ops_requests").update({ status: "approved", approved_by: session.email, approved_at: new Date().toISOString() }).eq("id", id).select().single();
+    const updated = await supabase.from("ops_requests").update({ status: "approved", approved_by: session.email, approved_at: new Date().toISOString(), last_action_at: new Date().toISOString() }).eq("id", id).select().single();
     if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
     await audit(supabase, session, "approve", "request", id);
     return NextResponse.json({ ok: true, request: updated.data, mail: { to: HELP_DESK_TO, cc: HELP_DESK_CC, subject: current.data.email_subject || "Request Helpdesk OPS LEGUTI", body: current.data.email_body || "" } });
@@ -130,13 +135,23 @@ export async function POST(req: NextRequest) {
     if (!['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin atau Admin Pengelola yang dapat memproses request." }, { status: 403 });
     const id = String(body.id || ""), nextStatus = String(body.status || "");
     if (!id || !['rejected', 'completed', 'sent'].includes(nextStatus)) return NextResponse.json({ ok: false, error: "Status request tidak valid." }, { status: 400 });
-    const patch: Record<string, any> = { status: nextStatus, updated_at: new Date().toISOString() };
+    const patch: Record<string, any> = { status: nextStatus, updated_at: new Date().toISOString(), last_action_at: new Date().toISOString() };
     if (nextStatus === "rejected") { patch.rejected_by = session.email; patch.rejected_at = new Date().toISOString(); patch.rejection_reason = String(body.reason || "Tidak ada alasan yang dicatat."); }
     if (nextStatus === "completed") { patch.completed_by = session.email; patch.completed_at = new Date().toISOString(); }
     if (nextStatus === "sent") patch.sent_at = new Date().toISOString();
     const updated = await supabase.from("ops_requests").update(patch).eq("id", id).select().single();
     if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
     await audit(supabase, session, nextStatus, "request", id, { reason: patch.rejection_reason || null });
+    return NextResponse.json({ ok: true, request: updated.data });
+  }
+  if (body.action === "archiveRequest" || body.action === "deleteRequest") {
+    if (!['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin atau Admin Pengelola yang dapat mengelola riwayat request." }, { status: 403 });
+    const id = String(body.id || "");
+    if (!id) return NextResponse.json({ ok: false, error: "Request tidak valid." }, { status: 400 });
+    const patch = body.action === "archiveRequest" ? { archived_at: new Date().toISOString(), archived_by: session.email, last_action_at: new Date().toISOString() } : { status: "deleted", last_action_at: new Date().toISOString() };
+    const updated = await supabase.from("ops_requests").update(patch).eq("id", id).select().single();
+    if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
+    await audit(supabase, session, body.action === "archiveRequest" ? "archive" : "delete", "request", id);
     return NextResponse.json({ ok: true, request: updated.data });
   }
   if (body.action === "updateProblemStatus") {
