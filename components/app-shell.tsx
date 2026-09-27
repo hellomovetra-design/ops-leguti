@@ -78,6 +78,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
           </div>
           <button onClick={logout} title="Keluar" aria-label="Keluar" style={{ border: 0, background: "transparent", color: "#9ea9cc", cursor: "pointer", padding: 4 }}><LogOut size={15} /></button>
         </div>
+        <div className="sidebar-credit">© 2026 OPS LEGUTI<br /><span>Developed by Movetra.id</span></div>
       </aside>
 
       <main className="main">
