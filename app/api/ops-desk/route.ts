@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
   if (table === "ops_employees" && result.data?.length) {
     const employeePhotos = await supabase.from("ops_employee_photos").select("nik,storage_path").in("nik", result.data.map((row: any) => row.nik));
     const photoMap = new Map((employeePhotos.data || []).map((photo: any) => [photo.nik, `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photo.storage_path)}`]));
-    return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photo_url: photoMap.get(row.nik) || "" })), error: (result as any).error?.message || (employeePhotos as any).error?.message });
+    return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photo_url: photoMap.get(row.nik) || "" })), error: (result as any).error?.message || (employeePhotos as any).error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   if (table === "ops_problems" && result.data?.length) {
     const ids = result.data.map((row: any) => row.id);

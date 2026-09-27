@@ -1750,4 +1750,7 @@ tbody tr:hover { background: #fafbff; }
 .team-drawer-photo { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; display: block; border: 3px solid #e5f1ff; }
 .team-drawer-photo-fallback { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 50%; background: #e5f1ff; color: #1676d2; font-size: 25px; font-weight: 800; }
 .team-photo-upload { display: inline-flex; margin: 10px 0 4px; color: #1676d2; font-size: 11px; font-weight: 700; cursor: pointer; }
+.employee-photo-preview { display: grid; justify-items: center; gap: 5px; margin: 8px 0 12px; color: #6b7d96; font-size: 11px; }
+.employee-photo-preview img { width: 88px; height: 88px; border-radius: 50%; object-fit: cover; border: 3px solid #e5f1ff; }
+.form-notice { padding: 9px 11px; border-radius: 8px; background: #fff4e5; color: #a45d00; font-size: 12px; line-height: 1.4; }
 .team-photo-upload input { display: none; }
