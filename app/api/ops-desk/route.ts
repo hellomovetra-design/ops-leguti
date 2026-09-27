@@ -92,8 +92,12 @@ export async function GET(req: NextRequest) {
   const result = await query;
   if (table === "ops_employees" && result.data?.length) {
     const employeePhotos = await supabase.from("ops_employee_photos").select("nik,storage_path").in("nik", result.data.map((row: any) => row.nik));
-    const photoMap = new Map((employeePhotos.data || []).map((photo: any) => [photo.nik, `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photo.storage_path)}`]));
-    return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photo_url: photoMap.get(row.nik) || "" })), error: (result as any).error?.message || (employeePhotos as any).error?.message }, { headers: { "Cache-Control": "no-store" } });
+    const signedPhotos = await Promise.all((employeePhotos.data || []).map(async (photo: any) => {
+      const signed = await supabase.storage.from("ops-profile-photos").createSignedUrl(photo.storage_path, 3600);
+      return [String(photo.nik), signed.data?.signedUrl || ""] as const;
+    }));
+    const photoMap = new Map(signedPhotos);
+    return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photo_url: photoMap.get(String(row.nik)) || "" })), error: (result as any).error?.message || (employeePhotos as any).error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   if (table === "ops_problems" && result.data?.length) {
     const ids = result.data.map((row: any) => row.id);
