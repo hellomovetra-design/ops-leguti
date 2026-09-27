@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
       return [String(photo.nik), signed.data?.signedUrl || ""] as const;
     }));
     const photoMap = new Map(signedPhotos);
-    return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photo_url: photoMap.get(String(row.nik)) || "" })), error: (result as any).error?.message || (employeePhotos as any).error?.message }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photo_url: "/default-employee.jpg" })), error: (result as any).error?.message || (employeePhotos as any).error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   if (table === "ops_problems" && result.data?.length) {
     const ids = result.data.map((row: any) => row.id);
