@@ -30,6 +30,13 @@ export async function GET(req: NextRequest) {
     }
   }
   if (!supabase) return NextResponse.json({ items: [], problems: 0, preview: true });
+  if (type === "problem-photo") {
+    const storagePath = p.get("path");
+    if (!storagePath) return NextResponse.json({ error: "Path foto tidak ditemukan." }, { status: 400 });
+    const file = await supabase.storage.from("ops-problem-photos").download(storagePath);
+    if (file.error || !file.data) return NextResponse.json({ error: file.error?.message || "Foto tidak ditemukan." }, { status: 404 });
+    return new NextResponse(file.data, { headers: { "Content-Type": file.data.type || "application/octet-stream", "Cache-Control": "private, max-age=300" } });
+  }
   if (type === "overview") {
     const [cases, problems, requests] = await Promise.all([supabase.from("ops_cases").select("*").order("last_seen", { ascending: false }), supabase.from("ops_problems").select("id", { count: "exact", head: true }), supabase.from("ops_requests").select("*").order("created_at", { ascending: false })]);
     return NextResponse.json({ items: cases.data || [], problems: problems.count || 0, requests: requests.data || [], requestsError: requests.error?.message });
@@ -82,8 +89,7 @@ export async function GET(req: NextRequest) {
     const photoRows = photos.data || [];
     const photoMap = new Map<string, any[]>();
     for (const photo of photoRows) {
-      const signed = await supabase.storage.from("ops-problem-photos").createSignedUrl(photo.storage_path, 3600);
-      const item = { id: photo.id, file_name: photo.file_name, content_type: photo.content_type, url: signed.data?.signedUrl || "", created_at: photo.created_at };
+      const item = { id: photo.id, file_name: photo.file_name, content_type: photo.content_type, url: `/api/ops-desk?type=problem-photo&path=${encodeURIComponent(photo.storage_path)}`, created_at: photo.created_at };
       photoMap.set(photo.problem_id, [...(photoMap.get(photo.problem_id) || []), item]);
     }
     return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photos: photoMap.get(row.id) || [] })), error: (result as any).error?.message });
@@ -98,6 +104,17 @@ export async function POST(req: NextRequest) {
   const multipart = isMultipart ? await req.formData() : null;
   const body = multipart ? Object.fromEntries(multipart.entries()) : await req.json();
   const pwaWriteActions = ["createRequest", "problem", "profile", "comment"];
+  if (body.action === "employeePhoto") {
+    const nik = String(body.nik || "").trim();
+    const file = multipart?.get("photo");
+    if (!nik || !(file instanceof File)) return NextResponse.json({ ok: false, error: "NIK dan foto wajib diisi." }, { status: 400 });
+    const storagePath = `employees/${nik}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+    const uploaded = await supabase.storage.from("ops-problem-photos").upload(storagePath, file, { contentType: file.type, upsert: false });
+    if (uploaded.error) return NextResponse.json({ ok: false, error: uploaded.error.message }, { status: 400 });
+    const saved = await supabase.from("ops_employee_photos").upsert({ nik, storage_path: storagePath, file_name: file.name, content_type: file.type, updated_at: new Date().toISOString() }, { onConflict: "nik" }).select().single();
+    if (saved.error) return NextResponse.json({ ok: false, error: saved.error.message }, { status: 400 });
+    return NextResponse.json({ ok: true, photo_url: `/api/ops-desk?type=problem-photo&path=${encodeURIComponent(storagePath)}` });
+  }
   if (session.role === "viewer" && !pwaWriteActions.includes(String(body.action))) return NextResponse.json({ ok: false, error: "Staff Biasa hanya dapat melihat data di dashboard. Input transaksi dilakukan melalui PWA." }, { status: 403 });
   if (body.action === "role" && session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat membuat role." }, { status: 403 });
   if (body.action === "role" && !["super_admin", "admin", "viewer"].includes(String(body.role))) return NextResponse.json({ ok: false, error: "Jenis akses tidak valid." }, { status: 400 });

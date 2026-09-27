@@ -42,6 +42,11 @@ create table if not exists public.ops_problem_photos (
   storage_path text not null, file_name text, content_type text, created_at timestamptz not null default now()
 );
 insert into storage.buckets (id, name, public) values ('ops-problem-photos', 'ops-problem-photos', false) on conflict (id) do nothing;
+create table if not exists public.ops_employee_photos (
+  nik text primary key, storage_path text not null, file_name text, content_type text,
+  updated_at timestamptz not null default now()
+);
+alter table public.ops_employee_photos enable row level security;
 alter table public.ops_employees enable row level security;
 alter table public.ops_users enable row level security;
 alter table public.ops_cases enable row level security;
