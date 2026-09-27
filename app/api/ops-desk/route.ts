@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
   const body = multipart ? Object.fromEntries(multipart.entries()) : await req.json();
   const pwaWriteActions = ["createRequest", "problem", "profile", "comment"];
   if (body.action === "employeePhoto") {
-    const nik = String(body.nik || "").trim();
+    const nik = String(body.nik || body.name || "").trim();
     const file = multipart?.get("photo");
     if (!nik || !(file instanceof File)) return NextResponse.json({ ok: false, error: "NIK dan foto wajib diisi." }, { status: 400 });
     const storagePath = `employees/${nik}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
