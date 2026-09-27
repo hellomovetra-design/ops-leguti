@@ -44,6 +44,16 @@ export async function GET(req: NextRequest) {
     const result = await requestQuery.limit(10);
     return NextResponse.json({ items: result.data || [], error: result.error?.message });
   }
+  if (type === "requests-export") {
+    let exportQuery = supabase.from("ops_requests").select("id,type,status,shipment_numbers,reason,created_at,approved_by,approved_at").eq("type", "open_cl3").is("archived_at", null).order("created_at", { ascending: false });
+    const id = p.get("id");
+    if (id) exportQuery = exportQuery.eq("id", id);
+    const result = await exportQuery;
+    if (result.error) return NextResponse.json({ ok: false, error: result.error.message }, { status: 400 });
+    const header = "ID,STATUS,NOMOR AIRWAYBILL,KETERANGAN,TANGGAL,APPROVED BY,APPROVED AT";
+    const csv = [header, ...(result.data || []).map((row: any) => [row.id, row.status, row.shipment_numbers, row.reason, row.created_at, row.approved_by, row.approved_at].map((value) => `"${String(value || "").replace(/"/g, '""')}"`).join(","))].join("\r\n");
+    return new NextResponse(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="request-cl3.csv"`, "Cache-Control": "no-store" } });
+  }
   if (type === "users") {
     const [roleRows, authRows] = await Promise.all([
       supabase.from("ops_users").select("id,email,role,leader_name,created_at").order("created_at", { ascending: false }),
@@ -109,7 +119,7 @@ export async function POST(req: NextRequest) {
   if (body.action === "createRequest") {
     const name = String(body.name || "").trim(), nik = String(body.nik || "").trim(), userId = String(body.userId || "").trim().toUpperCase();
     const isCl3 = body.type === "open_cl3";
-    if (isCl3 && !String(body.shipmentNumbers || "").trim()) return NextResponse.json({ ok: false, error: "Minimal satu nomor shipment wajib diisi." }, { status: 400 });
+    if (isCl3 && (!String(body.shipmentNumbers || "").trim() || !String(body.reason || "").trim())) return NextResponse.json({ ok: false, error: "Nomor Airwaybill dan keterangan wajib diisi." }, { status: 400 });
     if (!isCl3 && (!name || !nik || !userId || !String(body.reason || "").trim())) return NextResponse.json({ ok: false, error: "User ID, nama, NIK, dan alasan wajib diisi." }, { status: 400 });
     const subject = isCl3 ? "Request Open Status Shipment CL3 | CLOSE BY SYSTEM (ORIGIN)" : "Request Aktivasi User TGR - " + userId;
     const shipments = String(body.shipmentNumbers || "").split(/\r?\n|,/).map(x => x.trim()).filter(Boolean).join("\n");
