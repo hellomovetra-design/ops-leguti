@@ -45,8 +45,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(signed.data.signedUrl, { status: 307, headers: { "Cache-Control": "private, max-age=300" } });
   }
   if (type === "overview") {
-    const [cases, problems, requests] = await Promise.all([supabase.from("ops_cases").select("*").order("last_seen", { ascending: false }), supabase.from("ops_problems").select("id", { count: "exact", head: true }), supabase.from("ops_requests").select("*").order("created_at", { ascending: false })]);
-    return NextResponse.json({ items: cases.data || [], problems: problems.count || 0, requests: requests.data || [], requestsError: requests.error?.message });
+    const [cases, problems, requests] = await Promise.all([supabase.from("ops_cases").select("id,awb,leader,zone,consignee,status,last_seen,created_at").order("last_seen", { ascending: false }).limit(50), supabase.from("ops_problems").select("id", { count: "exact", head: true }), supabase.from("ops_requests").select("id,type,status,shipment_numbers,name,nik,reason,location,email,created_at,email_subject").is("archived_at", null).order("created_at", { ascending: false }).limit(10)]);
+    return NextResponse.json({ items: cases.data || [], problems: problems.count || 0, requests: requests.data || [], requestsError: requests.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   const table = type === "employees" ? "ops_employees" : type === "problems" ? "ops_problems" : type === "users" ? "ops_users" : "ops_cases";
   if (type === "requests") {
