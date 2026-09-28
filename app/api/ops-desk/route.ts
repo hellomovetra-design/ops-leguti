@@ -89,15 +89,9 @@ export async function GET(req: NextRequest) {
   }
   let query = supabase.from(table).select("*").order("created_at", { ascending: false });
   if (q) query = table === "ops_employees" ? query.or(`name.ilike.%${q}%,nik.ilike.%${q}%`) : table === "ops_problems" ? query.or(`awb.ilike.%${q}%,category.ilike.%${q}%`) : query.or(`awb.ilike.%${q}%,leader.ilike.%${q}%,zone.ilike.%${q}%`);
-  const result = await query;
+  const result = await query.limit(table === "ops_employees" ? 500 : table === "ops_cases" ? 100 : 100);
   if (table === "ops_employees" && result.data?.length) {
-    const employeePhotos = await supabase.from("ops_employee_photos").select("nik,storage_path").in("nik", result.data.map((row: any) => row.nik));
-    const signedPhotos = await Promise.all((employeePhotos.data || []).map(async (photo: any) => {
-      const signed = await supabase.storage.from("ops-profile-photos").createSignedUrl(photo.storage_path, 3600);
-      return [String(photo.nik), signed.data?.signedUrl || ""] as const;
-    }));
-    const photoMap = new Map(signedPhotos);
-    return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photo_url: "/default-employee.jpg" })), error: (result as any).error?.message || (employeePhotos as any).error?.message }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photo_url: "/default-employee.jpg" })), error: (result as any).error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   if (table === "ops_problems" && result.data?.length) {
     const ids = result.data.map((row: any) => row.id);
