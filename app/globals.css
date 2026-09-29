@@ -1728,6 +1728,10 @@ tbody tr:hover { background: #fafbff; }
 .employee-kpi, .employee-summary-strip button, .bar-row-button { border: 0; font: inherit; cursor: pointer; text-align: left; }
 .employee-kpi { transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
 .employee-kpi:hover, .employee-kpi.segment-active { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(16,24,40,.12); border-color: #7b8bd5; }
+.employee-kpis:has(.segment-active) .primary-kpi { background: #fff; color: var(--navy); }
+.employee-kpis:has(.segment-active) .primary-kpi span, .employee-kpis:has(.segment-active) .primary-kpi strong { color: var(--navy); }
+.employee-kpi.segment-active { background: linear-gradient(135deg,#0759b7,#1686d9); color: #fff; border-color: #0759b7; }
+.employee-kpi.segment-active span, .employee-kpi.segment-active strong { color: #fff; }
 .employee-summary-strip button { display: flex; align-items: center; gap: 8px; color: #52677d; background: transparent; padding: 0; }
 .employee-summary-strip button:hover { color: var(--navy); }
 .bar-row-button { width: 100%; background: transparent; padding: 0; }
