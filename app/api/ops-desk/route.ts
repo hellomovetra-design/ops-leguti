@@ -253,14 +253,23 @@ export async function POST(req: NextRequest) {
     })).filter((row: any) => row.nik && row.name);
     if (!incoming.length) return NextResponse.json({ ok: false, error: "Tidak ada baris karyawan valid. Pastikan NIK dan nama terisi." }, { status: 400 });
     const merged = incoming;
-    const oldByNik = new Map<string, any>();
+    const existing = await supabase.from("ops_employees").select("nik").limit(1000);
+    if (existing.error) return NextResponse.json({ ok: false, error: existing.error.message }, { status: 500 });
+    const incomingNiks = new Set(merged.map((row: any) => row.nik));
+    const missingNiks = (existing.data || []).map((row: any) => String(row.nik || "").trim()).filter((nik: string) => nik && !incomingNiks.has(nik));
     let result: any = { error: null };
     for (let i = 0; i < merged.length; i += 100) {
       result = await supabase.from("ops_employees").upsert(merged.slice(i, i + 100), { onConflict: "nik" });
       if (result.error) break;
     }
+    if (!result.error) {
+      for (let i = 0; i < missingNiks.length; i += 100) {
+        result = await supabase.from("ops_employees").update({ active: false, employment: "Nonaktif" }).in("nik", missingNiks.slice(i, i + 100));
+        if (result.error) break;
+      }
+    }
     if (!result.error) await audit(supabase, session, "bulk_upsert", "employee", undefined, { rows: merged.length });
-    return NextResponse.json({ ok: !result.error, imported: merged.length, error: result.error?.message });
+    return NextResponse.json({ ok: !result.error, imported: merged.length, deactivated: missingNiks.length, error: result.error?.message });
   }
   if (body.action === "deleteEmployee") { const result = await supabase.from("ops_employees").delete().eq("nik", body.nik); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   if (body.action === "import") {
