@@ -1769,3 +1769,4 @@ tbody tr:hover { background: #fafbff; }
 .form-notice { padding: 9px 11px; border-radius: 8px; background: #fff4e5; color: #a45d00; font-size: 12px; line-height: 1.4; }
 .modal-card label:has(input[type="file"][accept="image/*"]) { display: none; }
 .team-photo-upload input { display: none; }
+.status-summary{border:0;background:transparent;color:#52637a;display:inline-flex;align-items:center;gap:6px;cursor:pointer;padding:10px 14px;border-radius:10px}.status-summary.active{background:#eaf7ef;color:#126b3a}.status-dot.active{color:#21a366}.status-dot.inactive{color:#d92d20}.status-inactive{color:#b42318;background:#fff0ee;padding:4px 8px;border-radius:999px;font-size:12px}.status-active{color:#137a45;background:#e9f8ef;padding:4px 8px;border-radius:999px;font-size:12px}
