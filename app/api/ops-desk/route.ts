@@ -247,7 +247,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: !roleRemoved.error, error: roleRemoved.error?.message });
   }
   const photoFiles = multipart ? multipart.getAll("photos").filter((x): x is File => x instanceof File) : [];
-  if (body.action === "bulkEmployees") { const result = await supabase.from("ops_employees").upsert(body.rows || [], { onConflict: "nik" }); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
+  if (body.action === "bulkEmployees") {
+    const incoming = (Array.isArray(body.rows) ? body.rows : []).map((row: any) => ({
+      nik: String(row.nik || "").trim(), name: String(row.name || "").trim(), position: row.position || "", dept: row.dept || "", hub: row.hub || "", level: row.level || "", superior: row.superior || "", employment: row.employment || (row.active === false ? "Nonaktif" : "Aktif"), active: row.active !== false,
+    })).filter((row: any) => row.nik && row.name);
+    if (!incoming.length) return NextResponse.json({ ok: false, error: "Tidak ada baris karyawan valid. Pastikan NIK dan nama terisi." }, { status: 400 });
+    const existing = await supabase.from("ops_employees").select("*").in("nik", incoming.map((row: any) => row.nik));
+    if (existing.error) return NextResponse.json({ ok: false, error: existing.error.message }, { status: 400 });
+    const oldByNik = new Map((existing.data || []).map((row: any) => [String(row.nik), row]));
+    const merged = incoming.map((row: any) => {
+      const old = oldByNik.get(row.nik) || {};
+      return Object.fromEntries(Object.entries({ ...old, ...row }).map(([key, value]) => [key, value === "" && old[key] ? old[key] : value]));
+    });
+    const result = await supabase.from("ops_employees").upsert(merged, { onConflict: "nik" });
+    if (!result.error) await audit(supabase, session, "bulk_upsert", "employee", undefined, { rows: merged.length, existing: oldByNik.size, new_rows: merged.length - oldByNik.size });
+    return NextResponse.json({ ok: !result.error, imported: merged.length, existing: oldByNik.size, new_rows: merged.length - oldByNik.size, error: result.error?.message });
+  }
   if (body.action === "deleteEmployee") { const result = await supabase.from("ops_employees").delete().eq("nik", body.nik); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   if (body.action === "import") {
     const rows = (body.rows || []).map((r: Record<string, string>) => ({ ...r, status: "open", last_seen: new Date().toISOString() }));
