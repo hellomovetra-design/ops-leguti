@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import * as XLSX from "xlsx";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
+import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit } from "@/lib/imagekit";
 
 const db = () => getSupabaseServerClient();
 const SUPER_ADMIN_EMAIL = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
@@ -33,6 +34,12 @@ export async function GET(req: NextRequest) {
   if (type === "problem-photo") {
     const storagePath = p.get("path");
     if (!storagePath) return NextResponse.json({ error: "Path foto tidak ditemukan." }, { status: 400 });
+    if (storagePath.startsWith("imagekit:")) {
+      try {
+        const file = await fetchFromImageKit(storagePath.slice("imagekit:".length));
+        return new NextResponse(file.body, { headers: { "Content-Type": file.headers.get("content-type") || "image/jpeg", "Cache-Control": "private, max-age=300" } });
+      } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Foto tidak ditemukan." }, { status: 404 }); }
+    }
     const file = await supabase.storage.from("ops-problem-photos").download(storagePath);
     if (file.error || !file.data) return NextResponse.json({ error: file.error?.message || "Foto tidak ditemukan." }, { status: 404 });
     return new NextResponse(file.data, { headers: { "Content-Type": file.data.type || "application/octet-stream", "Cache-Control": "private, max-age=300" } });
@@ -40,6 +47,12 @@ export async function GET(req: NextRequest) {
   if (type === "employee-photo") {
     const storagePath = p.get("path");
     if (!storagePath) return NextResponse.json({ error: "Path foto tidak ditemukan." }, { status: 400 });
+    if (storagePath.startsWith("imagekit:")) {
+      try {
+        const file = await fetchFromImageKit(storagePath.slice("imagekit:".length));
+        return new NextResponse(file.body, { headers: { "Content-Type": file.headers.get("content-type") || "image/jpeg", "Cache-Control": "private, max-age=300" } });
+      } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Foto tidak ditemukan." }, { status: 404 }); }
+    }
     const signed = await supabase.storage.from("ops-profile-photos").createSignedUrl(storagePath, 3600);
     if (signed.error || !signed.data?.signedUrl) return NextResponse.json({ error: signed.error?.message || "Foto personel tidak ditemukan." }, { status: 404 });
     return NextResponse.redirect(signed.data.signedUrl, { status: 307, headers: { "Cache-Control": "private, max-age=300" } });
@@ -84,15 +97,19 @@ export async function GET(req: NextRequest) {
   }
   if (type === "profile") {
     const result = await supabase.from("ops_user_profiles").select("email,display_name,photo_path,updated_at").eq("email", session.email.toLowerCase()).maybeSingle();
-    const signed = result.data?.photo_path ? await supabase.storage.from("ops-profile-photos").createSignedUrl(result.data.photo_path, 3600) : null;
-    return NextResponse.json({ profile: result.data ? { ...result.data, photo_url: signed?.data?.signedUrl || "" } : { email: session.email, display_name: "", photo_url: "" }, error: result.error?.message });
+    const photoPath = result.data?.photo_path || "";
+    const signed = photoPath && !photoPath.startsWith("imagekit:") ? await supabase.storage.from("ops-profile-photos").createSignedUrl(photoPath, 3600) : null;
+    const photo_url = photoPath.startsWith("imagekit:") ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photoPath)}` : signed?.data?.signedUrl || "";
+    return NextResponse.json({ profile: result.data ? { ...result.data, photo_url } : { email: session.email, display_name: "", photo_url: "" }, error: result.error?.message });
   }
   const employeeFields = "nik,name,position,dept,hub,level,superior,active,employment,start_date,created_at";
   let query = supabase.from(table).select(table === "ops_employees" ? employeeFields : "*").order("created_at", { ascending: false });
   if (q) query = table === "ops_employees" ? query.or(`name.ilike.%${q}%,nik.ilike.%${q}%`) : table === "ops_problems" ? query.or(`awb.ilike.%${q}%,category.ilike.%${q}%`) : query.or(`awb.ilike.%${q}%,leader.ilike.%${q}%,zone.ilike.%${q}%`);
   const result = await query.limit(table === "ops_employees" ? 500 : table === "ops_cases" ? 100 : 100);
   if (table === "ops_employees" && result.data?.length) {
-    return NextResponse.json({ items: result.data.map((row: any) => ({ ...row, photo_url: "/default-employee.jpg" })), error: (result as any).error?.message }, { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" } });
+    const photoRows = await supabase.from("ops_employee_photos").select("nik,storage_path").in("nik", result.data.map((row: any) => row.nik));
+    const photos = new Map((photoRows.data || []).map((row: any) => [row.nik, row.storage_path]));
+    return NextResponse.json({ items: result.data.map((row: any) => { const photoPath = photos.get(row.nik) || ""; return { ...row, photo_url: photoPath ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photoPath)}` : "/default-employee.jpg" }; }), error: (result as any).error?.message }, { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" } });
   }
   if (table === "ops_problems" && result.data?.length) {
     const ids = result.data.map((row: any) => row.id);
@@ -119,8 +136,10 @@ export async function POST(req: NextRequest) {
     const nik = String(body.nik || body.name || "").trim();
     const file = multipart?.get("photo");
     if (!nik || !(file instanceof File)) return NextResponse.json({ ok: false, error: "NIK dan foto wajib diisi." }, { status: 400 });
-    const storagePath = `employees/${nik}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-    const uploaded = await supabase.storage.from("ops-profile-photos").upload(storagePath, file, { contentType: file.type, upsert: false });
+    const rawPath = `employees/${nik}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+    const image = isImageKitConfigured() ? await uploadToImageKit(file, rawPath) : null;
+    const storagePath = image ? `imagekit:${image.path}` : rawPath;
+    const uploaded = image ? { error: null } : await supabase.storage.from("ops-profile-photos").upload(storagePath, file, { contentType: file.type, upsert: false });
     if (uploaded.error) return NextResponse.json({ ok: false, error: uploaded.error.message }, { status: 400 });
     const saved = await supabase.from("ops_employee_photos").upsert({ nik, storage_path: storagePath, file_name: file.name, content_type: file.type, updated_at: new Date().toISOString() }, { onConflict: "nik" }).select().single();
     if (saved.error) return NextResponse.json({ ok: false, error: saved.error.message }, { status: 400 });
@@ -222,8 +241,10 @@ export async function POST(req: NextRequest) {
     let photoPath = (await supabase.from("ops_user_profiles").select("photo_path").eq("email", session.email.toLowerCase()).maybeSingle()).data?.photo_path || null;
     if (file instanceof File && file.size > 0) {
       if (!file.type.startsWith("image/") || file.size > 5 * 1024 * 1024) return NextResponse.json({ ok: false, error: "Foto harus berupa gambar maksimal 5 MB." }, { status: 400 });
-      photoPath = `${session.email.toLowerCase().replace(/[^a-z0-9]/g, "-")}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-      const uploaded = await supabase.storage.from("ops-profile-photos").upload(photoPath, file, { contentType: file.type });
+      const rawPath = `${session.email.toLowerCase().replace(/[^a-z0-9]/g, "-")}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
+      const image = isImageKitConfigured() ? await uploadToImageKit(file, `profiles/${rawPath}`) : null;
+      photoPath = image ? `imagekit:${image.path}` : rawPath;
+      const uploaded = image ? { error: null } : await supabase.storage.from("ops-profile-photos").upload(photoPath, file, { contentType: file.type });
       if (uploaded.error) return NextResponse.json({ ok: false, error: uploaded.error.message }, { status: 400 });
     }
     const saved = await supabase.from("ops_user_profiles").upsert({ email: session.email.toLowerCase(), display_name: displayName, photo_path: photoPath, updated_at: new Date().toISOString() }).select().single();
@@ -283,7 +304,7 @@ export async function POST(req: NextRequest) {
   const employeePayload = { nik: String(body.nik || "").trim(), name: String(body.name || "").trim(), position: body.position || "", dept: body.dept || "", hub: body.hub || "", level: body.level || "", superior: body.superior || "", employment: body.employment || (body.active === false ? "Nonaktif" : "Aktif"), active: body.active !== false };
   const payload = body.action === "role" ? { email: body.email, role: body.role, leader_name: body.leaderName || null } : body.action === "problem" ? { awb: body.awb, category: body.category, description: body.description, location: body.location, division: body.division, created_by: null, created_by_email: session.email, updated_at: new Date().toISOString() } : body.action === "employee" || body.action === "updateEmployee" ? employeePayload : body;
   const result = body.action === "employee" ? await supabase.from(table).insert(payload) : body.action === "updateEmployee" ? await supabase.from(table).update(payload).eq("nik", body.nik) : body.action === "role" ? await supabase.from(table).upsert(payload, { onConflict: "email" }).select("id").single() : await supabase.from(table).insert(payload).select("id").single();
-  if (body.action === "problem" && !result.error && photoFiles.length && result.data?.id) { for (const file of photoFiles) { const key = `problems/${result.data.id}/${crypto.randomUUID()}-${file.name}`; const uploaded = await supabase.storage.from("ops-problem-photos").upload(key, file, { contentType: file.type }); if (!uploaded.error) await supabase.from("ops_problem_photos").insert({ problem_id: result.data.id, storage_path: key, file_name: file.name, content_type: file.type }); } }
+  if (body.action === "problem" && !result.error && photoFiles.length && result.data?.id) { for (const file of photoFiles) { const rawKey = `problems/${result.data.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`; const image = isImageKitConfigured() ? await uploadToImageKit(file, rawKey) : null; const key = image ? `imagekit:${image.path}` : rawKey; const uploaded = image ? { error: null } : await supabase.storage.from("ops-problem-photos").upload(key, file, { contentType: file.type }); if (!uploaded.error) await supabase.from("ops_problem_photos").insert({ problem_id: result.data.id, storage_path: key, file_name: file.name, content_type: file.type }); } }
   if (body.action === "problem" && !result.error && result.data?.id) await audit(supabase, session, "create", "problem", result.data.id, { photo_count: photoFiles.length, category: body.category });
   return NextResponse.json({ ok: !result.error, error: result.error?.message });
 }
