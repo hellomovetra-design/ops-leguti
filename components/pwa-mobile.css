@@ -86,3 +86,9 @@
 .legut-pwa .courier-check-form input[readonly]{background:#f0f4f9;color:#52617a}
 .legut-pwa .courier-form-intro,.legut-pwa .courier-count-hint{font-size:12px;line-height:1.6;color:#71809a}
 .legut-pwa .pwa-courier>.pwa-profile-cancel{margin:12px 16px}
+.legut-pwa .courier-picker{display:grid;gap:7px}
+.legut-pwa .courier-picker>button{display:flex;justify-content:space-between;text-align:left;gap:10px;border:1px solid #dce4ef;border-radius:12px;background:#fff;color:#102d57;padding:12px;min-height:44px;overflow-wrap:anywhere;min-width:0}
+.legut-pwa .courier-picker-panel{padding:12px;border:1px solid #dce4ef;border-radius:12px;background:#f5f7fb;display:grid;gap:10px}
+.legut-pwa .courier-picker-results{max-height:260px;overflow:auto;display:grid;gap:6px}
+.legut-pwa .courier-picker-results button{display:grid;gap:4px;text-align:left;padding:12px;border:1px solid #e7edf5;border-radius:10px;background:white;color:#102d57;min-height:48px;overflow-wrap:anywhere}
+.legut-pwa .courier-picker-panel>button{background:transparent;border:0;color:#0864c4;padding:8px}

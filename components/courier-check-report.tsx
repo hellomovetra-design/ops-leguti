@@ -10,7 +10,7 @@ export function CourierCheckReport() {
   const [query, setQuery] = useState(""), [from, setFrom] = useState(""), [to, setTo] = useState(""), [result, setResult] = useState("");
   const filtered = items.filter(x => (!from || x.inspection_date >= from) && (!to || x.inspection_date <= to) && (!result || x.result === result) && [x.courier_name, x.courier_id, x.inspector_name, x.delivery_area, x.inspection_location].join(" ").toLowerCase().includes(query.toLowerCase()));
   const validPeriod = !from || !to || from <= to;
-  const links = (item: CourierCheck) => [...(item.documentation_url ? [item.documentation_url] : []), ...item.photos.map(p => p.url)];
+  const links = (item: CourierCheck) => [...new Set([...(item.documentation_url ? [item.documentation_url] : []), ...item.photos.map(p => p.url)].map(url => typeof window === "undefined" ? url : new URL(url, window.location.origin).href))];
   function csv() {
     const escape = (s: string) => '"' + (/^[=+@\-\t\r]/.test(s) ? "'" : "") + s.replaceAll('"', '""') + '"';
     const rows = [CHECK_COLUMNS.map(c => c[1]), ...filtered.map(item => CHECK_COLUMNS.map(([key]) => key === "documentation_url" ? links(item).map(link => new URL(link, window.location.origin).href).join(" | ") : checkCell(item, key)))];
