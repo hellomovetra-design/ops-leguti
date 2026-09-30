@@ -1,0 +1,65 @@
+.legut-pwa{width:100%;max-width:480px;margin-inline:auto;background:#f5f7fb;color:#111c35;font-family:Inter,Arial,sans-serif;min-height:100dvh;padding-bottom:calc(96px + env(safe-area-inset-bottom));font-size:14px;line-height:1.5}
+.legut-pwa *{box-sizing:border-box}
+.legut-pwa button,.legut-pwa input,.legut-pwa select,.legut-pwa textarea{font:inherit}
+.legut-pwa button{cursor:pointer;transition:transform 160ms ease-out}
+.legut-pwa button:active{transform:scale(.98)}
+.legut-pwa button:focus-visible{outline:2px solid #1475e8;outline-offset:3px}
+.legut-pwa .pwa-header{display:block;position:relative;background:linear-gradient(135deg,#102d57,#091b36);border-radius:0 0 24px 24px;padding:20px 16px 60px;color:white;overflow:hidden}
+.legut-pwa .pwa-header:after{pointer-events:none;opacity:.08;background:#4685ca;border:0;width:390px;height:200px;top:-100px;right:-90px}
+.legut-pwa .pwa-header-top{height:40px;display:flex;align-items:center;justify-content:space-between}
+.legut-pwa .pwa-brand{display:flex;gap:8px;align-items:center;font-size:18px;font-weight:750;line-height:24px}
+.legut-pwa .pwa-logo{width:28px;height:28px;object-fit:contain;border-radius:6px;background:white}
+.legut-pwa .pwa-header-actions{display:flex;gap:10px;align-items:center}
+.legut-pwa .pwa-header-actions button{width:44px;height:44px;border:0;background:transparent;color:white;display:grid;place-items:center;padding:0}
+.legut-pwa .pwa-header-actions svg{width:22px;height:22px;stroke-width:1.8}
+.legut-pwa .mobile-avatar{width:36px;height:36px;border:0;background:#f0f4fa;color:#102d57;font-size:14px;font-weight:700}
+.legut-pwa .pwa-welcome{margin:24px 0 0;padding:0;max-width:none}
+.legut-pwa .pwa-welcome>span{font-size:16px;line-height:24px;color:white}
+.legut-pwa .pwa-welcome h1{font-size:25px;line-height:32px;font-weight:750;letter-spacing:-.7px;margin:6px 0 0}
+.legut-pwa .pwa-welcome p{font-size:14px;line-height:21px;color:#bbcbe1;margin:6px 0 0}
+.legut-pwa .pwa-activity-card{position:relative;z-index:1;margin:-36px 16px 0;padding:16px;border:0;border-radius:20px;background:white;box-shadow:0 8px 24px rgba(16,45,87,.08);max-width:none}
+.legut-pwa .pwa-activity-card h2{font-size:16px;line-height:22px;font-weight:700;margin:0}
+.legut-pwa .pwa-activity-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:16px 0 0}
+.legut-pwa .pwa-activity-stats span{display:flex;flex-direction:column;align-items:center;gap:2px;position:relative;border:0}
+.legut-pwa .pwa-activity-stats span+span:before{content:"";position:absolute;left:0;top:50%;transform:translateY(-50%);width:1px;height:32px;background:#e7edf5}
+.legut-pwa .pwa-activity-stats b{font-size:30px;line-height:36px;font-weight:750}
+.legut-pwa .pwa-activity-stats small{font-size:12px;line-height:18px;font-weight:400;color:#71809a}
+.legut-pwa .pwa-section{padding:0 16px;margin:24px 0 0;max-width:none}
+.legut-pwa .pwa-section h2{font-size:20px;line-height:28px;font-weight:750;letter-spacing:-.4px;margin:0}
+.legut-pwa .pwa-section>p{font-size:13px;line-height:20px;color:#71809a;margin:2px 0 0}
+.legut-pwa .pwa-service-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px;align-items:stretch}
+.legut-pwa .pwa-service{display:flex;flex-direction:column;align-items:flex-start;border-radius:18px;padding:14px;box-shadow:none;text-align:left;color:#111c35;min-width:0}
+.legut-pwa .pwa-service-grid .pwa-service{min-height:146px}
+.legut-pwa .pwa-service.problem{background:#fff5f7;border:1px solid #ffe1e7}
+.legut-pwa .pwa-service.helpdesk{background:#f0f7ff;border:1px solid #dcebff}
+.legut-pwa .service-illustration{width:64px;height:64px;object-fit:contain;display:block;flex:none}
+.legut-pwa .service-title{display:flex;width:100%;align-items:center;gap:4px;margin-top:10px;min-width:0}
+.legut-pwa .service-title strong{flex:1;font-size:14px;line-height:20px;font-weight:750}
+.legut-pwa .service-title svg{width:16px;height:16px;flex:none;color:#60738f;position:static}
+.legut-pwa .pwa-service small{display:block;font-size:11px;line-height:16px;color:#60738f;margin-top:4px;max-width:none}
+.legut-pwa .pwa-service.carry{display:grid;grid-template-columns:minmax(0,1fr) 112px;gap:8px;align-items:center;width:100%;min-height:96px;margin-top:8px;padding:16px;background:linear-gradient(135deg,#eaf2ff,#dceaff);border:0}
+.legut-pwa .pwa-service.carry>span:first-child{display:block;min-width:0}
+.legut-pwa .pwa-service.carry .service-title{margin:0}
+.legut-pwa .pwa-service.carry strong{font-size:17px;line-height:24px}
+.legut-pwa .pwa-service.carry small{font-size:12px;line-height:18px}
+.legut-pwa .carry-illustration{width:112px;height:80px;object-fit:contain}
+.legut-pwa .pwa-all-services{display:flex;align-items:center;min-height:44px;gap:10px;margin:10px 0 0;padding:0;color:#1475e8;font-size:13px;line-height:20px;font-weight:600;background:transparent;border:0}
+.legut-pwa .pwa-all-services svg:first-child{width:18px;height:18px}.legut-pwa .pwa-all-services svg:last-child{width:16px;height:16px}
+.legut-pwa .pwa-recent{margin-top:20px;padding-bottom:0}
+.legut-pwa .pwa-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+.legut-pwa .pwa-section-head button{font-size:12px;line-height:18px;font-weight:500;margin:0;padding:0;min-height:44px;white-space:nowrap}
+.legut-pwa .pwa-section-head button svg{width:14px;height:14px}
+.legut-pwa .pwa-recent-row{display:flex;align-items:center;width:100%;min-height:72px;padding:12px;gap:10px;margin:8px 0 0;border:1px solid #e7edf5;border-radius:16px;background:white;box-shadow:0 4px 14px rgba(16,45,87,.04)}
+.legut-pwa .recent-icon{width:40px;height:40px;border-radius:12px;flex:none;display:grid;place-items:center}
+.legut-pwa .recent-icon.problem{background:#fff0f3;color:#f52235}.legut-pwa .recent-icon.request{background:#edf5ff;color:#1475e8}
+.legut-pwa .recent-icon svg{width:22px;height:22px}
+.legut-pwa .pwa-recent-row>span:nth-child(2){flex:1;min-width:0;gap:3px}.legut-pwa .pwa-recent-row strong{font-size:13px;line-height:19px;font-weight:700}.legut-pwa .pwa-recent-row small{font-size:11px;line-height:16px;color:#71809a}
+.legut-pwa .pwa-recent-row em{font-size:10px;line-height:14px;font-weight:650;padding:5px 8px;flex:none}.legut-pwa .pwa-recent-row em.progress{background:#fff0ce;color:#cc7900}.legut-pwa .pwa-recent-row em.done{background:#dcf7e8;color:#09984d}.legut-pwa .pwa-recent-row em.submitted{background:#e7f0ff;color:#2166ca}.legut-pwa .pwa-recent-row>svg{width:14px;height:14px;flex:none}
+.legut-pwa .mobile-nav{position:fixed;bottom:0;left:50%;right:auto;transform:translateX(-50%);width:100%;max-width:480px;z-index:50;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:8px 12px calc(8px + env(safe-area-inset-bottom));min-height:64px;background:rgba(255,255,255,.97);border-top:1px solid #e7edf5;box-shadow:none;backdrop-filter:blur(12px)}
+.legut-pwa .mobile-nav button{min-width:0;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0;background:transparent;color:#63728b}
+.legut-pwa .mobile-nav svg{width:22px;height:22px;stroke-width:1.8}.legut-pwa .mobile-nav small{font-size:10px;line-height:14px;font-weight:500;margin:0;padding:3px 12px}.legut-pwa .mobile-nav button.active{color:#f52235}.legut-pwa .mobile-nav button.active svg{background:transparent;padding:0;border-radius:0;width:22px;height:22px}.legut-pwa .mobile-nav button.active:first-child svg{fill:#f52235}.legut-pwa .mobile-nav button.active small{border-radius:999px;background:#fff0f3}
+.legut-pwa .pwa-empty{padding:20px 12px;color:#71809a;font-size:12px}.legut-pwa .pwa-list{margin:12px 16px;padding:0}.legut-pwa .pwa-detail img{width:100%;height:auto;border-radius:12px}.legut-pwa .pwa-page-title{font-size:20px;line-height:28px}.legut-pwa .mobile-card{border-radius:20px}.legut-pwa .mobile-submit{min-height:44px;border-radius:14px;background:#102d57}
+.legut-pwa .pwa-skeleton{min-height:72px;border-radius:16px;background:linear-gradient(90deg,#e7edf5,#f5f7fb,#e7edf5);background-size:200% 100%;animation:shimmer 1.5s infinite}
+@media(max-width:360px){.legut-pwa .pwa-welcome h1{font-size:23px}.legut-pwa .pwa-section-head h2{font-size:19px}}
+@media(max-width:320px){.legut-pwa .pwa-header{padding-inline:12px}.legut-pwa .pwa-welcome h1{font-size:22px}.legut-pwa .pwa-section{padding-inline:12px}.legut-pwa .pwa-activity-card{margin-inline:12px}.legut-pwa .pwa-service-grid .pwa-service{padding:12px}.legut-pwa .pwa-recent-row{flex-wrap:wrap}.legut-pwa .pwa-recent-row em{margin-left:50px}.legut-pwa .pwa-recent-row>span:nth-child(2){flex-basis:calc(100% - 50px)} }
+@media(prefers-reduced-motion:reduce){.legut-pwa button{transition:none}.legut-pwa .pwa-skeleton{animation:none}}
