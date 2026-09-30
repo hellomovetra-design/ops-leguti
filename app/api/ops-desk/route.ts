@@ -53,9 +53,9 @@ export async function GET(req: NextRequest) {
         return new NextResponse(file.body, { headers: { "Content-Type": file.headers.get("content-type") || "image/jpeg", "Cache-Control": "private, max-age=300" } });
       } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Foto tidak ditemukan." }, { status: 404 }); }
     }
-    const signed = await supabase.storage.from("ops-profile-photos").createSignedUrl(storagePath, 3600);
-    if (signed.error || !signed.data?.signedUrl) return NextResponse.json({ error: signed.error?.message || "Foto personel tidak ditemukan." }, { status: 404 });
-    return NextResponse.redirect(signed.data.signedUrl, { status: 307, headers: { "Cache-Control": "private, max-age=300" } });
+    const file = await supabase.storage.from("ops-profile-photos").download(storagePath);
+    if (file.error || !file.data) return NextResponse.json({ error: file.error?.message || "Foto personel tidak ditemukan." }, { status: 404 });
+    return new NextResponse(file.data, { headers: { "Content-Type": file.data.type || "application/octet-stream", "Cache-Control": "private, max-age=300" } });
   }
   if (type === "overview") {
     const [cases, problems, requests] = await Promise.all([supabase.from("ops_cases").select("id,awb,leader,zone,consignee,status,last_seen,created_at").order("last_seen", { ascending: false }).limit(50), supabase.from("ops_problems").select("id", { count: "exact", head: true }), supabase.from("ops_requests").select("id,type,status,shipment_numbers,name,nik,reason,location,email,created_at,email_subject").is("archived_at", null).order("created_at", { ascending: false }).limit(10)]);
@@ -98,9 +98,9 @@ export async function GET(req: NextRequest) {
   if (type === "profile") {
     const result = await supabase.from("ops_user_profiles").select("email,display_name,photo_path,updated_at").eq("email", session.email.toLowerCase()).maybeSingle();
     const photoPath = result.data?.photo_path || "";
-    const signed = photoPath && !photoPath.startsWith("imagekit:") ? await supabase.storage.from("ops-profile-photos").createSignedUrl(photoPath, 3600) : null;
-    const photo_url = photoPath.startsWith("imagekit:") ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photoPath)}` : signed?.data?.signedUrl || "";
-    return NextResponse.json({ profile: result.data ? { ...result.data, photo_url } : { email: session.email, display_name: "", photo_url: "" }, error: result.error?.message });
+    const version = result.data?.updated_at ? `&v=${encodeURIComponent(result.data.updated_at)}` : "";
+    const photo_url = photoPath ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photoPath)}${version}` : "";
+    return NextResponse.json({ profile: result.data ? { ...result.data, photo_url } : { email: session.email, display_name: "", photo_url: "" }, error: result.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   const employeeFields = "nik,name,position,dept,hub,level,superior,active,employment,start_date,created_at";
   let query = supabase.from(table).select(table === "ops_employees" ? employeeFields : "*").order("created_at", { ascending: false });
@@ -248,7 +248,8 @@ export async function POST(req: NextRequest) {
       if (uploaded.error) return NextResponse.json({ ok: false, error: uploaded.error.message }, { status: 400 });
     }
     const saved = await supabase.from("ops_user_profiles").upsert({ email: session.email.toLowerCase(), display_name: displayName, photo_path: photoPath, updated_at: new Date().toISOString() }).select().single();
-    return NextResponse.json({ ok: !saved.error, profile: saved.data, error: saved.error?.message });
+    const photoUrl = saved.data?.photo_path ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(saved.data.photo_path)}&v=${encodeURIComponent(saved.data.updated_at || Date.now())}` : "";
+    return NextResponse.json({ ok: !saved.error, profile: saved.data ? { ...saved.data, photo_url: photoUrl } : null, error: saved.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   if (body.action === "resetUserPassword" || body.action === "deleteUser") {
     if (session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat mengelola akun." }, { status: 403 });

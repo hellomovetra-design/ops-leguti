@@ -27,9 +27,25 @@
 .legut-pwa .pwa-section{padding:0 16px;margin:24px 0 0;max-width:none}
 .legut-pwa .pwa-section h2{font-size:20px;line-height:28px;font-weight:750;letter-spacing:-.4px;margin:0}
 .legut-pwa .pwa-section>p{font-size:13px;line-height:20px;color:#71809a;margin:2px 0 0}
-.legut-pwa .pwa-service-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px;align-items:stretch}
+.legut-pwa .pwa-service-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px;align-items:stretch}
 .legut-pwa .pwa-service{display:flex;flex-direction:column;align-items:flex-start;border-radius:18px;padding:14px;box-shadow:none;text-align:left;color:#111c35;min-width:0}
-.legut-pwa .pwa-service-grid .pwa-service{min-height:146px}
+.legut-pwa .pwa-service-grid .pwa-service{min-height:136px;padding:12px 8px;align-items:center;justify-content:flex-start;text-align:center}
+.legut-pwa .pwa-service-grid .service-illustration{width:52px;height:52px;object-fit:contain;align-self:center}
+.legut-pwa .service-card-title{display:flex;flex-direction:column;margin-top:10px;font-size:12px;line-height:17px;font-weight:700;text-align:center}
+.legut-pwa .pwa-service.daily{background:#f0f4ff;border:1px solid #dde5f4}
+.legut-pwa .pwa-daily fieldset{display:grid;gap:14px;border:0;padding:0;margin:0;min-width:0}
+.legut-pwa .pwa-daily input,.legut-pwa .pwa-daily select,.legut-pwa .pwa-daily textarea{width:100%;min-width:0;max-width:100%}
+.legut-pwa .pwa-daily .mobile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.legut-pwa .pwa-daily .pwa-form h2{font-size:18px;margin:0 0 16px}
+.legut-pwa .pwa-daily-day{margin:0;color:#71809a;font-size:12px}
+.legut-pwa .pwa-daily-photo{width:80px;height:80px;object-fit:cover;border-radius:12px}
+.legut-pwa .pwa-daily-confirmation{margin:16px}
+.legut-pwa .pwa-daily form>small{display:block;margin-top:12px;line-height:1.7}
+.legut-pwa .pwa-daily .pwa-profile-cancel{display:block;width:100%;text-align:left;margin-top:8px}
+.legut-pwa .pwa-daily fieldset label{margin:0}
+.legut-pwa .pwa-daily-field{display:grid;gap:7px}
+.legut-pwa .pwa-daily .pwa-list-item>span{display:grid;gap:4px;flex:1;min-width:0;overflow-wrap:anywhere}
+.legut-pwa .recent-icon.daily{background:#f0f4ff;color:#102d57}
 .legut-pwa .pwa-service.problem{background:#fff5f7;border:1px solid #ffe1e7}
 .legut-pwa .pwa-service.helpdesk{background:#f0f7ff;border:1px solid #dcebff}
 .legut-pwa .service-illustration{width:64px;height:64px;object-fit:contain;display:block;flex:none}
@@ -61,6 +77,6 @@
 .legut-pwa .pwa-empty{padding:20px 12px;color:#71809a;font-size:12px}.legut-pwa .pwa-list{margin:12px 16px;padding:0}.legut-pwa .pwa-detail img{width:100%;height:auto;border-radius:12px}.legut-pwa .pwa-page-title{font-size:20px;line-height:28px}.legut-pwa .mobile-card{border-radius:20px}.legut-pwa .mobile-submit{min-height:44px;border-radius:14px;background:#102d57}
 .legut-pwa .pwa-skeleton{min-height:72px;border-radius:16px;background:linear-gradient(90deg,#e7edf5,#f5f7fb,#e7edf5);background-size:200% 100%;animation:shimmer 1.5s infinite}
 @media(max-width:360px){.legut-pwa .pwa-welcome h1{font-size:23px}.legut-pwa .pwa-section-head h2{font-size:19px}}
-@media(max-width:320px){.legut-pwa .pwa-header{padding-inline:12px}.legut-pwa .pwa-welcome h1{font-size:22px}.legut-pwa .pwa-section{padding-inline:12px}.legut-pwa .pwa-activity-card{margin-inline:12px}.legut-pwa .pwa-service-grid .pwa-service{padding:12px}.legut-pwa .pwa-recent-row{flex-wrap:wrap}.legut-pwa .pwa-recent-row em{margin-left:50px}.legut-pwa .pwa-recent-row>span:nth-child(2){flex-basis:calc(100% - 50px)} }
+@media(max-width:320px){.legut-pwa .pwa-header{padding-inline:12px}.legut-pwa .pwa-welcome h1{font-size:22px}.legut-pwa .pwa-activity-card{margin-inline:12px}.legut-pwa .pwa-recent-row{flex-wrap:wrap}.legut-pwa .pwa-recent-row em{margin-left:50px}.legut-pwa .pwa-recent-row>span:nth-child(2){flex-basis:calc(100% - 50px)} }
 @media(prefers-reduced-motion:reduce){.legut-pwa button{transition:none}.legut-pwa .pwa-skeleton{animation:none}}
 .legut-pwa .pwa-profile-page{display:flex;flex-direction:column;align-items:center;gap:12px;margin:24px 16px;padding:24px 20px;background:white}.legut-pwa .pwa-profile-page h2{margin:0;font-size:20px;line-height:28px}.legut-pwa .pwa-profile-page .profile-photo-large{width:96px;height:96px;flex:none;font-size:28px}.legut-pwa .pwa-profile-page>strong{overflow-wrap:anywhere;text-align:center}.legut-pwa .pwa-profile-page>small{overflow-wrap:anywhere;text-align:center}.legut-pwa .pwa-profile-picker{display:grid;place-items:center;min-height:44px;padding:10px 18px;border:1px solid #dcebff;border-radius:14px;color:#1475e8;font-weight:600;cursor:pointer}.legut-pwa .pwa-profile-picker input{display:none}.legut-pwa .pwa-profile-cancel{min-height:44px;background:transparent;border:0;color:#71809a}.legut-pwa .pwa-profile-notice{margin:0;border-radius:12px;padding:12px;background:#dcf7e8;color:#09984d;font-size:12px}.legut-pwa .pwa-profile-notice.error{background:#fff0f3;color:#c22235}.legut-pwa .mobile-submit:disabled{opacity:.55;cursor:wait}.legut-pwa .pwa-header-actions .mobile-avatar{width:36px;height:36px;background:#f0f4fa;color:#102d57;border-radius:50%;overflow:hidden}

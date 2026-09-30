@@ -11,7 +11,7 @@ export async function uploadToImageKit(file: File, filePath: string) {
   if (!privateKey) throw new Error("IMAGEKIT_PRIVATE_KEY belum dikonfigurasi.");
   const body = new URLSearchParams({
     file: Buffer.from(await file.arrayBuffer()).toString("base64"),
-    fileName: file.name || "upload.jpg",
+    fileName: filePath.substring(filePath.lastIndexOf("/") + 1) || file.name || "upload.jpg",
     folder: filePath.substring(0, filePath.lastIndexOf("/")) || "/ops-leguti",
     useUniqueFileName: "false",
     tags: "ops-leguti",
