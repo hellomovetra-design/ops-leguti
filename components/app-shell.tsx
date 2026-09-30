@@ -16,6 +16,7 @@ const navGroups = [
       { href: "/master/structure", label: "Struktur Tim", icon: Network },
       { href: "/master/personnel-changes", label: "Perubahan Personel", icon: ArrowLeftRight },
       { href: "/dashboard/ops-desk/ots", label: "Monitoring OTS", icon: PackageSearch },
+      { href: "/dashboard/ops-desk/courier-carry", label: "Bawaan Kurir", icon: Boxes },
       { href: "/dashboard/ops-desk/problems", label: "Problem Barang", icon: Boxes },
       { href: "/dashboard/ops-desk/requests", label: "Request Helpdesk", icon: Headphones },
     ],
@@ -58,7 +59,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
             <div key={group.label}>
               <div className="nav-label">{group.label}</div>
               {group.items.map((item) => {
-                const active = pathname.startsWith(item.href);
+                const active = item.href === "/dashboard/ops-desk" ? pathname === item.href : pathname.startsWith(item.href);
                 return (
                   <Link className={cn("nav-item", active && "active")} href={item.href} key={item.href} onClick={() => setOpen(false)}>
                     <item.icon size={16} strokeWidth={active ? 2.4 : 1.8} />
