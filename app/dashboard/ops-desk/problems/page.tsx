@@ -1,2 +1,2 @@
-import { OpsDeskView } from "@/components/ops-desk-view";
-export default function Page() { return <OpsDeskView mode="problems" />; }
+import { ProblemGoodsPanel } from "@/components/problem-goods-panel";
+export default function Page() { return <ProblemGoodsPanel />; }

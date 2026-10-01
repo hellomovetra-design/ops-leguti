@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit } from "@/lib/imagekit";
 import { applyRequestFilters, requestFilters, requestCsv } from "@/lib/request-report";
+import { applyProblemFilters, problemFilters } from "@/lib/problem-records";
 
 const db = () => getSupabaseServerClient();
 const SUPER_ADMIN_EMAIL = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
@@ -111,6 +112,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ profile: result.data ? { ...result.data, photo_url } : { email: session.email, display_name: "", photo_url: "" }, error: result.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   const employeeFields = "nik,name,position,dept,hub,level,superior,active,employment,start_date,created_at";
+  if(type==="problems"){
+    try{
+      const filters=problemFilters(p),offset=Number(p.get("offset")||0);
+      if(!Number.isSafeInteger(offset)||offset<0)throw new Error("Halaman tidak valid.");
+      const result=await applyProblemFilters(supabase.from("ops_problems").select("*"),filters).order("created_at",{ascending:false}).order("id").range(offset,offset+100);
+      if(result.error)return NextResponse.json({error:result.error.message},{status:500});
+      const rows=(result.data||[]).slice(0,100);
+      const photoResult=rows.length?await supabase.from("ops_problem_photos").select("id,problem_id,file_name,content_type,storage_path,created_at").in("problem_id",rows.map((row:Record<string,any>)=>row.id)).order("created_at",{ascending:true}):{data:[],error:null};
+      if(photoResult.error)return NextResponse.json({error:"Foto laporan belum dapat dimuat. "+photoResult.error.message},{status:500});
+      return NextResponse.json({items:rows.map((row:Record<string,any>)=>({...row,photos:(photoResult.data||[]).filter(photo=>photo.problem_id===row.id).map(photo=>({id:photo.id,file_name:photo.file_name,url:`/api/ops-desk?type=problem-photo&path=${encodeURIComponent(photo.storage_path)}`}))})),has_more:(result.data||[]).length>100,can_create:session.role!=="viewer",can_manage:["super_admin","admin","coordinator","spv","jr_spv"].includes(session.role)},{headers:{"Cache-Control":"no-store"}});
+    }catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Filter tidak valid."},{status:400})}
+  }
   let query = supabase.from(table).select(table === "ops_employees" ? employeeFields : "*").order("created_at", { ascending: false });
   if (q) query = table === "ops_employees" ? query.or(`name.ilike.%${q}%,nik.ilike.%${q}%`) : table === "ops_problems" ? query.or(`awb.ilike.%${q}%,category.ilike.%${q}%`) : query.or(`awb.ilike.%${q}%,leader.ilike.%${q}%,zone.ilike.%${q}%`);
   const result = await query.limit(table === "ops_employees" ? 500 : table === "ops_cases" ? 100 : 100);
@@ -140,6 +153,12 @@ export async function POST(req: NextRequest) {
   const multipart = isMultipart ? await req.formData() : null;
   const body = multipart ? Object.fromEntries(multipart.entries()) : await req.json();
   const pwaWriteActions = ["createRequest", "problem", "profile", "comment"];
+  // PWA uses `reason`; the admin form uses `description`. Store both in one field.
+  if(body.action==="problem"){
+    body.description=String(body.description||body.reason||"").trim();
+    body.awb=String(body.awb||"").trim();body.division=String(body.division||"").trim();
+    if(!body.awb||!body.division)return NextResponse.json({ok:false,error:"Nomor AWB dan divisi wajib diisi."},{status:400});
+  }
   if (body.action === "employeePhoto") {
     const nik = String(body.nik || body.name || "").trim();
     const file = multipart?.get("photo");
