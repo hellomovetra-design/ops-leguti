@@ -5,6 +5,7 @@ import path from "node:path";
 import * as XLSX from "xlsx";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit } from "@/lib/imagekit";
+import { applyRequestFilters, requestFilters, requestCsv } from "@/lib/request-report";
 
 const db = () => getSupabaseServerClient();
 const SUPER_ADMIN_EMAIL = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
@@ -63,23 +64,30 @@ export async function GET(req: NextRequest) {
   }
   const table = type === "employees" ? "ops_employees" : type === "problems" ? "ops_problems" : type === "users" ? "ops_users" : "ops_cases";
   if (type === "requests") {
-    let requestQuery = supabase.from("ops_requests").select("*").is("archived_at", null).order("created_at", { ascending: false });
-    if (q) requestQuery = requestQuery.or(`shipment_numbers.ilike.%${q}%,name.ilike.%${q}%,nik.ilike.%${q}%`);
-    const from = p.get("from"), to = p.get("to");
-    if (from) requestQuery = requestQuery.gte("created_at", `${from}T00:00:00.000Z`);
-    if (to) requestQuery = requestQuery.lte("created_at", `${to}T23:59:59.999Z`);
-    const result = await requestQuery.limit(10);
-    return NextResponse.json({ items: result.data || [], error: result.error?.message });
+    try {
+      const filters = requestFilters(p), offset = Number(p.get("offset") || 0);
+      if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("Halaman tidak valid.");
+      const result = await applyRequestFilters(supabase.from("ops_requests").select("*"), filters).order("created_at", { ascending: false }).order("id").range(offset, offset+100);
+      if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
+      const pageItems=(result.data||[]).slice(0,100);
+      const emails=Array.from(new Set<string>(pageItems.map((row:Record<string,any>)=>String(row.created_by||row.email||"").trim().toLowerCase()).filter(Boolean)));
+      const profiles=emails.length?await supabase.from("ops_user_profiles").select("email,display_name").in("email",emails):{data:[]};
+      const names=new Map((profiles.data||[]).map(profile=>[profile.email,String(profile.display_name||"").trim()]));
+      return NextResponse.json({ items: pageItems.map((row:Record<string,any>)=>({...row,requester_name:names.get(String(row.created_by||row.email||"").trim().toLowerCase())||""})), has_more: (result.data || []).length>100, can_manage: ["super_admin","admin"].includes(session.role) }, { headers: { "Cache-Control": "no-store" } });
+    } catch(error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Filter tidak valid." }, { status:400 }); }
   }
   if (type === "requests-export") {
-    let exportQuery = supabase.from("ops_requests").select("id,type,status,shipment_numbers,reason,created_at,approved_by,approved_at").eq("type", "open_cl3").is("archived_at", null).order("created_at", { ascending: false });
-    const id = p.get("id");
-    if (id) exportQuery = exportQuery.eq("id", id);
-    const result = await exportQuery;
-    if (result.error) return NextResponse.json({ ok: false, error: result.error.message }, { status: 400 });
-    const header = "ID,STATUS,NOMOR AIRWAYBILL,KETERANGAN,TANGGAL,APPROVED BY,APPROVED AT";
-    const csv = [header, ...(result.data || []).map((row: any) => [row.id, row.status, row.shipment_numbers, row.reason, row.created_at, row.approved_by, row.approved_at].map((value) => `"${String(value || "").replace(/"/g, '""')}"`).join(","))].join("\r\n");
-    return new NextResponse(csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="request-cl3.csv"`, "Cache-Control": "no-store" } });
+    try {
+      const filters = requestFilters(p), rows: any[] = [];
+      for (let offset=0;;offset+=1000) {
+        let query = applyRequestFilters(supabase.from("ops_requests").select("*"), filters);
+        if (p.get("id")) query = query.eq("id",p.get("id"));
+        const result = await query.order("created_at",{ascending:false}).order("id").range(offset,offset+999);
+        if (result.error) return NextResponse.json({ error:result.error.message },{status:500});
+        rows.push(...(result.data||[]));if ((result.data||[]).length<1000) break;
+      }
+      return new NextResponse(requestCsv(rows), { headers: { "Content-Type":"text/csv; charset=utf-8", "Content-Disposition":"attachment; filename=\"request-helpdesk.csv\"", "Cache-Control":"no-store" } });
+    } catch(error) { return NextResponse.json({error:error instanceof Error?error.message:"Filter tidak valid."},{status:400}); }
   }
   if (type === "users") {
     const [roleRows, authRows] = await Promise.all([
@@ -195,7 +203,7 @@ export async function POST(req: NextRequest) {
     const patch: Record<string, any> = { status: nextStatus, updated_at: new Date().toISOString(), last_action_at: new Date().toISOString() };
     if (nextStatus === "rejected") { patch.rejected_by = session.email; patch.rejected_at = new Date().toISOString(); patch.rejection_reason = String(body.reason || "Tidak ada alasan yang dicatat."); }
     if (nextStatus === "completed") { patch.completed_by = session.email; patch.completed_at = new Date().toISOString(); }
-    if (nextStatus === "sent") patch.sent_at = new Date().toISOString();
+    if (nextStatus === "sent") { patch.sent_at = new Date().toISOString(); patch.completed_at = null; patch.completed_by = null; }
     const updated = await supabase.from("ops_requests").update(patch).eq("id", id).select().single();
     if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
     await audit(supabase, session, nextStatus, "request", id, { reason: patch.rejection_reason || null });
@@ -203,13 +211,17 @@ export async function POST(req: NextRequest) {
   }
   if (body.action === "archiveRequest" || body.action === "deleteRequest") {
     if (!['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin atau Admin Pengelola yang dapat mengelola riwayat request." }, { status: 403 });
-    const id = String(body.id || "");
-    if (!id) return NextResponse.json({ ok: false, error: "Request tidak valid." }, { status: 400 });
-    const patch = body.action === "archiveRequest" ? { archived_at: new Date().toISOString(), archived_by: session.email, last_action_at: new Date().toISOString() } : { status: "deleted", last_action_at: new Date().toISOString() };
-    const updated = await supabase.from("ops_requests").update(patch).eq("id", id).select().single();
-    if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
-    await audit(supabase, session, body.action === "archiveRequest" ? "archive" : "delete", "request", id);
-    return NextResponse.json({ ok: true, request: updated.data });
+    const ids = Array.from(new Set<string>(Array.isArray(body.ids) ? body.ids.map((id:unknown)=>String(id)) : [String(body.id || "")]));
+    if (!ids.length || ids.length>100 || ids.some(id=>!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id))) return NextResponse.json({ok:false,error:"Pilih 1–100 request yang valid."},{status:400});
+    const current = await supabase.from("ops_requests").select("id").in("id",ids);
+    if (current.error) return NextResponse.json({ok:false,error:current.error.message},{status:500});
+    if (current.data?.length!==ids.length) return NextResponse.json({ok:false,error:"Sebagian request tidak ditemukan. Muat ulang daftar."},{status:409});
+    const result = body.action === "deleteRequest"
+      ? await supabase.from("ops_requests").delete().in("id",ids).select("id")
+      : await supabase.from("ops_requests").update({archived_at:new Date().toISOString(),archived_by:session.email,updated_at:new Date().toISOString(),last_action_at:new Date().toISOString()}).in("id",ids).select("id");
+    if (result.error || result.data?.length!==ids.length) return NextResponse.json({ok:false,error:result.error?.message || "Tidak semua request berhasil diproses. Muat ulang daftar."},{status:409});
+    await audit(supabase,session,body.action==="deleteRequest"?"delete":"archive","request",ids.length===1?ids[0]:undefined,{ids,count:ids.length});
+    return NextResponse.json({ok:true,count:ids.length});
   }
   if (body.action === "updateProblemStatus") {
     if (!['super_admin', 'admin', 'coordinator', 'spv', 'jr_spv'].includes(session.role)) return NextResponse.json({ ok: false, error: "Anda tidak memiliki hak memproses problem." }, { status: 403 });
