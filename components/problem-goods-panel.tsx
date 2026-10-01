@@ -1,6 +1,6 @@
 "use client";
 import { useCallback,useEffect,useRef,useState,FormEvent } from "react";
-import { Plus,Search,X,ChevronRight,Paperclip,Camera } from "lucide-react";
+import { Plus,Search,X,ChevronRight,Paperclip,Camera,Trash2 } from "lucide-react";
 import { PROBLEM_CATEGORIES,PROBLEM_STATUSES,PROBLEM_NEXT } from "@/lib/problem-records";
 import "./problem-goods-panel.css";
 type Problem=Record<string,any>&{id:string};
@@ -11,11 +11,12 @@ export function ProblemGoodsPanel(){
  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[more,setMore]=useState(false),[canCreate,setCanCreate]=useState(false),[canManage,setCanManage]=useState(false),[message,setMessage]=useState(""),[error,setError]=useState("");
  const [detailId,setDetailId]=useState<string|null>(null),[creating,setCreating]=useState(false),[form,setForm]=useState(emptyForm),[photos,setPhotos]=useState<File[]>([]),[previews,setPreviews]=useState<string[]>([]),[formError,setFormError]=useState("");
  const lock=useRef(false),sequence=useRef(0),dialogRef=useRef<HTMLDivElement>(null),fileRef=useRef<HTMLInputElement>(null);
+ const [canDelete,setCanDelete]=useState(false),[deletingId,setDeletingId]=useState<string|null>(null);
  const detail=items.find(item=>item.id===detailId),open=creating||!!detail;
  const params=new URLSearchParams({q,division,category,status,from,to}).toString();
  const load=useCallback(async()=>{
   const ticket=++sequence.current;setLoading(true);
-  try{const response=await fetch(`/api/ops-desk?type=problems&${params}&offset=${offset}`,{cache:"no-store"});const data=await response.json();if(!response.ok||data.error)throw new Error(data.error||"Laporan belum dapat dimuat.");if(ticket!==sequence.current)return;setItems(data.items||[]);setMore(!!data.has_more);setCanCreate(!!data.can_create);setCanManage(!!data.can_manage);setError("")}
+  try{const response=await fetch(`/api/ops-desk?type=problems&${params}&offset=${offset}`,{cache:"no-store"});const data=await response.json();if(!response.ok||data.error)throw new Error(data.error||"Laporan belum dapat dimuat.");if(ticket!==sequence.current)return;setItems(data.items||[]);setMore(!!data.has_more);setCanCreate(!!data.can_create);setCanManage(!!data.can_manage);setCanDelete(!!data.can_delete);setError("")}
   catch(e){if(ticket===sequence.current)setError(e instanceof Error?e.message:"Laporan belum dapat dimuat.")}
   finally{if(ticket===sequence.current)setLoading(false)}
  },[params,offset]);
@@ -48,6 +49,17 @@ export function ProblemGoodsPanel(){
   catch(e){setError(e instanceof Error?e.message:"Status gagal diperbarui.")}
   finally{lock.current=false;setBusy(false)}
  }
+ async function remove(row:Problem){
+  if(!canDelete||lock.current||!window.confirm(`Hapus permanen laporan ${row.awb||row.id}? Laporan dan catatan foto terkait tidak dapat dipulihkan.`))return;
+  lock.current=true;sequence.current++;setBusy(true);setDeletingId(row.id);setError("");setMessage("");
+  try{
+   const response=await fetch("/api/ops-desk",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"deleteProblem",id:row.id})});
+   const data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||"Laporan gagal dihapus. Silakan coba lagi.");
+   setItems(current=>current.filter(item=>item.id!==row.id));setDetailId(current=>current===row.id?null:current);setMessage(`Laporan ${row.awb||row.id} berhasil dihapus.`);
+   await load();
+  }catch(e){setError(e instanceof Error?e.message:"Laporan gagal dihapus. Silakan coba lagi.")}
+  finally{lock.current=false;setBusy(false);setDeletingId(null);setLoading(false)}
+ }
  const time=(value:string)=>value?new Date(value).toLocaleString("id-ID",{timeZone:"Asia/Jakarta",day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
  const divisionOptions=Array.from(new Set([...divisions,...items.map(item=>String(item.division||"")).filter(Boolean)]));
  return <section className="goods-panel">
@@ -64,7 +76,7 @@ export function ProblemGoodsPanel(){
   <div className="goods-table-wrap" aria-busy={loading}><table className="goods-table"><thead><tr><th>AWB / Laporan</th><th>Kategori</th><th>Divisi / Lokasi</th><th>Tanggal</th><th>Status</th><th>Tindakan</th></tr></thead><tbody>{items.map(row=><tr key={row.id}>
    <td><strong className="goods-awb">{row.awb||"AWB belum dicatat"}</strong><small className="goods-description" title={row.description}>{row.description||"Tanpa keterangan"}</small>{row.photos?.length>0&&<small className="goods-attachment"><Paperclip size={12}/>{row.photos.length} foto pendukung</small>}</td>
    <td><span className="goods-category">{row.category||"LAINNYA"}</span></td><td><span>{row.division||"—"}</span><small>{row.location||"Lokasi belum dicatat"}</small></td><td className="goods-date">{time(row.created_at)}<small>WIB</small></td><td><span className={`goods-status ${row.status}`}>{PROBLEM_STATUSES[row.status]||row.status}</span></td>
-   <td><div className="goods-actions">{canManage&&PROBLEM_NEXT[row.status]&&<button className="goods-action-main" disabled={busy||loading} onClick={()=>progress(row)}>{PROBLEM_NEXT[row.status].label}</button>}<button className="goods-detail-link" aria-label={`Lihat detail laporan ${row.id}`} onClick={()=>{setDetailId(row.id);setCreating(false)}}>Lihat detail<ChevronRight size={13}/></button></div></td>
+   <td><div className="goods-actions">{canManage&&PROBLEM_NEXT[row.status]&&<button className="goods-action-main" disabled={busy||loading} onClick={()=>progress(row)}>{PROBLEM_NEXT[row.status].label}</button>}<div className="goods-action-secondary"><button disabled={busy} className="goods-detail-link" aria-label={`Lihat detail laporan ${row.id}`} onClick={()=>{setDetailId(row.id);setCreating(false)}}>Lihat detail<ChevronRight size={13}/></button>{canDelete&&<button className="goods-delete goods-delete-icon" disabled={busy||loading} title="Hapus laporan" aria-label={`Hapus laporan ${row.awb||row.id}`} onClick={()=>remove(row)}><Trash2 size={15}/></button>}</div></div></td>
   </tr>)}{!items.length&&<tr><td colSpan={6} className="goods-empty">{loading?"Memuat laporan…":error?"Laporan belum dapat dimuat.":"Belum ada laporan sesuai filter."}</td></tr>}</tbody></table></div>
   <div className="goods-pagination"><button disabled={busy||loading||offset===0} onClick={()=>setOffset(value=>Math.max(0,value-100))}>Sebelumnya</button><span>Halaman {offset/100+1}</span><button disabled={busy||loading||!more} onClick={()=>setOffset(value=>value+100)}>Berikutnya</button></div>
   {open&&<div className={"goods-backdrop"+(creating?" goods-form-backdrop":"")} onClick={e=>{if(e.target===e.currentTarget)closeDialog()}}><div className={creating?"goods-form-dialog":"goods-drawer"} ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="goods-dialog-title">
@@ -79,7 +91,7 @@ export function ProblemGoodsPanel(){
    </fieldset>{formError&&<p className="goods-notice error" role="alert">{formError}</p>}<div className="goods-form-footer"><button type="button" disabled={busy} onClick={closeDialog}>Batal</button><button className="primary" type="submit" disabled={busy}>{busy?"Menyimpan…":"Simpan problem"}</button></div></form>:detail&&<>
     <span className={`goods-status ${detail.status}`}>{PROBLEM_STATUSES[detail.status]||detail.status}</span><dl className="goods-details">{[["Kategori",detail.category],["Divisi",detail.division],["Lokasi",detail.location],["Pelapor",detail.created_by_email],["Dibuat",`${time(detail.created_at)} WIB`],["Keterangan",detail.description],["Diverifikasi oleh",detail.verified_by],["Waktu verifikasi",detail.verified_at?`${time(detail.verified_at)} WIB`:null],["Diselesaikan oleh",detail.resolved_by],["Waktu selesai",detail.resolved_at?`${time(detail.resolved_at)} WIB`:null],["Catatan tindak lanjut",detail.status_note]].filter(([label,value])=>!!value).map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
     <section className="goods-evidence"><h3>Foto pendukung</h3>{detail.photos?.length?<div>{detail.photos.map((photo:Record<string,any>)=><a key={photo.id} href={photo.url} target="_blank" rel="noreferrer"><img src={photo.url} alt={photo.file_name||"Foto bukti problem"} loading="lazy"/><span>Lihat foto penuh</span></a>)}</div>:<p>Belum ada foto pendukung.</p>}</section>
-    {canManage&&PROBLEM_NEXT[detail.status]&&<button className="primary goods-drawer-action" disabled={busy||loading} onClick={()=>progress(detail)}>{busy?"Menyimpan…":PROBLEM_NEXT[detail.status].label}</button>}
+    {error&&<p className="goods-notice error" role="alert">{error}</p>}<div className="goods-drawer-footer">{canManage&&PROBLEM_NEXT[detail.status]&&<button className="primary goods-drawer-action" disabled={busy||loading} onClick={()=>progress(detail)}>{busy?"Menyimpan…":PROBLEM_NEXT[detail.status].label}</button>}{canDelete&&<button className="goods-delete" disabled={busy||loading} onClick={()=>remove(detail)}><Trash2 size={16}/>{deletingId===detail.id?"Menghapus…":"Hapus laporan"}</button>}</div>
    </>}
   </div></div>}
  </section>;

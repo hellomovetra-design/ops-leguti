@@ -1,5 +1,10 @@
 .legut-pwa{width:100%;max-width:480px;margin-inline:auto;background:#f5f7fb;color:#111c35;font-family:Inter,Arial,sans-serif;min-height:100dvh;padding-bottom:calc(96px + env(safe-area-inset-bottom));font-size:14px;line-height:1.5}
 .legut-pwa *{box-sizing:border-box}
+.legut-pwa .pwa-success-toast{position:fixed;z-index:100;bottom:calc(84px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:calc(100% - 32px);max-width:448px;display:flex;align-items:center;gap:10px;padding:14px 12px;border:1px solid #b8e4cc;border-radius:14px;background:#eaf9f0;color:#14683c;box-shadow:0 8px 26px #091b3626;font-size:13px;line-height:1.5}
+.legut-pwa .pwa-success-toast>svg{flex-shrink:0}.legut-pwa .pwa-success-toast span{flex:1}.legut-pwa .pwa-success-toast button{display:grid;place-items:center;flex-shrink:0;width:36px;height:36px;border:0;background:none;color:inherit}
+.legut-pwa .mobile-submit{touch-action:manipulation}.legut-pwa .mobile-submit:disabled{cursor:default;opacity:.65}.legut-pwa .pwa-submit-spinner{vertical-align:middle;margin-right:8px;animation:pwa-submit-spin .8s linear infinite}
+@keyframes pwa-submit-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.legut-pwa .pwa-submit-spinner{animation:none}}
 .legut-pwa button,.legut-pwa input,.legut-pwa select,.legut-pwa textarea{font:inherit}
 .legut-pwa button{cursor:pointer;transition:transform 160ms ease-out}
 .legut-pwa button:active{transform:scale(.98)}

@@ -128,7 +128,7 @@ export async function GET(req: NextRequest) {
       const rows=(result.data||[]).slice(0,100);
       const photoResult=rows.length?await supabase.from("ops_problem_photos").select("id,problem_id,file_name,content_type,storage_path,created_at").in("problem_id",rows.map((row:Record<string,any>)=>row.id)).order("created_at",{ascending:true}):{data:[],error:null};
       if(photoResult.error)return NextResponse.json({error:"Foto laporan belum dapat dimuat. "+photoResult.error.message},{status:500});
-      return NextResponse.json({items:rows.map((row:Record<string,any>)=>({...row,photos:(photoResult.data||[]).filter(photo=>photo.problem_id===row.id).map(photo=>({id:photo.id,file_name:photo.file_name,url:`/api/ops-desk?type=problem-photo&path=${encodeURIComponent(photo.storage_path)}`}))})),has_more:(result.data||[]).length>100,can_create:session.role!=="viewer",can_manage:["super_admin","admin","coordinator","spv","jr_spv"].includes(session.role)},{headers:{"Cache-Control":"no-store"}});
+      return NextResponse.json({items:rows.map((row:Record<string,any>)=>({...row,photos:(photoResult.data||[]).filter(photo=>photo.problem_id===row.id).map(photo=>({id:photo.id,file_name:photo.file_name,url:`/api/ops-desk?type=problem-photo&path=${encodeURIComponent(photo.storage_path)}`}))})),has_more:(result.data||[]).length>100,can_delete:["super_admin","admin"].includes(session.role),can_create:session.role!=="viewer",can_manage:["super_admin","admin","coordinator","spv","jr_spv"].includes(session.role)},{headers:{"Cache-Control":"no-store"}});
     }catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Filter tidak valid."},{status:400})}
   }
   let query = supabase.from(table).select(table === "ops_employees" ? employeeFields : "*").order("created_at", { ascending: false });
@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
       : "Dear Team IT JNE TGR\n\nMohon dibantu pengaktifan kembali User ID TGR\n\nUser ID              : " + userId + "\nNama Karyawan       : " + name + "\nNIK Karyawan        : " + nik + "\nDepartemen          : " + String(body.department || "") + "\nLokasi Kerja        : " + String(body.location || "") + "\nAlasan              : " + String(body.reason || "");
     const result = await supabase.from("ops_requests").insert({ type: body.type || "activation_user", status: "pending", user_id: userId, name, nik, department: body.department, location: body.location, reason: body.reason, shipment_numbers: isCl3 ? shipments : null, email_subject: subject, email_body: emailBody, created_by: session.email, updated_at: new Date().toISOString(), last_action_at: new Date().toISOString() }).select().single();
     if (!result.error && result.data?.id) await audit(supabase, session, "create", "request", result.data.id, { type: body.type || "activation_user" });
-    return NextResponse.json({ ok: !result.error, id: result.data?.id, emailSubject: subject, emailBody, error: result.error?.message });
+    return NextResponse.json({ ok: !result.error, id: result.data?.id, item: result.data, emailSubject: subject, emailBody, error: result.error?.message });
   }
   if (body.action === "approveRequest") {
     if (!['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin atau Admin Pengelola yang dapat memproses request." }, { status: 403 });
@@ -264,12 +264,19 @@ export async function POST(req: NextRequest) {
   if (body.action === "deleteProblem") {
     if (!['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin atau Admin Pengelola yang dapat menghapus problem." }, { status: 403 });
     const id = String(body.id || "");
-    if (!id) return NextResponse.json({ ok: false, error: "Problem tidak valid." }, { status: 400 });
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return NextResponse.json({ ok: false, error: "Problem tidak valid." }, { status: 400 });
     const photos = await supabase.from("ops_problem_photos").select("storage_path").eq("problem_id", id);
+    if (photos.error) return NextResponse.json({ ok: false, error: "Foto laporan belum dapat diperiksa. Silakan coba lagi." }, { status: 400 });
     const paths = (photos.data || []).map((photo: any) => photo.storage_path).filter(Boolean);
-    if (paths.length) await supabase.storage.from("ops-problem-photos").remove(paths);
-    const removed = await supabase.from("ops_problems").delete().eq("id", id);
+    const removed = await supabase.from("ops_problems").delete().eq("id", id).select("id");
     if (removed.error) return NextResponse.json({ ok: false, error: removed.error.message }, { status: 400 });
+    if (!removed.data?.length) return NextResponse.json({ ok: false, error: "Laporan tidak ditemukan atau sudah dihapus." }, { status: 404 });
+    // Photo records cascade with the report. Only clean legacy bucket files after deletion succeeds.
+    const storagePaths = paths.filter((path: string) => !path.startsWith("imagekit:"));
+    if (storagePaths.length) {
+      try { await supabase.storage.from("ops-problem-photos").remove(storagePaths); }
+      catch { console.warn("Problem deleted; legacy photo cleanup needs retry."); }
+    }
     await audit(supabase, session, "delete", "problem", id, { photo_count: paths.length });
     return NextResponse.json({ ok: true });
   }
@@ -344,8 +351,8 @@ export async function POST(req: NextRequest) {
   const table = body.action === "problem" ? "ops_problems" : ["employee", "updateEmployee"].includes(String(body.action)) ? "ops_employees" : "ops_users";
   const employeePayload = { nik: String(body.nik || "").trim(), name: String(body.name || "").trim(), position: body.position || "", dept: body.dept || "", hub: body.hub || "", level: body.level || "", superior: body.superior || "", employment: body.employment || (body.active === false ? "Nonaktif" : "Aktif"), active: body.active !== false };
   const payload = body.action === "role" ? { email: body.email, role: body.role, leader_name: body.leaderName || null } : body.action === "problem" ? { awb: body.awb, category: body.category, description: body.description, location: body.location, division: body.division, created_by: null, created_by_email: session.email, updated_at: new Date().toISOString() } : body.action === "employee" || body.action === "updateEmployee" ? employeePayload : body;
-  const result = body.action === "employee" ? await supabase.from(table).insert(payload) : body.action === "updateEmployee" ? await supabase.from(table).update(payload).eq("nik", body.nik) : body.action === "role" ? await supabase.from(table).upsert(payload, { onConflict: "email" }).select("id").single() : await supabase.from(table).insert(payload).select("id").single();
+  const result = body.action === "employee" ? await supabase.from(table).insert(payload) : body.action === "updateEmployee" ? await supabase.from(table).update(payload).eq("nik", body.nik) : body.action === "role" ? await supabase.from(table).upsert(payload, { onConflict: "email" }).select("id").single() : await supabase.from(table).insert(payload).select(body.action === "problem" ? "*" : "id").single();
   if (body.action === "problem" && !result.error && photoFiles.length && result.data?.id) { for (const file of photoFiles) { const rawKey = `problems/${result.data.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`; const image = isImageKitConfigured() ? await uploadToImageKit(file, rawKey) : null; const key = image ? `imagekit:${image.path}` : rawKey; const uploaded = image ? { error: null } : await supabase.storage.from("ops-problem-photos").upload(key, file, { contentType: file.type }); if (!uploaded.error) await supabase.from("ops_problem_photos").insert({ problem_id: result.data.id, storage_path: key, file_name: file.name, content_type: file.type }); } }
   if (body.action === "problem" && !result.error && result.data?.id) await audit(supabase, session, "create", "problem", result.data.id, { photo_count: photoFiles.length, category: body.category });
-  return NextResponse.json({ ok: !result.error, error: result.error?.message });
+  return NextResponse.json({ ok: !result.error, item: body.action === "problem" && result.data ? { ...payload, ...result.data } : undefined, error: result.error?.message });
 }
