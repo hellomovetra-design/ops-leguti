@@ -6,9 +6,9 @@ export const CHECK_COLUMNS = [
   ["result", "Hasil Pemeriksaan"], ["documentation_url", "Link Dokumentasi Pemeriksaan"],
   ["inspection_location", "Lokasi Pemeriksaan"], ["inspection_time", "Waktu Pemeriksaan"], ["notes", "Catatan/Keterangan"],
 ] as const;
-export const DELIVERY_AREAS = ["SP LEGUTI", "SPC LEGUTI"] as const;
+export const DELIVERY_AREAS = ["SPC LEGUTI", "SP MALOKO"] as const;
 export function deliveryArea(value: string) {
-  return value.trim().toUpperCase().startsWith("SPC") ? "SPC LEGUTI" : "SP LEGUTI";
+  return value.trim().toUpperCase().startsWith("SPC") ? "SPC LEGUTI" : "SP MALOKO";
 }
 export type Courier = { nik: string; name: string; position: string; employment: string; hub: string };
 export type CourierCheck = {
