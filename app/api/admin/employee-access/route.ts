@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
   }
   const primary = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
   if (!user || email === primary || user.app_metadata?.role === "super_admin") return json({ error: "Pilih akun biasa. Super Admin tetap login dengan email." }, 400);
-  const saved = await db.from("ops_user_employee_links").upsert({ email, employee_nik: nik, updated_at: new Date().toISOString() }, { onConflict: "email" });
+  const saved = await db.from("ops_user_employee_links").upsert({ email, employee_nik: nik, updated_at: new Date().toISOString() }, { onConflict: "email" }).select("email,employee_nik,updated_at").single();
   if (saved.error) return json({ error: saved.error.code === "23505" ? "NIK sudah digunakan akun lain." : "Pengaitan gagal. Pastikan migration telah diterapkan." }, 409);
-  return json({ ok: true });
+  if (!saved.data || saved.data.email !== email || saved.data.employee_nik !== nik) return json({ error: "Pengaitan belum terkonfirmasi. Muat ulang daftar sebelum mencoba lagi." }, 503);
+  return json({ ok: true, link: saved.data });
 }
