@@ -1,2 +1,2 @@
-import { CourierCheckReport } from "@/components/courier-check-report";
-export default function Page() { return <CourierCheckReport />; }
+import { CourierCarryPanel } from "@/components/courier-carry-panel";
+export default function Page() { return <CourierCarryPanel />; }
