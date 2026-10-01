@@ -12,7 +12,7 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const submit = async (e: FormEvent) => {
-    e.preventDefault(); setLoading(true); setError("");
+    e.preventDefault(); if (loading) return; setLoading(true); setError("");
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -28,10 +28,10 @@ export function LoginForm() {
     finally { setLoading(false); }
   };
   return <form className="login-form" onSubmit={submit}>
-    <div><label className="form-label" htmlFor="login-identifier">NIK / Email Super Admin</label><input id="login-identifier" className="login-input" type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="Nomor NIK karyawan" value={email} onChange={(e) => setEmail(e.target.value)} required /><small>Akun biasa menggunakan NIK. Super Admin menggunakan email.</small></div>
-    <div><div style={{ display: "flex", justifyContent: "space-between" }}><label className="form-label">Password</label></div><div style={{ position: "relative" }}><input className="login-input" type={show ? "text" : "password"} autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="button" onClick={() => setShow(!show)} style={{ position: "absolute", right: 11, top: 12, border: 0, background: "none", color: "#98a2b3", cursor: "pointer" }}>{show ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></div>
-    {error && <div style={{ color: "#d92d20", fontSize: 10 }}>{error}</div>}
-    <button className="login-submit" disabled={loading}>{loading ? "Memverifikasi..." : "Masuk ke Dashboard"}</button>
-    <div className="login-note"><ShieldCheck size={13} style={{ verticalAlign: "middle", marginRight: 5 }} />Sesi dilindungi cookie HttpOnly dan akan berakhir otomatis setelah 8 jam.</div>
+    <div><label className="form-label" htmlFor="login-identifier">NIK atau email Super Admin</label><input id="login-identifier" className="login-input" type="text" autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder="Masukkan NIK Anda" value={email} onChange={(e) => setEmail(e.target.value)} required /><small>Gunakan NIK yang terdaftar. Khusus Super Admin, gunakan email akun.</small></div>
+    <div><div style={{ display: "flex", justifyContent: "space-between" }}><label className="form-label" htmlFor="login-password">Kata sandi</label></div><div style={{ position: "relative" }}><input id="login-password" className="login-input" type={show ? "text" : "password"} placeholder="Masukkan kata sandi" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /><button type="button" aria-label={show ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"} aria-pressed={show} onClick={() => setShow(!show)} style={{ position: "absolute", right: 11, top: 12, border: 0, background: "none", color: "#98a2b3", cursor: "pointer" }}>{show ? <EyeOff size={17} /> : <Eye size={17} />}</button></div></div>
+    {error && <div className="login-error" role="alert">{error}</div>}
+    <button className="login-submit" disabled={loading}>{loading ? "Memverifikasi…" : "Masuk ke OPS LEGUTI"}</button>
+    <div className="login-note"><ShieldCheck size={13} style={{ verticalAlign: "middle", marginRight: 5 }} />Gunakan akun yang telah diberi akses oleh administrator.</div>
   </form>;
 }
