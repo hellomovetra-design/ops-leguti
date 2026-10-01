@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { SESSION_COOKIE, verifySessionToken, SessionPayload } from "@/lib/auth-token";
-import { courierRole, DELIVERY_AREAS, deliveryArea } from "@/lib/courier-checks";
+import { DELIVERY_AREAS, deliveryArea } from "@/lib/courier-checks";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit } from "@/lib/imagekit";
+import { linkedEmployee, scopedCouriers } from "@/lib/employee-access";
 
 export const runtime = "nodejs";
 const TABLE = "ops_courier_checks";
@@ -15,17 +16,17 @@ const photoUrl = (record: any, p: any, index: number) => p.public_token
   : `/api/courier-checks?type=photo&id=${record.id}&index=${index}&v=${encodeURIComponent(record.updated_at)}`;
 const decorate = (session: SessionPayload, record: any) => ({ ...record, can_edit: canEdit(session, record), photos: (record.photos || []).map((p: any, index: number) => ({ name: p.name, url: photoUrl(record, p, index) })) });
 async function inspectorName(db: NonNullable<ReturnType<typeof getSupabaseServerClient>>, session: SessionPayload) {
+  if (session.employee_nik) {
+    const employee = await linkedEmployee(db, session.email);
+    if (!employee?.active) throw new Error("Personel akun tidak aktif.");
+    return employee.name;
+  }
   const result = await db.from("ops_user_profiles").select("display_name").eq("email", session.email.toLowerCase()).maybeSingle();
   if (result.error) throw new Error("Profil pengguna belum dapat dimuat.");
   return String(result.data?.display_name || session.email.split("@")[0]).trim().slice(0,160);
 }
 function databaseError(error: any) {
   return error?.code === "42P01" || error?.code === "PGRST205" ? "Fitur belum tersedia. Migration Bawaan Kurir perlu diterapkan oleh administrator." : "Database belum dapat memproses catatan. Silakan coba lagi.";
-}
-async function couriers(db: NonNullable<ReturnType<typeof getSupabaseServerClient>>) {
-  const { data, error } = await db.from("ops_employees").select("nik,name,position,employment,hub").eq("active", true).order("name").limit(1000);
-  if (error) throw new Error("Data kurir belum dapat dimuat.");
-  return (data || []).filter(row => courierRole(row.position || ""));
 }
 export async function GET(req: NextRequest) {
   const publicPhoto = req.nextUrl.searchParams.get("type") === "publicPhoto";
@@ -35,7 +36,7 @@ export async function GET(req: NextRequest) {
   if (!db) return json({ error: "Penyimpanan belum dikonfigurasi." }, 503);
   try {
     const type = req.nextUrl.searchParams.get("type");
-    if (type === "couriers") { const items = await couriers(db); return json({ couriers: items, units: DELIVERY_AREAS }); }
+    if (type === "couriers") { const items = await scopedCouriers(db, session!); return json({ couriers: items, units: DELIVERY_AREAS }); }
     if (type === "photo" || publicPhoto) {
       const id = req.nextUrl.searchParams.get("id") || "";
       const rawIndex = req.nextUrl.searchParams.get("index");
@@ -104,11 +105,15 @@ export async function POST(req: NextRequest) {
         counts.some(key => !/^\d+$/.test(get(key)) || Number(get(key)) > 1000000))
       return json({ ok: false, error: "Lengkapi semua kolom wajib, tanggal/jam valid, dan jumlah connote berupa bilangan bulat (0–1.000.000)." }, 400);
     // Preserve historical employee snapshot when editing an existing examination.
+    const allowed = await scopedCouriers(db, session);
+    const selected = allowed.find(row => row.nik === values.courier_id && deliveryArea(row.hub || "") === values.delivery_area);
+    const historicalAdminEdit = editing && ["admin", "super_admin"].includes(session.role) && existing.data?.courier_id === values.courier_id && deliveryArea(existing.data.delivery_area) === values.delivery_area;
+    if (!selected && !historicalAdminEdit) return json({ ok: false, error: "Personel tidak berada dalam area delivery atau struktur yang dapat Anda periksa." }, 403);
     if (existing.data && existing.data.courier_id === values.courier_id) {
       values.courier_name = existing.data.courier_name;
       if (existing.data.employment) values.employment = existing.data.employment;
     } else {
-      const courier = (await couriers(db)).find(row => row.nik === values.courier_id);
+      const courier = selected;
       if (!courier) return json({ ok: false, error: "Pilih kurir aktif dari database karyawan." }, 400);
       values.courier_name = courier.name;
       if (courier.employment) values.employment = courier.employment;

@@ -3,6 +3,7 @@ export const SESSION_MAX_AGE = 60 * 60 * 8;
 
 export type SessionPayload = {
   email: string;
+  employee_nik?: string;
   role: "super_admin" | "admin" | "spv" | "jr_spv" | "coordinator" | "viewer";
   exp: number;
 };
@@ -40,9 +41,10 @@ function constantTimeEqual(left: Uint8Array, right: Uint8Array) {
   return difference === 0;
 }
 
-export async function createSessionToken(email: string, role: SessionPayload["role"], secret: string) {
+export async function createSessionToken(email: string, role: SessionPayload["role"], secret: string, employeeNik?: string) {
   const payload: SessionPayload = {
     email,
+    ...(employeeNik ? { employee_nik: employeeNik } : {}),
     role,
     exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE,
   };

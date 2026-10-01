@@ -8,7 +8,9 @@ export const CHECK_COLUMNS = [
 ] as const;
 export const DELIVERY_AREAS = ["SPC LEGUTI", "SP MALOKO"] as const;
 export function deliveryArea(value: string) {
-  return value.trim().toUpperCase().startsWith("SPC") ? "SPC LEGUTI" : "SP MALOKO";
+  const area = value.trim().replace(/\s+/g, " ").toUpperCase();
+  if (area === "SPC LEGUTI" || area === "SP LEGUTI") return "SPC LEGUTI";
+  return area === "SP MALOKO" ? "SP MALOKO" : "";
 }
 export type Courier = { nik: string; name: string; position: string; employment: string; hub: string };
 export type CourierCheck = {

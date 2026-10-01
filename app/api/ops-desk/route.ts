@@ -7,6 +7,7 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit } from "@/lib/imagekit";
 import { applyRequestFilters, requestFilters, requestCsv } from "@/lib/request-report";
 import { applyProblemFilters, problemFilters } from "@/lib/problem-records";
+import { linkedEmployee } from "@/lib/employee-access";
 
 const db = () => getSupabaseServerClient();
 const SUPER_ADMIN_EMAIL = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
@@ -91,6 +92,7 @@ export async function GET(req: NextRequest) {
     } catch(error) { return NextResponse.json({error:error instanceof Error?error.message:"Filter tidak valid."},{status:400}); }
   }
   if (type === "users") {
+    if (session.role !== "super_admin") return NextResponse.json({ error: "Hanya Super Admin yang dapat melihat akun." }, { status: 403 });
     const [roleRows, authRows] = await Promise.all([
       supabase.from("ops_users").select("id,email,role,leader_name,created_at").order("created_at", { ascending: false }),
       supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
@@ -105,11 +107,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ items, error: roleRows.error?.message || authRows.error?.message });
   }
   if (type === "profile") {
+    let personelName = "";
+    if (session.employee_nik) {
+      try { personelName = (await linkedEmployee(supabase, session.email))?.name || ""; }
+      catch { return NextResponse.json({ error: "Data personel akun belum dapat dimuat." }, { status: 503 }); }
+    }
     const result = await supabase.from("ops_user_profiles").select("email,display_name,photo_path,updated_at").eq("email", session.email.toLowerCase()).maybeSingle();
     const photoPath = result.data?.photo_path || "";
     const version = result.data?.updated_at ? `&v=${encodeURIComponent(result.data.updated_at)}` : "";
     const photo_url = photoPath ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photoPath)}${version}` : "";
-    return NextResponse.json({ profile: result.data ? { ...result.data, photo_url } : { email: session.email, display_name: "", photo_url: "" }, error: result.error?.message }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ profile: result.data ? { ...result.data, display_name: personelName || result.data.display_name, photo_url } : { email: session.email, display_name: personelName, photo_url: "" }, error: result.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   const employeeFields = "nik,name,position,dept,hub,level,superior,active,employment,start_date,created_at";
   if(type==="problems"){
@@ -295,6 +302,8 @@ export async function POST(req: NextRequest) {
       const updated = await supabase.auth.admin.updateUserById(authUser.id, { password });
       return NextResponse.json({ ok: !updated.error, error: updated.error?.message });
     }
+    const unlinked = await supabase.from("ops_user_employee_links").delete().eq("email", email);
+    if (unlinked.error && !["42P01", "PGRST205"].includes(unlinked.error.code)) return NextResponse.json({ ok: false, error: "Pengaitan NIK belum dapat dihapus; akun belum dihapus." }, { status: 503 });
     const removed = await supabase.auth.admin.deleteUser(authUser.id);
     if (removed.error) return NextResponse.json({ ok: false, error: removed.error.message }, { status: 400 });
     const roleRemoved = await supabase.from("ops_users").delete().eq("email", email);

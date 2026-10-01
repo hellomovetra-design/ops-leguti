@@ -43,6 +43,7 @@ export function CourierCheckForm({ record, onSaved }: Props) {
     setForm(f => ({ ...f, courier_id: id, courier_name: courier.name, position: courier.position || "", employment: courier.employment || "", delivery_area: f.delivery_area || deliveryArea(courier.hub || "") }));
     setPickerOpen(false); setSearch("");
   };
+  const matches = couriers.filter(c => form.delivery_area && deliveryArea(c.hub || "") === form.delivery_area && (c.name + " " + c.nik).toLowerCase().includes(search.toLowerCase().trim()));
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (lock.current || !editable) return;
@@ -67,11 +68,11 @@ export function CourierCheckForm({ record, onSaved }: Props) {
     {profileError && <p role="alert">{profileError}</p>}
     <fieldset disabled={saving || !editable}>
       <label>{label("inspection_date")} *<input type="date" required value={form.inspection_date} onChange={e => update("inspection_date", e.target.value)} /></label>
-      <label>{label("delivery_area")} *<select required value={form.delivery_area} onChange={e => update("delivery_area", e.target.value)}><option value="">Pilih area delivery</option>{DELIVERY_AREAS.map(u => <option key={u}>{u}</option>)}</select></label>
+      <label>{label("delivery_area")} *<select required value={form.delivery_area} onChange={e => { setForm(f => ({ ...f, delivery_area: e.target.value, courier_id: "", courier_name: "", position: "", employment: "" })); setSearch(""); setPickerOpen(false); }}><option value="">Pilih area delivery</option>{DELIVERY_AREAS.map(u => <option key={u}>{u}</option>)}</select></label>
       <label>{label("inspector_name")} *<input required readOnly value={form.inspector_name} placeholder="Mengikuti akun login" /></label>
       <div className="courier-picker"><label id="courier-picker-label">{label("courier_name")} *</label>
-        <button type="button" aria-labelledby="courier-picker-label" aria-expanded={pickerOpen} aria-controls="courier-picker-results" onClick={() => setPickerOpen(v => !v)}>{form.courier_name ? form.courier_name + " · " + form.courier_id : "Pilih kurir aktif"}<span aria-hidden="true">⌄</span></button>
-        {pickerOpen && <div className="courier-picker-panel"><label>Cari nama atau ID kurir<input autoFocus type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Ketik nama atau ID…" /></label><div id="courier-picker-results" className="courier-picker-results">{couriers.filter(c => (c.name + " " + c.nik).toLowerCase().includes(search.toLowerCase().trim())).map(c => <button type="button" key={c.nik} onClick={() => selectCourier(c.nik)}><strong>{c.name}</strong><small>{c.nik} · {c.position}</small></button>)}{!couriers.some(c => (c.name + " " + c.nik).toLowerCase().includes(search.toLowerCase().trim())) && <p>Tidak ada kurir yang cocok.</p>}</div><button type="button" onClick={() => setPickerOpen(false)}>Tutup pencarian</button></div>}
+        <button type="button" disabled={!form.delivery_area} aria-labelledby="courier-picker-label" aria-expanded={pickerOpen} aria-controls="courier-picker-results" onClick={() => setPickerOpen(v => !v)}>{form.courier_name ? form.courier_name + " · " + form.courier_id : form.delivery_area ? "Pilih kurir / leader aktif" : "Pilih area delivery terlebih dahulu"}<span aria-hidden="true">⌄</span></button>
+        {pickerOpen && <div className="courier-picker-panel"><label>Cari nama atau NIK<input autoFocus type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Ketik nama atau NIK…" /></label><div id="courier-picker-results" className="courier-picker-results">{matches.map(c => <button type="button" key={c.nik} onClick={() => selectCourier(c.nik)}><strong>{c.name}</strong><small>{c.nik} · {c.position}</small></button>)}{!matches.length && <p>Tidak ada personel yang cocok di area dan struktur Anda.</p>}</div><button type="button" onClick={() => setPickerOpen(false)}>Tutup pencarian</button></div>}
       </div>
       <div className="mobile-grid"><label>{label("courier_id")}<input required readOnly value={form.courier_id} /></label><label>{label("position")} *<input required maxLength={160} value={form.position} onChange={e => update("position", e.target.value)} /></label></div>
       <label>{label("employment")} *<input required maxLength={160} readOnly={!!couriers.find(c => c.nik === form.courier_id)?.employment} value={form.employment} onChange={e => update("employment", e.target.value)} placeholder="Isi jika belum tersedia di data karyawan" /></label>
