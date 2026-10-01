@@ -1,0 +1,66 @@
+@font-face {
+  font-family: "OPS Admin Inter";
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* Header typography only: keep table, form, sidebar and PWA styles unchanged. */
+.app-shell .content .section-head {
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.app-shell .content .section-head > div:first-child {
+  min-width: 0;
+}
+.app-shell .content .section-head :is(.eyebrow, .headline, .subtitle),
+.app-shell .topbar :is(.page-title, .breadcrumb) {
+  font-family: "OPS Admin Inter", Arial, Helvetica, sans-serif;
+  font-optical-sizing: auto;
+}
+.app-shell .content .section-head .eyebrow {
+  color: #d92135;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.6;
+  letter-spacing: 1px;
+}
+.app-shell .content .section-head .headline {
+  margin: 7px 0 8px;
+  color: #111c35;
+  font-size: 28px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -.55px;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+.app-shell .content .section-head .subtitle {
+  margin: 0;
+  max-width: 760px;
+  color: #71809a;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.7;
+  letter-spacing: 0;
+}
+.app-shell .topbar .page-title {
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -.3px;
+}
+.app-shell .topbar .breadcrumb {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: .1px;
+}
+@media (max-width: 600px) {
+  .app-shell .content .section-head { gap: 16px; margin-bottom: 20px; }
+  .app-shell .content .section-head .headline { font-size: 24px; letter-spacing: -.35px; }
+  .app-shell .topbar .page-title { font-size: 17px; }
+}

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Bell, LogOut, Menu, RefreshCw, Settings, X, PackageSearch, Boxes, LayoutDashboard, Network, ArrowLeftRight, UserRound, Headphones } from "lucide-react";
 import { useApp } from "@/app/providers";
 import { cn } from "@/lib/utils";
+import "./admin-header.css";
 
 const navGroups = [
   {
