@@ -121,6 +121,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ profile: result.data ? { ...result.data, display_name: personelName || result.data.display_name, photo_url } : { email: session.email, display_name: personelName, photo_url: "" }, error: result.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   const employeeFields = "nik,name,position,dept,hub,level,superior,active,employment,start_date,created_at";
+  if (type === "employees" && p.get("view") === "structure") {
+    const employees: any[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const page = await supabase.from("ops_employees").select(employeeFields).order("nik").range(offset, offset + 999);
+      if (page.error) return NextResponse.json({ error: "Data struktur belum dapat dimuat." }, { status: 503 });
+      employees.push(...(page.data || []));
+      if ((page.data || []).length < 1000) break;
+    }
+    const photos = new Map<string, string>();
+    for (let offset = 0; offset < employees.length; offset += 500) {
+      const result = await supabase.from("ops_employee_photos").select("nik,storage_path").in("nik", employees.slice(offset, offset + 500).map(row => row.nik));
+      if (result.error) return NextResponse.json({ error: "Foto personel belum dapat dimuat." }, { status: 503 });
+      for (const photo of result.data || []) photos.set(photo.nik, photo.storage_path);
+    }
+    return NextResponse.json({ items: employees.map(row => ({ ...row, photo_url: photos.get(row.nik) ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photos.get(row.nik)!)}` : "/default-employee.jpg" })) }, { headers: { "Cache-Control": "private, no-store" } });
+  }
   if(type==="problems"){
     try{
       const filters=problemFilters(p),offset=Number(p.get("offset")||0);

@@ -1,0 +1,31 @@
+const fs = require('node:fs'), vm = require('node:vm'), ts = require('typescript'), assert = require('node:assert/strict');
+const moduleObject = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/team-structure.ts', 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { module: moduleObject, exports: moduleObject.exports });
+const { teamManagement, teamChildren, DEFAULT_TEAM_PHOTO, teamPhoto } = moduleObject.exports;
+const person = (nik, name, position, superior = '', active = true) => ({ nik, name, position, superior, active, dept: 'OPS', hub: 'SPC LEGUTI' });
+const courier = person('12040215', 'Aditya Nugroho', 'Kurir Motor Staff');
+const supervisor = person('14010441', 'Adhitya Prima Nugraha', 'Operational Inbound Leguti Supervisor');
+const junior = person('15110895', 'Giga Amrie Pratama', 'Operational Inbound Jr. Supervisor', ' ADHITYA  PRIMA NUGRAHA ');
+let rows = [courier, junior, supervisor];
+assert.equal(teamManagement(rows).supervisor.nik, supervisor.nik);
+assert.equal(teamManagement(rows).supervisor.name, 'Adhitya Prima Nugraha');
+assert.equal(teamManagement(rows).junior.nik, junior.nik);
+assert.equal(teamManagement([courier]).supervisor, undefined);
+assert.equal(teamManagement([person('0', 'Adit', 'SPV', '', false), courier]).supervisor, undefined);
+assert.equal(teamManagement([supervisor, person('9', 'Other', 'Supervisor')]).supervisor, undefined);
+assert.equal(teamManagement([supervisor, person('9', 'Other', 'Supervisor'), junior]).supervisor.nik, supervisor.nik);
+assert.equal(teamChildren(rows, supervisor)[0].nik, junior.nik);
+assert.equal(DEFAULT_TEAM_PHOTO, '/default-employee.jpg');
+for (const nik of ['14010441', '15110895', '11050113']) {
+  const employee = { ...person(nik, 'Person', 'Staff'), photo_url: '/wrong-upload.jpg' };
+  assert.equal(teamPhoto(employee), DEFAULT_TEAM_PHOTO);
+  assert.equal(employee.photo_url, '/wrong-upload.jpg');
+}
+assert.equal(teamPhoto({ ...courier, photo_url: '/actual-courier.jpg' }), '/actual-courier.jpg');
+assert.equal(teamPhoto(), DEFAULT_TEAM_PHOTO);
+const component = fs.readFileSync('components/team-structure.tsx', 'utf8');
+assert.ok(component.includes('view=structure'));
+assert.ok(component.includes('cache: "no-store"'));
+assert.ok(component.includes('onError='));
+assert.ok(!component.includes('rootName') && !component.includes('Crown'));
+console.log('PASS: database superior + SPV role, full name, courier exclusion, inactive/ambiguous supervisors, normalized hierarchy, photo fallback and fresh loading.');

@@ -1,0 +1,40 @@
+.team-structure-page .structure-toolbar{flex-wrap:wrap;gap:10px;background:#fff;padding:14px;border:1px solid #e7edf5;border-radius:16px}
+.team-structure-page .structure-toolbar .search{flex:1;min-width:220px;margin:0}
+.team-structure-page .structure-toolbar select{min-height:42px;max-width:220px;font-size:13px}
+.team-structure-page .structure-summary-card{border-radius:16px;padding:18px;min-height:90px}
+.team-structure-page .structure-summary-card.primary,.team-structure-page .structure-tabs button.active{background:#102d57}
+.team-structure-page .structure-tabs{border-radius:14px;padding:4px;gap:4px}
+.team-structure-page .structure-tabs button{border-radius:10px;min-height:42px;font-size:13px}
+.team-structure-page .team-canvas{border-radius:20px;padding:28px 20px;background:#f5f7fb;min-height:440px}
+.team-structure-page .team-root{width:min(100%,360px);padding:22px 20px;gap:9px;border-radius:18px;color:#102d57}
+.team-structure-page .team-root strong{font-size:19px;line-height:1.4;overflow-wrap:anywhere}
+.team-structure-page .team-root small{font-size:12px;line-height:1.6}
+.team-structure-page .team-position-badge{font-size:11px;font-weight:750;letter-spacing:.08em;background:#edf3fc;color:#102d57;border-radius:6px;padding:4px 10px}
+.team-structure-page .team-management{width:min(100%,360px);max-width:360px;border-radius:16px;color:#102d57}
+.team-structure-page .team-person-card{border-radius:14px;padding:14px;min-height:88px;color:#111c35;transition:border-color .15s,box-shadow .15s}
+.team-structure-page .team-person-card:hover,.team-structure-page .team-root:hover{border-color:#9db5d4;box-shadow:0 6px 20px #102d5710}
+.team-structure-page .team-person-card span,.team-structure-page .team-management span{min-width:0;flex:1}
+.team-structure-page .team-person-card strong,.team-structure-page .team-management strong{font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.team-structure-page .team-person-card small,.team-structure-page .team-management small{font-size:12px;line-height:1.6;margin-top:2px}
+.team-structure-page .team-card-photo{width:44px;height:44px;background:#e9182b;border-color:#f6dee2}
+.team-structure-page .team-drawer-photo{border-color:#f6dee2;background:#e9182b}
+.team-structure-page .team-hubs{grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.team-structure-page .team-hub-node{border-radius:14px;min-height:74px}
+.team-structure-page .team-hub-node>svg:last-child{margin-left:auto;transition:transform .15s}
+.team-structure-page .team-collapsed{transform:rotate(-90deg)}
+.team-structure-page .team-children{max-width:none;padding:14px 10px;margin-top:12px;border-right:0}
+.team-structure-page .team-role-label{font-size:10px;letter-spacing:.1em;margin:2px 0 12px}
+.team-structure-page .team-link{display:flex;align-items:center;justify-content:center;gap:6px;min-height:36px;font-size:12px}
+.team-structure-page .team-table-person{display:flex;align-items:center;gap:12px}
+.team-structure-page .team-table-person small{display:block;color:#71809a;margin-top:4px}
+.team-structure-page .team-state{display:flex;flex-direction:column;align-items:center;gap:16px;padding:60px 20px;color:#71809a}
+.team-structure-page .team-inactive{color:#71809a;background:#f0f3f7;padding:4px 8px;border-radius:6px;font-size:12px}
+.team-structure-page .team-drawer-backdrop{position:fixed;inset:0;border:0;background:#091b3633;z-index:39}
+.team-structure-page .team-drawer{width:min(420px,100vw);top:0;padding:32px;z-index:40}
+.team-structure-page .team-drawer h2{font-size:22px;line-height:1.35;overflow-wrap:anywhere}
+.team-structure-page .team-drawer p{font-size:14px;line-height:1.6;margin-bottom:16px}
+.team-structure-page .team-drawer dl{border-top:1px solid #e7edf5;margin-top:24px;padding-top:24px;grid-template-columns:110px minmax(0,1fr);line-height:1.6}
+.team-structure-page .team-drawer dd{overflow-wrap:anywhere}
+.team-structure-page button:focus-visible,.team-structure-page select:focus-visible{outline:3px solid #8ab8e8;outline-offset:3px}
+@media(max-width:900px){.team-structure-page .structure-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.team-structure-page .structure-toolbar select{flex:1;min-width:120px}.team-structure-page .structure-toolbar .search{flex-basis:100%}}
+@media(max-width:600px){.team-structure-page .structure-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.team-structure-page .team-hubs{grid-template-columns:minmax(0,1fr)}.team-structure-page .team-canvas{padding:20px 12px}.team-structure-page .team-fork{width:2px;border:0;background:#8ab8e8}.team-structure-page .structure-tabs button{font-size:11px;padding:8px 4px}.team-structure-page .team-drawer{padding:24px}}
