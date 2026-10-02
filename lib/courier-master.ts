@@ -1,10 +1,12 @@
 export const MASTER_FIELDS = ["tgrid", "name", "leader", "shift", "vehicle", "area", "district", "zone", "kanit", "code", "kpi"] as const;
 export const MASTER_HEADERS = ["ID KURIR", "NAMA KURIR", "LEADER", "SHIFT KERJA", "VICH", "AREA", "KEC", "zone", "Kanit", "KODE", "KPI"];
+export const REQUIRED_MASTER_FIELDS = ["leader", "shift", "vehicle", "area", "district", "zone", "kanit"] as const;
 export type MasterRow = { id: string; employee_nik: string | null; active: boolean; source_month: string | null } & Record<typeof MASTER_FIELDS[number], string>;
 export type IncomingCourier = Partial<Record<typeof MASTER_FIELDS[number], string>> & { tgrid: string; name: string; row: string };
 export const text = (v: unknown) => String(v ?? "").trim().replace(/\s+/g, " ");
 export const identity = (v: unknown) => text(v).toUpperCase();
 export const personName = (v: unknown) => text(v).toLocaleLowerCase("id-ID");
+export const missingMasterFields = (row: Partial<MasterRow>) => REQUIRED_MASTER_FIELDS.filter(field=>!text(row[field]));
 export function normalizeCourier(raw: Record<string, unknown>, row: string): IncomingCourier {
   const obj = Object.fromEntries(Object.entries(raw).map(([k,v]) => [identity(k).replace(/[\s_-]+/g,"_"),v]));
   const mapping = ["ID_KURIR", "NAMA_KURIR", "LEADER", "SHIFT_KERJA", "VICH", "AREA", "KEC", "ZONE", "KANIT", "KODE", "KPI"];
@@ -52,6 +54,8 @@ export function planImport(incoming: IncomingCourier[], records: MasterRow[], al
     if (record && claimed.has(record.id)) { block("Personel yang sama muncul dengan dua ID di file ini. Sisakan ID terbaru saja.");continue; }
     if(record)claimed.add(record.id);
     const values = Object.fromEntries(MASTER_FIELDS.map(k=>[k,input[k]===undefined?record?.[k]??"":input[k]])) as Record<string,string>;
+    const missing=missingMasterFields(values);
+    if(missing.length){block(`Kolom wajib belum lengkap: ${missing.map(k=>MASTER_HEADERS[MASTER_FIELDS.indexOf(k)]).join(", ")}. Lengkapi dari data yang benar.`);continue;}
     // Capitalisation/spaces in names are not identity changes or reasons to write again.
     if(record && personName(values.name)===personName(record.name)) values.name=record.name;
     const changes=MASTER_FIELDS.filter(k=>text(record?.[k])!==text(values[k])).map(k=>({field:k,before:record?.[k]??"",after:values[k]}));

@@ -1,8 +1,8 @@
 const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict'),X=require('xlsx');
 function load(file,overrides={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:m,exports:m.exports,require:n=>overrides[n]??require(n),TextDecoder,TextEncoder,Uint8Array,console});return m.exports;}
 const core=load('lib/courier-master.ts'),exporter=load('lib/courier-master-export.ts',{'./courier-master':core});
-const record=(id,tgrid,name)=>({id,tgrid,name,employee_nik:null,active:true,source_month:null,...Object.fromEntries(core.MASTER_FIELDS.slice(2).map(k=>[k,'']))});
-const input=(tgrid,name,more={})=>({tgrid,name,row:'KURIR:3',...more});
+const record=(id,tgrid,name)=>({id,tgrid,name,employee_nik:null,active:true,source_month:null,...Object.fromEntries(core.MASTER_FIELDS.slice(2).map(k=>[k,core.REQUIRED_MASTER_FIELDS.includes(k)?'Test':'']))});
+const input=(tgrid,name,more={})=>({...Object.fromEntries(core.REQUIRED_MASTER_FIELDS.map(k=>[k,rows.find(r=>r.tgrid===tgrid)?.[k]??'Test'])),tgrid,name,row:'KURIR:3',...more});
 const rows=[record('one','TGR159','Nama A'),record('two','TGRFL123','Nama B')];rows[0].area='B';rows[0].leader='C';
 let p=core.planImport([input('TGR159',' nama   a ')],rows,[]);assert.equal(p.counts.unchanged,1);assert.equal(p.operations.length,0);
 p=core.planImport([input('TGR159','Nama A',{area:'D',leader:'E'})],rows,[]);assert.equal(p.operations.length,1);assert.equal(p.operations[0].id,'one');assert.equal(p.operations[0].changes.length,2);
@@ -18,6 +18,7 @@ p=core.planImport([input('TGR159','Nama A',{area:'B'}),input('TGR159','Nama A',{
 p=core.planImport([input('TGR159','Nama A',{area:'B'}),input('TGR159','Nama A',{area:'B'})],rows,[]);assert.equal(p.counts.blocked,0);assert.equal(p.counts.duplicates,1);assert.equal(p.operations.length,0);
 p=core.planImport([input('TGRFL123','Nama B'),input('TGR509','Nama B')],rows,[],{TGR509:'two'});assert.equal(p.counts.blocked,1);
 assert.equal(core.normalizeCourier({'ID KURIR':' tgrfl002 ','NAMA KURIR':' A ','KPI':0},'test').tgrid,'TGRFL002');
+p=core.planImport([{tgrid:'TGR777',name:'Belum Lengkap',row:'test'}],rows,[]);assert.equal(p.counts.blocked,1);assert.equal(p.operations.length,0);assert.equal(core.missingMasterFields({}).length,7);
 const template=fs.readFileSync('assets/templates/courier-master.xlsx');
 const exported=exporter.masterCourierXlsx(template,rows,'2026-11');
 const w=X.read(exported,{type:'array'}),a=X.utils.sheet_to_json(w.Sheets.KURIR,{range:1,defval:''});

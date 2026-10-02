@@ -15,6 +15,7 @@ Route `/master/couriers` menggunakan `/api/courier-master`. Data produksi tidak 
 
 - TGRID unik, terpisah dari NIK. Teks dibersihkan dari spasi berlebih; kapitalisasi nama saja tidak menimbulkan penulisan ulang.
 - Isian kosong pada upload mempertahankan nilai lama, bukan menghapusnya. KPI nol adalah nilai yang sah.
+- Leader, kanit, shift, kendaraan, area, kecamatan dan zona wajib terisi pada hasil sinkronisasi. Jika data lama juga kosong, import ditolak sampai sumber dilengkapi. Personel yang belum lengkap tetap ditampilkan dengan pemberitahuan, tetapi tidak masuk unduhan operasional.
 - TGRID baru dibuat, TGRID sama dengan perubahan diperbarui, isian identik dilewati. Tidak ada salinan master per bulan.
 - TGRID yang tidak ada pada upload tetap dipertahankan. Import tidak mengaktifkan/nonaktifkan karyawan.
 - TGRFL ke TGR membutuhkan keputusan eksplisit admin. Record ID dan kaitan NIK tetap sama, ID lama disimpan sebagai alias dan tidak boleh dipakai balik.
@@ -25,7 +26,7 @@ Route `/master/couriers` menggunakan `/api/courier-master`. Data produksi tidak 
 
 Semua pengguna internal dengan sesi valid dapat membaca dan mengunduh master aktif. Hanya Admin Pengelola/Super Admin dapat memperbarui. Hak akses yang lebih rinci dapat ditambahkan melalui konfigurasi role aplikasi; tidak ada hak edit baru untuk staf biasa.
 
-Excel mempertahankan styles, lebar kolom, nama sheet dan pengaturan cetak dari template sanitised. `KURIR` berisi master aktif terbaru; `ORION` menyediakan TGRID/nama dengan nama Orion kosong karena belum ada sumbernya; `Sheet2` memuat freelance. `Sheet1` tetap kosong. Data contoh, shared strings, pivot cache dan metadata pembuat asli dibuang. PivotTable sumber tidak dipertahankan karena akan membawa data/cache lama.
+Excel mempertahankan styles, lebar kolom, nama sheet dan pengaturan cetak dari template sanitised. `KURIR` berisi master aktif terbaru dengan tujuh kolom operasional lengkap; `ORION` menyediakan TGRID/nama dengan nama Orion kosong karena belum ada sumbernya; `Sheet2` memuat freelance. `Sheet1` tetap kosong. Data contoh, shared strings, pivot cache dan metadata pembuat asli dibuang. PivotTable sumber tidak dipertahankan karena akan membawa data/cache lama.
 
 Periode pada unduhan adalah label laporan terbaru, bukan snapshot historis atau jaminan semua personel diperbarui pada periode tersebut. File diunduh sebagai `.xlsx` nyata, bukan CSV yang diganti ekstensi.
 
