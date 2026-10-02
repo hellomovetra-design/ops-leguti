@@ -1,0 +1,33 @@
+const fs=require('node:fs'), vm=require('node:vm'), assert=require('node:assert/strict'), ts=require('typescript');
+const {NextRequest}=require('next/server');
+function load(file, mocks, env={}) { const m={exports:{}}; vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{module:m,exports:m.exports,require:n=>mocks[n]||require(n),process:{env},Buffer,URL,console,Date}); return m.exports; }
+const rows=[],receipts=[],deleted=[];
+let sendStatus=0, session={email:'First@Example.test'}, configured=true;
+const db={from(table){let filters=[],patch=null,mode='read',single=false;
+ const q={select(){return q},eq(k,v){filters.push(x=>x[k]===v);return q},maybeSingle(){single=true;return q},update(v){patch=v;mode='update';return q},insert(v){patch=v;mode='insert';return q},delete(){mode='delete';return q},then(resolve,reject){return Promise.resolve().then(()=>{const matches=rows.filter(x=>filters.every(f=>f(x)));if(mode==='insert')rows.push({...patch});if(mode==='update'){if(table==='ops_push_deliveries')receipts.push(patch);else matches.forEach(x=>Object.assign(x,patch));}if(mode==='delete'){deleted.push(table);matches.forEach(x=>rows.splice(rows.indexOf(x),1));}return {error:null,data:single?matches[0]||null:matches}}).then(resolve,reject)}};return q},rpc:async()=>({data:[{id:'job',subscription_id:'device',notification_id:'notice',attempts:1,endpoint:'https://fcm.googleapis.com/fcm/send/test',p256dh:'key',auth:'secret',title:'Request dikonfirmasi admin'}]})};
+let payload;
+const push=load('lib/web-push.ts',{'./supabase':{getSupabaseServerClient:()=>db},'web-push':{setVapidDetails(){},async sendNotification(_s,body){payload=JSON.parse(body);if(sendStatus)throw {statusCode:sendStatus}}}},{WEB_PUSH_PUBLIC_KEY:'public',WEB_PUSH_PRIVATE_KEY:'private',WEB_PUSH_SUBJECT:'https://ops-leguti.vercel.app',SUPABASE_SERVICE_ROLE_KEY:'server'});
+const api=load('app/api/push/route.ts',{'@/lib/auth-token':{SESSION_COOKIE:'jne_session',verifySessionToken:async()=>session},'@/lib/supabase':{getSupabaseServerClient:()=>db},'@/lib/web-push':{pushConfigured:()=>configured,validPushEndpoint:push.validPushEndpoint}},{WEB_PUSH_PUBLIC_KEY:'public',WEB_PUSH_PRIVATE_KEY:'NEVER_EXPOSE',SUPABASE_SERVICE_ROLE_KEY:'server'});
+const subscription={endpoint:'https://fcm.googleapis.com/fcm/send/test',keys:{p256dh:'A'.repeat(87),auth:'B'.repeat(22)}};
+const post=(action,sub=subscription,origin='https://app.example')=>api.POST(new NextRequest('https://app.example/api/push',{method:'POST',headers:{origin,'content-type':'application/json'},body:JSON.stringify({action,subscription:sub})}));
+(async()=>{
+ for(const endpoint of ['http://fcm.googleapis.com/a','https://127.0.0.1/a','https://fcm.googleapis.com.evil.test/a','https://user:pass@web.push.apple.com/a','https://web.push.apple.com:8443/a'])assert.equal(push.validPushEndpoint(endpoint),false);
+ assert(push.validPushEndpoint(subscription.endpoint));
+ assert.equal((await post('subscribe',subscription,'https://evil.test')).status,403);
+ assert.equal((await post('subscribe',{...subscription,keys:{}})).status,400);
+ assert.equal((await post('subscribe')).status,200);assert.equal(rows[0].recipient_email,'first@example.test');
+ assert.equal((await(await post('status')).json()).active,true);
+ session={email:'other@example.test'};assert.equal((await post('subscribe')).status,409);await post('unsubscribe');assert.equal(rows.length,1);
+ assert.equal((await(await post('status')).json()).active,false);
+ session={email:'first@example.test'};await post('unsubscribe');assert.equal(rows.length,0);
+ const get=await api.GET(new NextRequest('https://app.example/api/push'));assert(!JSON.stringify(await get.json()).includes('NEVER_EXPOSE'));
+ configured=false;assert.equal((await post('subscribe')).status,503);session=null;assert.equal((await post('subscribe')).status,401);
+ await push.dispatchPush();assert(receipts[0].sent_at);assert.equal(payload.body,'Request dikonfirmasi admin');assert(!payload.body.includes('@'));
+ sendStatus=503;await push.dispatchPush();assert.equal(receipts[1].last_error,'HTTP 503');assert(receipts[1].next_attempt_at);
+ sendStatus=410;await push.dispatchPush();assert(deleted.includes('ops_push_subscriptions'));
+ const events={};let shown,opened;
+ vm.runInNewContext(fs.readFileSync('public/ops-sw.js','utf8'),{URL,self:{location:{origin:'https://app.example'},addEventListener:(n,f)=>events[n]=f,registration:{showNotification:async(t,o)=>{shown={t,o}}},clients:{matchAll:async()=>[],openWindow:async u=>{opened=u}},skipWaiting:async()=>{}}});
+ let pending;events.push({data:{json:()=>({body:'Update',id:'notice',url:'https://evil.test'})},waitUntil:p=>pending=p});await pending;assert.equal(shown.o.tag,'notice');
+ events.notificationclick({notification:{close(){},data:shown.o.data},waitUntil:p=>pending=p});await pending;assert.equal(opened,'https://app.example/pwa');
+ console.log('PASS: push auth/origin, provider allowlist, cross-account isolation, private key protection, receipt/retry/expired cleanup, worker display and safe click URL.');
+})().catch(e=>{console.error(e);process.exit(1)});

@@ -64,3 +64,4 @@
   .app-shell .content .section-head .headline { font-size: 24px; letter-spacing: -.35px; }
   .app-shell .topbar .page-title { font-size: 17px; }
 }
+.app-shell .ops-brand-icon{width:40px;height:40px;padding:0;background:transparent;border-radius:9px;object-fit:contain}

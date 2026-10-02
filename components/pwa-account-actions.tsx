@@ -14,6 +14,16 @@ export function PwaAccountActions({ disabled, hasDraft }: { disabled: boolean; h
     setLeaving(true);
     setError("");
     try {
+      // Revoke this device before clearing the session, preventing shared-phone leaks.
+      if ("serviceWorker" in navigator) {
+        const worker = await navigator.serviceWorker.getRegistration("/pwa");
+        const subscription = await worker?.pushManager.getSubscription();
+        if (subscription) {
+          const removed = await fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "unsubscribe", subscription: subscription.toJSON() }) });
+          if (!removed.ok) throw new Error("Notifikasi perangkat belum dapat dilepas.");
+          await subscription.unsubscribe();
+        }
+      }
       const response = await fetch("/api/auth/logout", { method: "POST", cache: "no-store" });
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error("Belum berhasil keluar akun. Silakan coba lagi.");

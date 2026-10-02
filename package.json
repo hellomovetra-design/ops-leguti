@@ -19,6 +19,7 @@
     "react-dom": "^19.0.0",
     "recharts": "^2.15.1",
     "tailwind-merge": "^2.6.0",
+    "web-push": "^3.6.7",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -26,6 +27,7 @@
     "@types/node": "^22.13.10",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
+    "@types/web-push": "^3.6.4",
     "postcss": "^8.5.16",
     "tailwindcss": "^4.3.2",
     "typescript": "^5.8.2"

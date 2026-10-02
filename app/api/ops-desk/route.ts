@@ -8,6 +8,8 @@ import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit } from "@/lib
 import { applyRequestFilters, requestFilters, requestCsv } from "@/lib/request-report";
 import { applyProblemFilters, problemFilters } from "@/lib/problem-records";
 import { linkedEmployee } from "@/lib/employee-access";
+import { after } from "next/server";
+import { dispatchPush } from "@/lib/web-push";
 
 const db = () => getSupabaseServerClient();
 const SUPER_ADMIN_EMAIL = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
@@ -220,6 +222,7 @@ export async function POST(req: NextRequest) {
     const updated = await supabase.from("ops_requests").update({ status: "approved", approved_by: session.email, approved_at: new Date().toISOString(), last_action_at: new Date().toISOString() }).eq("id", id).select().single();
     if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
     await audit(supabase, session, "approve", "request", id);
+    after(() => dispatchPush().catch(() => console.error("Push dispatch failed")));
     return NextResponse.json({ ok: true, request: updated.data, mail: { to: HELP_DESK_TO, cc: HELP_DESK_CC, subject: current.data.email_subject || "Request Helpdesk OPS LEGUTI", body: current.data.email_body || "" } });
   }
   if (body.action === "updateRequestStatus") {
@@ -233,6 +236,7 @@ export async function POST(req: NextRequest) {
     const updated = await supabase.from("ops_requests").update(patch).eq("id", id).select().single();
     if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
     await audit(supabase, session, nextStatus, "request", id, { reason: patch.rejection_reason || null });
+    after(() => dispatchPush().catch(() => console.error("Push dispatch failed")));
     return NextResponse.json({ ok: true, request: updated.data });
   }
   if (body.action === "archiveRequest" || body.action === "deleteRequest") {
@@ -259,6 +263,7 @@ export async function POST(req: NextRequest) {
     const updated = await supabase.from("ops_problems").update(patch).eq("id", id).select().single();
     if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
     await audit(supabase, session, nextStatus, "problem", id, { note: patch.status_note || null });
+    after(() => dispatchPush().catch(() => console.error("Push dispatch failed")));
     return NextResponse.json({ ok: true, problem: updated.data });
   }
   if (body.action === "deleteProblem") {

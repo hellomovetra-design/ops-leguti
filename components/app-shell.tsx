@@ -47,7 +47,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
       <div className={cn("overlay", open && "open")} onClick={() => setOpen(false)} />
       <aside className={cn("sidebar", open && "open")}>
         <div className="brand">
-          <img src="/jne-logo.jpg" alt="JNE Express" className="brand-mark" />
+          <img src="/branding/app-icon-192.png" alt="Monogram OPS LEGUTI" className="brand-mark ops-brand-icon" />
           <div>
             <div className="brand-title">OPS LEGUTI</div>
             <div className="brand-sub">OPS DESK</div>

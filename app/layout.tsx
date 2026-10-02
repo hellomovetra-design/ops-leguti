@@ -3,10 +3,14 @@ import "./globals.css";
 import { Providers } from "./providers";
 
 export const metadata: Metadata = {
-  title: "JNE Ops Leguti",
-  description: "Dashboard analisa daily report operasional JNE",
+  title: "OPS LEGUTI",
+  description: "Ruang kerja operasional OPS LEGUTI",
   icons: {
-    icon: "/jne-logo.jpg",
+    icon: [
+      { url: "/branding/favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/branding/favicon-48.png", sizes: "48x48", type: "image/png" },
+    ],
+    apple: [{ url: "/branding/app-icon-180.png", sizes: "180x180", type: "image/png" }],
   },
 };
 
