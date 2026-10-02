@@ -1,2 +1,2 @@
-import { redirect } from "next/navigation";
-export default function Page() { redirect("/dashboard/ops-desk"); }
+import { CourierMasterAdmin } from "@/components/courier-master-admin";
+export default function Page() { return <CourierMasterAdmin />; }

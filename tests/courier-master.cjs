@@ -1,0 +1,29 @@
+const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict'),X=require('xlsx');
+function load(file,overrides={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:m,exports:m.exports,require:n=>overrides[n]??require(n),TextDecoder,TextEncoder,Uint8Array,console});return m.exports;}
+const core=load('lib/courier-master.ts'),exporter=load('lib/courier-master-export.ts',{'./courier-master':core});
+const record=(id,tgrid,name)=>({id,tgrid,name,employee_nik:null,active:true,source_month:null,...Object.fromEntries(core.MASTER_FIELDS.slice(2).map(k=>[k,'']))});
+const input=(tgrid,name,more={})=>({tgrid,name,row:'KURIR:3',...more});
+const rows=[record('one','TGR159','Nama A'),record('two','TGRFL123','Nama B')];rows[0].area='B';rows[0].leader='C';
+let p=core.planImport([input('TGR159',' nama   a ')],rows,[]);assert.equal(p.counts.unchanged,1);assert.equal(p.operations.length,0);
+p=core.planImport([input('TGR159','Nama A',{area:'D',leader:'E'})],rows,[]);assert.equal(p.operations.length,1);assert.equal(p.operations[0].id,'one');assert.equal(p.operations[0].changes.length,2);
+p=core.planImport([input('TGR509','Nama B')],rows,[]);assert.equal(p.counts.blocked,1);assert.equal(p.entries[0].kind,'transition');
+p=core.planImport([input('TGR509','Nama B')],rows,[],{TGR509:'two'});assert.equal(p.counts.transitions,1);assert.equal(p.operations[0].id,'two');
+p=core.planImport([input('TGR509','Nama B')],rows,[],{TGR509:'new'});assert.equal(p.counts.added,1);
+p=core.planImport([input('TGRFL123','Nama B')],[record('two','TGR509','Nama B')],[{tgrid:'TGRFL123',courier_id:'two'}]);assert.equal(p.counts.blocked,1);
+p=core.planImport([input('TGR159','Personel Lain')],rows,[]);assert.equal(p.counts.blocked,1);
+p=core.planImport([input('TGR159','Nama A Koreksi')],rows,[],{TGR159:'confirm-name'});assert.equal(p.counts.updated,1);assert.equal(p.operations[0].id,'one');assert.equal(p.operations[0].values.name,'Nama A Koreksi');
+p=core.planImport([input('TGR888','Baru',{kpi:'0'})],rows,[]);assert.equal(p.operations[0].values.kpi,'0');assert.equal(p.operations[0].employee_nik,null);
+p=core.planImport([input('TGR888','Baru',{kpi:'bad'})],rows,[]);assert.equal(p.counts.blocked,1);
+p=core.planImport([input('TGR159','Nama A',{area:'B'}),input('TGR159','Nama A',{area:'Changed'})],rows,[]);assert.equal(p.counts.blocked,1);
+p=core.planImport([input('TGR159','Nama A',{area:'B'}),input('TGR159','Nama A',{area:'B'})],rows,[]);assert.equal(p.counts.blocked,0);assert.equal(p.counts.duplicates,1);assert.equal(p.operations.length,0);
+p=core.planImport([input('TGRFL123','Nama B'),input('TGR509','Nama B')],rows,[],{TGR509:'two'});assert.equal(p.counts.blocked,1);
+assert.equal(core.normalizeCourier({'ID KURIR':' tgrfl002 ','NAMA KURIR':' A ','KPI':0},'test').tgrid,'TGRFL002');
+const template=fs.readFileSync('assets/templates/courier-master.xlsx');
+const exported=exporter.masterCourierXlsx(template,rows,'2026-11');
+const w=X.read(exported,{type:'array'}),a=X.utils.sheet_to_json(w.Sheets.KURIR,{range:1,defval:''});
+assert.equal(a.length,2);assert.equal(a[0]['ID KURIR'],'TGR159');assert.equal(a[0].AREA,'B');assert.equal(w.Sheets.KURIR.A1.v,'NOVEMBER 2026');assert.equal(w.Sheets.ORION.B3.v,'TGR159');assert.equal(w.Sheets.Sheet2.B3.v,'TGRFL123');assert.equal(w.Sheets.KURIR.A3.s,undefined); // SheetJS styles are tested as raw XML below.
+const cfb=X.CFB.read(exported,{type:'array'});const read=p=>new TextDecoder().decode(X.CFB.find(cfb,'/'+p)?.content);
+assert(!cfb.FullPaths.some(p=>/pivotCache|pivotTable|calcChain/.test(p)));assert(!read('xl/sharedStrings.xml').includes('Maulana'));
+assert(read('xl/worksheets/sheet1.xml').includes('<c r="A3" s="'));assert(read('xl/worksheets/sheet1.xml').includes('autoFilter ref="A2:K4"'));
+fs.mkdirSync('.tmp',{recursive:true});fs.writeFileSync('.tmp/courier-master-test.xlsx',exported);
+console.log('PASS: unchanged no-write, changed fields only, new records, FL confirmation, old-ID protection, identity/duplicates/zero validation, original Excel layout and removal of source personnel/pivot caches.');

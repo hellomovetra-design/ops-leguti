@@ -14,6 +14,7 @@ const navGroups = [
     items: [
       { href: "/dashboard/ops-desk", label: "Ringkasan", icon: LayoutDashboard },
       { href: "/master/employees", label: "Karyawan", icon: UserRound },
+      { href: "/master/couriers", label: "Master Kurir", icon: Boxes },
       { href: "/master/structure", label: "Struktur Tim", icon: Network },
       { href: "/master/personnel-changes", label: "Perubahan Personel", icon: ArrowLeftRight },
       { href: "/dashboard/ops-desk/ots", label: "Monitoring OTS", icon: PackageSearch },
