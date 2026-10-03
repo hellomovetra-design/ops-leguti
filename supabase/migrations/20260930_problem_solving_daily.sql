@@ -1,4 +1,5 @@
 -- Apply through the project's Supabase SQL migration workflow before deploying.
+begin;
 create table if not exists public.ops_problem_solving_daily (
   id uuid primary key,
   title text not null check (length(trim(title)) between 1 and 160),
@@ -18,6 +19,8 @@ create table if not exists public.ops_problem_solving_daily (
 create index if not exists ops_daily_owner_created_idx on public.ops_problem_solving_daily (created_by, created_at desc);
 create index if not exists ops_daily_created_idx on public.ops_problem_solving_daily (created_at desc);
 alter table public.ops_problem_solving_daily enable row level security;
+revoke all on public.ops_problem_solving_daily from anon, authenticated;
+grant all on public.ops_problem_solving_daily to service_role;
 -- Session-cookie API authorizes access; only the service role accesses this table.
 create or replace function public.ops_daily_set_updated_at() returns trigger
 language plpgsql set search_path = public as $$
@@ -34,3 +37,4 @@ for each row execute function public.ops_daily_set_updated_at();
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('ops-daily-photos', 'ops-daily-photos', false, 3145728, array['image/jpeg','image/png','image/webp'])
 on conflict (id) do nothing;
+commit;

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, LogOut, Menu, RefreshCw, Settings, X, PackageSearch, Boxes, LayoutDashboard, Network, ArrowLeftRight, UserRound, Headphones, MessageCircle } from "lucide-react";
+import { Bell, LogOut, Menu, RefreshCw, Settings, X, PackageSearch, Boxes, LayoutDashboard, Network, ArrowLeftRight, UserRound, Headphones, MessageCircle, ClipboardList } from "lucide-react";
 import { useApp } from "@/app/providers";
 import { cn } from "@/lib/utils";
 import "./admin-header.css";
@@ -22,6 +22,7 @@ const navGroups = [
       { href: "/dashboard/ops-desk/ots", label: "Monitoring OTS", icon: PackageSearch },
       { href: "/dashboard/ops-desk/courier-carry", label: "Bawaan Kurir", icon: Boxes },
       { href: "/dashboard/ops-desk/problems", label: "Problem Barang", icon: Boxes },
+      { href: "/dashboard/ops-desk/problem-solving-daily", label: "Problem Solving Daily", icon: ClipboardList },
       { href: "/dashboard/ops-desk/requests", label: "Request Helpdesk", icon: Headphones },
       { href: "/dashboard/ops-desk/inbox", label: "Inbox", icon: MessageCircle },
     ],
