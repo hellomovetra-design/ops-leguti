@@ -10,6 +10,7 @@ import { useCourierChecks } from "./use-courier-checks";
 import { CourierCheck } from "@/lib/courier-checks";
 import { ProblemSolvingDaily } from "./problem-solving-daily";
 import { DailyRecord, DAILY_STATUSES } from "@/lib/problem-solving-daily";
+import { usePwaNavigation } from "./use-pwa-navigation";
 
 const initial={type:"activation_user",userId:"",name:"",nik:"",department:"Inbound",location:"SPC LEGUTI",reason:"",shipmentNumbers:"",awb:"",category:"INVALID"};
 type View="carry"|"daily"|"ots"|"services"|"home"|"activity"|"problem"|"helpdesk"|"notifications"|"profile";
@@ -27,6 +28,12 @@ export function MobileRequestApp(){
  const carry=useCourierChecks();
  const notifications=usePwaNotifications();
  const [carryEditing,setCarryEditing]=useState<CourierCheck|null>(null),[carryKey,setCarryKey]=useState(0);
+ usePwaNavigation(
+  {view,selected,carryEditing,dailyEditing},
+  {view:"home" as View,selected:null,carryEditing:null,dailyEditing:null},
+  previous=>{setView(previous.view);setSelected(previous.selected);setCarryEditing(previous.carryEditing);setDailyEditing(previous.dailyEditing);setQ("");setMsg("")},
+  ()=>setToast("Tekan kembali sekali lagi dalam 2 detik untuk keluar.")
+ );
  const openCarry=(item:CourierCheck|null=null)=>{setCarryEditing(item);setCarryKey(k=>k+1);nav("carry")};
  const carrySaved=(item:CourierCheck)=>{carry.saved(item);setCarryEditing(null);setCarryKey(k=>k+1);finish("Pemeriksaan connote berhasil disimpan.");};
  const loadDaily=async()=>{try{const r=await fetch("/api/problem-solving-daily",{cache:"no-store"});const data=await r.json();if(!r.ok||data.error)throw new Error(data.error||"Catatan harian belum dapat dimuat.");setDailyItems(data.items||[]);setDailyError("");}catch(e){setDailyError(e instanceof Error?e.message:"Catatan harian belum dapat dimuat.");}};
