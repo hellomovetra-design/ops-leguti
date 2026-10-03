@@ -13,6 +13,10 @@ const post=(action,sub=subscription,origin='https://app.example')=>api.POST(new 
 (async()=>{
  for(const endpoint of ['http://fcm.googleapis.com/a','https://127.0.0.1/a','https://fcm.googleapis.com.evil.test/a','https://user:pass@web.push.apple.com/a','https://web.push.apple.com:8443/a'])assert.equal(push.validPushEndpoint(endpoint),false);
  assert(push.validPushEndpoint(subscription.endpoint));
+ const thread='11111111-1111-4111-8111-111111111111';
+ assert.equal(push.inboxPushDestination('/dashboard/ops-desk/inbox?thread='+thread,'notice'),'/dashboard/ops-desk/inbox?thread='+thread);
+ assert.equal(push.inboxPushDestination('/pwa?inbox='+thread,'notice'),'/pwa?inbox='+thread);
+ for(const value of ['https://evil.test','//evil.test','/dashboard/ops-desk/inbox?thread=bad','/pwa?inbox='+thread+'&next=https://evil.test'])assert.equal(push.inboxPushDestination(value,'notice'),'/pwa?notification=notice');
  assert.equal((await post('subscribe',subscription,'https://evil.test')).status,403);
  assert.equal((await post('subscribe',{...subscription,keys:{}})).status,400);
  assert.equal((await post('subscribe')).status,200);assert.equal(rows[0].recipient_email,'first@example.test');
@@ -29,5 +33,6 @@ const post=(action,sub=subscription,origin='https://app.example')=>api.POST(new 
  vm.runInNewContext(fs.readFileSync('public/ops-sw.js','utf8'),{URL,self:{location:{origin:'https://app.example'},addEventListener:(n,f)=>events[n]=f,registration:{showNotification:async(t,o)=>{shown={t,o}}},clients:{matchAll:async()=>[],openWindow:async u=>{opened=u}},skipWaiting:async()=>{}}});
  let pending;events.push({data:{json:()=>({body:'Update',id:'notice',url:'https://evil.test'})},waitUntil:p=>pending=p});await pending;assert.equal(shown.o.tag,'notice');
  events.notificationclick({notification:{close(){},data:shown.o.data},waitUntil:p=>pending=p});await pending;assert.equal(opened,'https://app.example/pwa');
+ for(const url of ['/dashboard/ops-desk/inbox?thread='+thread,'/pwa?inbox='+thread]){events.notificationclick({notification:{close(){},data:{url}},waitUntil:p=>pending=p});await pending;assert.equal(opened,'https://app.example'+url);}
  console.log('PASS: push auth/origin, provider allowlist, cross-account isolation, private key protection, receipt/retry/expired cleanup, worker display and safe click URL.');
 })().catch(e=>{console.error(e);process.exit(1)});

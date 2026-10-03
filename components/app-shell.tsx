@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, LogOut, Menu, RefreshCw, Settings, X, PackageSearch, Boxes, LayoutDashboard, Network, ArrowLeftRight, UserRound, Headphones } from "lucide-react";
+import { Bell, LogOut, Menu, RefreshCw, Settings, X, PackageSearch, Boxes, LayoutDashboard, Network, ArrowLeftRight, UserRound, Headphones, MessageCircle } from "lucide-react";
 import { useApp } from "@/app/providers";
 import { cn } from "@/lib/utils";
 import "./admin-header.css";
+import "./inbox.css";
+import { useInboxIndicator } from "./use-inbox-indicator";
 
 const navGroups = [
   {
@@ -21,6 +23,7 @@ const navGroups = [
       { href: "/dashboard/ops-desk/courier-carry", label: "Bawaan Kurir", icon: Boxes },
       { href: "/dashboard/ops-desk/problems", label: "Problem Barang", icon: Boxes },
       { href: "/dashboard/ops-desk/requests", label: "Request Helpdesk", icon: Headphones },
+      { href: "/dashboard/ops-desk/inbox", label: "Inbox", icon: MessageCircle },
     ],
   },
   { label: "PENGATURAN", items: [{ href: "/settings/ops-access", label: "Administrator", icon: Settings }] },
@@ -32,6 +35,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<{ email?: string; display_name?: string }>({});
   const { toast } = useApp();
+  const inbox = useInboxIndicator(true);
   const displayTitle = title;
   useEffect(() => { fetch("/api/ops-desk?type=profile").then(r => r.json()).then(x => setProfile(x.profile || {})).catch(() => {}); }, []);
   const accountName = profile.display_name || profile.email?.split("@")[0] || "Pengguna";
@@ -97,7 +101,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
             <button className="icon-btn" aria-label="Refresh" onClick={() => toast("OPS Desk siap diperbarui")}>
               <RefreshCw size={15} />
             </button>
-            <button className="icon-btn" aria-label="Notifikasi"><Bell size={15} /></button>
+            <Link className="icon-btn inbox-admin-shortcut" href="/dashboard/ops-desk/inbox" aria-label={`Inbox${inbox.unread ? `, ${inbox.unread} pesan belum dibaca` : ""}`}><Bell size={15}/>{inbox.unread > 0 && <span className="inbox-unread">{inbox.unread > 99 ? "99+" : inbox.unread}</span>}</Link>
           </div>
         </header>
         <div className="content">{children}</div>

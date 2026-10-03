@@ -4,6 +4,8 @@ export function requester(row: Record<string, any>) {
   return String(row.created_by || row.email || "").trim() || "Pengaju belum tercatat";
 }
 export function requestFilters(params: URLSearchParams) {
+  const id = params.get("id") || "";
+  if (id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) throw new Error("Request tidak valid.");
   const from = params.get("from") || "", to = params.get("to") || "";
   for (const day of [from, to]) if (day && (!/^\d{4}-\d{2}-\d{2}$/.test(day) || new Date(day+"T00:00:00Z").toISOString().slice(0,10) !== day)) throw new Error("Tanggal filter tidak valid.");
   if (from && to && from > to) throw new Error("Tanggal awal tidak boleh melewati tanggal akhir.");
@@ -11,9 +13,10 @@ export function requestFilters(params: URLSearchParams) {
   if (status && !REQUEST_STATUSES[status] && status!=="processing") throw new Error("Status filter tidak valid.");
   const archive = params.get("archive") || "active";
   if (!["active", "archived", "all"].includes(archive)) throw new Error("Filter arsip tidak valid.");
-  return { from, to, status, archive, q: (params.get("q") || "").replace(/[,()%"_*\\]/g, " ").trim().slice(0,160) };
+  return { id, from, to, status, archive, q: (params.get("q") || "").replace(/[,()%"_*\\]/g, " ").trim().slice(0,160) };
 }
 export function applyRequestFilters(query: any, filters: ReturnType<typeof requestFilters>) {
+  if (filters.id) query = query.eq("id", filters.id);
   if (filters.archive === "active") query = query.is("archived_at", null);
   if (filters.archive === "archived") query = query.not("archived_at", "is", null);
   if (filters.status === "processing") query = query.in("status",["approved","sent"]);

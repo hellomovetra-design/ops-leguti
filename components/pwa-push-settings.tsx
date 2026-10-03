@@ -8,7 +8,7 @@ async function save(action: string, subscription: PushSubscription) {
   if (!r.ok) throw new Error(data.error || "Notifikasi perangkat belum tersedia.");
   return data;
 }
-export function PwaPushSettings() {
+export function PwaPushSettings({ audience = "user" }: { audience?: "user" | "admin" }) {
   const [message, setMessage] = useState(""), [active, setActive] = useState(false), [ready, setReady] = useState(false), [busy, setBusy] = useState(false), [key, setKey] = useState("");
   const lock = useRef(false);
   useEffect(() => {
@@ -23,11 +23,11 @@ export function PwaPushSettings() {
         const worker = await navigator.serviceWorker.register("/ops-sw.js", { scope: "/", updateViaCache: "none" });
         const sub = await worker.pushManager.getSubscription();
         const registered = sub ? await save("status", sub) : { active: false };
-        if (alive) { setKey(data.publicKey || ""); setActive(registered.active && Notification.permission === "granted"); setReady(true); setMessage(data.configured ? "Terima pembaruan admin meskipun aplikasi ditutup." : "Notifikasi perangkat sedang disiapkan oleh pengelola."); }
+        if (alive) { setKey(data.publicKey || ""); setActive(registered.active && Notification.permission === "granted"); setReady(true); setMessage(data.configured ? audience === "admin" ? "Terima request baru saat dashboard berada di belakang atau ditutup." : "Terima pembaruan admin meskipun aplikasi ditutup." : "Notifikasi perangkat sedang disiapkan oleh pengelola."); }
       } catch (e) { if (alive) setMessage(e instanceof Error ? e.message : "Periksa koneksi perangkat."); }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [audience]);
   async function toggle() {
     if (lock.current) return; lock.current = true; setBusy(true);
     try {
@@ -45,7 +45,7 @@ export function PwaPushSettings() {
         const bytes = Uint8Array.from(atob(key.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
         sub = await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes });
         await save("subscribe", sub);
-        setActive(true); setMessage("Notifikasi perangkat aktif. Pembaruan admin akan dikirim ke perangkat ini.");
+        setActive(true); setMessage(audience === "admin" ? "Notifikasi request baru aktif di PC ini." : "Notifikasi perangkat aktif. Pembaruan admin akan dikirim ke perangkat ini.");
       }
     } catch (e) { setMessage(e instanceof Error ? e.message : "Belum berhasil. Silakan coba lagi."); }
     finally { lock.current = false; setBusy(false); }

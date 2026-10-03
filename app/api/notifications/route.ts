@@ -14,9 +14,15 @@ export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("notification_id");
   if (id) {
     if (!uuid.test(id)) return json({ error: "Notifikasi tidak valid." }, 400);
-    const notice = await db.from("ops_notifications").select("entity_type,entity_id").eq("id", id).eq("recipient_email", email).maybeSingle();
+    const notice = await db.from("ops_notifications").select("*").eq("id", id).eq("recipient_email", email).maybeSingle();
     if (notice.error) return unavailable();
     if (!notice.data) return json({ error: "Notifikasi tidak ditemukan." }, 404);
+    if (notice.data.thread_id) {
+      const thread = await db.from("ops_inbox_threads").select("id,owner_email").eq("id", notice.data.thread_id).eq("owner_email", email).maybeSingle();
+      if (thread.error) return unavailable();
+      if (!thread.data) return json({ error: "Percakapan tidak ditemukan." }, 404);
+      return json({ item: { k: "inbox", thread_id: thread.data.id } });
+    }
     const isProblem = notice.data.entity_type === "problem";
     if (!isProblem && notice.data.entity_type !== "request") return json({ error: "Detail belum tersedia." }, 404);
     const record = await db.from(isProblem ? "ops_problems" : "ops_requests").select("*").eq("id", notice.data.entity_id).eq(isProblem ? "created_by_email" : "created_by", email).maybeSingle();

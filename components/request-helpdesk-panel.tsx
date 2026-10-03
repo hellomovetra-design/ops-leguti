@@ -4,11 +4,12 @@ import { Archive, Download, Search, Trash2, MoreHorizontal, X, ChevronRight } fr
 import { REQUEST_STATUSES, REQUEST_FILTER_STATUSES, requester } from "@/lib/request-report";
 import "./request-helpdesk-panel.css";
 type RequestRow = Record<string, any> & { id: string };
-export function RequestHelpdeskPanel() {
-  const [items,setItems]=useState<RequestRow[]>([]), [q,setQ]=useState(""), [from,setFrom]=useState(""), [to,setTo]=useState(""), [status,setStatus]=useState(""), [archive,setArchive]=useState("active"), [offset,setOffset]=useState(0);
+export function RequestHelpdeskPanel({ initialId = "" }: { initialId?: string }) {
+  const [sourceId,setSourceId]=useState(initialId);
+  const [items,setItems]=useState<RequestRow[]>([]), [q,setQ]=useState(""), [from,setFrom]=useState(""), [to,setTo]=useState(""), [status,setStatus]=useState(""), [archive,setArchive]=useState(initialId ? "all" : "active"), [offset,setOffset]=useState(0);
   const [selected,setSelected]=useState<string[]>([]), [loading,setLoading]=useState(true), [busy,setBusy]=useState(false), [exporting,setExporting]=useState(false), [more,setMore]=useState(false), [manage,setManage]=useState(false), [message,setMessage]=useState(""), [error,setError]=useState("");
   const lock=useRef(false), sequence=useRef(0);
-  const [detailId,setDetailId]=useState<string|null>(null),[menuId,setMenuId]=useState<string|null>(null);
+  const [detailId,setDetailId]=useState<string|null>(initialId || null),[menuId,setMenuId]=useState<string|null>(null);
   const detail=items.find(item=>item.id===detailId);
   const drawerRef=useRef<HTMLDivElement>(null);
   useEffect(()=>{if(!menuId)return;const close=(e:PointerEvent)=>{if(!(e.target instanceof Element)||!e.target.closest(".request-actions"))setMenuId(null)};const escape=(e:KeyboardEvent)=>{if(e.key==="Escape")setMenuId(null)};document.addEventListener("pointerdown",close);document.addEventListener("keydown",escape);return()=>{document.removeEventListener("pointerdown",close);document.removeEventListener("keydown",escape)}},[menuId]);
@@ -18,7 +19,7 @@ export function RequestHelpdeskPanel() {
     const keyboard=(e:KeyboardEvent)=>{if(e.key==="Escape"){setDetailId(null);return}if(e.key!=="Tab")return;const buttons=drawerRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]');if(!buttons?.length)return;const first=buttons[0],last=buttons[buttons.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}};
     document.addEventListener("keydown",keyboard);return()=>{document.body.style.overflow=overflow;document.removeEventListener("keydown",keyboard);previous?.focus()};
   },[detailId,!!detail]);
-  const params=new URLSearchParams({q,from,to,status,archive}).toString();
+  const params=new URLSearchParams({q,from,to,status,archive,id:sourceId}).toString();
   const invalid=!!(from&&to&&from>to);
   const load=useCallback(async()=>{
     const ticket=++sequence.current;setLoading(true);
@@ -32,7 +33,7 @@ export function RequestHelpdeskPanel() {
     finally{if(ticket===sequence.current)setLoading(false)}
   },[params,offset]);
   useEffect(()=>{setSelected([]);const start=setTimeout(load,250);const timer=setInterval(load,60000);const focus=()=>{if(!lock.current)load()};window.addEventListener("focus",focus);return()=>{clearTimeout(start);clearInterval(timer);window.removeEventListener("focus",focus);sequence.current++}},[load]);
-  const filter=(setter:(value:string)=>void,value:string)=>{setter(value);setOffset(0);setMessage("");setMenuId(null);setDetailId(null)};
+  const filter=(setter:(value:string)=>void,value:string)=>{setter(value);setSourceId("");setOffset(0);setMessage("");setMenuId(null);setDetailId(null)};
   async function mutate(body:Record<string,any>, success:string, mail=false){
     if(lock.current)return;lock.current=true;setBusy(true);setError("");setMessage("");
     const mailWindow=mail?window.open("about:blank","_blank"):null;

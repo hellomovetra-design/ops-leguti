@@ -6,14 +6,15 @@ import "./problem-goods-panel.css";
 type Problem=Record<string,any>&{id:string};
 const emptyForm={awb:"",division:"",category:"INVALID",location:"",description:""};
 const divisions=["Admin Inbound","Admin OTS","Admin Warehouse","Admin Delivery","Admin Customer Service"];
-export function ProblemGoodsPanel(){
+export function ProblemGoodsPanel({initialId=""}:{initialId?:string}){
+ const [sourceId,setSourceId]=useState(initialId);
  const [items,setItems]=useState<Problem[]>([]),[q,setQ]=useState(""),[division,setDivision]=useState(""),[category,setCategory]=useState(""),[status,setStatus]=useState(""),[from,setFrom]=useState(""),[to,setTo]=useState(""),[offset,setOffset]=useState(0);
  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[more,setMore]=useState(false),[canCreate,setCanCreate]=useState(false),[canManage,setCanManage]=useState(false),[message,setMessage]=useState(""),[error,setError]=useState("");
- const [detailId,setDetailId]=useState<string|null>(null),[creating,setCreating]=useState(false),[form,setForm]=useState(emptyForm),[photos,setPhotos]=useState<File[]>([]),[previews,setPreviews]=useState<string[]>([]),[formError,setFormError]=useState("");
+ const [detailId,setDetailId]=useState<string|null>(initialId||null),[creating,setCreating]=useState(false),[form,setForm]=useState(emptyForm),[photos,setPhotos]=useState<File[]>([]),[previews,setPreviews]=useState<string[]>([]),[formError,setFormError]=useState("");
  const lock=useRef(false),sequence=useRef(0),dialogRef=useRef<HTMLDivElement>(null),fileRef=useRef<HTMLInputElement>(null);
  const [canDelete,setCanDelete]=useState(false),[deletingId,setDeletingId]=useState<string|null>(null);
  const detail=items.find(item=>item.id===detailId),open=creating||!!detail;
- const params=new URLSearchParams({q,division,category,status,from,to}).toString();
+ const params=new URLSearchParams({q,division,category,status,from,to,id:sourceId}).toString();
  const load=useCallback(async()=>{
   const ticket=++sequence.current;setLoading(true);
   try{const response=await fetch(`/api/ops-desk?type=problems&${params}&offset=${offset}`,{cache:"no-store"});const data=await response.json();if(!response.ok||data.error)throw new Error(data.error||"Laporan belum dapat dimuat.");if(ticket!==sequence.current)return;setItems(data.items||[]);setMore(!!data.has_more);setCanCreate(!!data.can_create);setCanManage(!!data.can_manage);setCanDelete(!!data.can_delete);setError("")}
@@ -29,7 +30,7 @@ export function ProblemGoodsPanel(){
   const keyboard=(e:KeyboardEvent)=>{if(e.key==="Escape"){closeRef.current();return}if(e.key!=="Tab")return;const controls=dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled),a[href],input:not(:disabled):not([type="file"]),select:not(:disabled),textarea:not(:disabled)');if(!controls?.length)return;const first=controls[0],last=controls[controls.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}};
   document.addEventListener("keydown",keyboard);return()=>{document.body.style.overflow=overflow;document.removeEventListener("keydown",keyboard);previous?.focus()};
  },[open]);
- function filter(setter:(value:string)=>void,value:string){setter(value);setOffset(0);setDetailId(null);setMessage("")}
+ function filter(setter:(value:string)=>void,value:string){setter(value);setSourceId("");setOffset(0);setDetailId(null);setMessage("")}
  function update(field:keyof typeof emptyForm,value:string){setForm(current=>({...current,[field]:value}))}
  function choosePhotos(files:File[]){
   if(files.length>3||files.reduce((size,file)=>size+file.size,0)>3*1024*1024){setFormError("Pilih maksimal 3 foto dengan total ukuran 3 MB.");return}
