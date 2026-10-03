@@ -27,7 +27,7 @@ export function InboxPanel({ admin = false, demo = false, threadId, onSelect }: 
     mark(); document.addEventListener("visibilitychange", mark);
     return () => document.removeEventListener("visibilitychange", mark);
   }, [last?.seq, threadId, model.markRead]);
-  useEffect(() => { if (last) bottom.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [last?.id, threadId]);
+  useEffect(() => { if (last || model.pendingMessage) bottom.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [last?.id, model.pendingMessage?.id, threadId]);
 
   const updateDraft = (value: string) => { if (threadId) setDrafts(current => ({ ...current, [threadId]: value })); };
   async function submit() {
@@ -61,9 +61,9 @@ export function InboxPanel({ admin = false, demo = false, threadId, onSelect }: 
           <div className="inbox-request-event"><span className="inbox-event-dot"/><span>{openThread.owner_name} mengirim {openThread.entity_type === "problem" ? "laporan problem" : "request"}</span></div>
           <article className="inbox-request-card"><div className="inbox-request-top"><span className={`inbox-request-icon ${openThread.entity_type}`}>{openThread.entity_type === "problem" ? <Package size={23}/> : <Headphones size={23}/>}</span><div><small>{openThread.entity_type === "problem" ? "LAPORAN BARANG" : "REQUEST HELPDESK"}</small><h3>{openThread.subject}</h3></div><span className={`inbox-status ${inboxDone(openThread.status) ? "done" : ""}`}>{inboxThreadStatus(openThread)}</span></div><div className="inbox-request-reference"><span>{openThread.entity_type === "problem" ? "Nomor AWB" : "Referensi"}</span><strong>{openThread.reference || "—"}</strong></div><p>{openThread.summary}</p><footer><span><CheckCheck size={14}/>Request berhasil dikirim · {inboxTime(openThread.created_at)}</span>{admin && !demo && <a href={`/dashboard/ops-desk/${openThread.entity_type === "problem" ? "problems" : "requests"}?id=${encodeURIComponent(openThread.entity_id)}`}>Proses request<ArrowUpRight size={14}/></a>}</footer></article>
           {!openThread.first_admin_email && <div className="inbox-awaiting"><span/><p>{admin ? "Belum ada admin yang membalas. Balasan pertamamu akan menampilkan namamu di PWA user." : "Request sudah diterima. Nama admin akan muncul setelah ada balasan."}</p></div>}
-          {model.messages.filter(item => item.kind !== "request").map(message => {
+          {[...model.messages, ...(model.pendingMessage ? [model.pendingMessage] : [])].filter(item => item.kind !== "request").map(message => {
             const mine = message.sender_email === model.email;
-            return <div className={`inbox-message ${mine ? "mine" : "theirs"}`} key={message.id}><div className="inbox-message-author">{message.sender_name}{message.sender_role === "admin" && <span>Admin</span>}</div><div className="inbox-bubble"><p>{message.body}</p><span>{inboxTime(message.created_at)}{mine && <CheckCheck size={14} aria-label="Terkirim"/>}</span></div></div>;
+            return <div className={`inbox-message ${mine ? "mine" : "theirs"}`} key={message.id}><div className="inbox-message-author">{message.sender_name}{message.sender_role === "admin" && <span>Admin</span>}</div><div className="inbox-bubble"><p>{message.body}</p><span>{inboxTime(message.created_at)}{mine && (message.pending ? <span role="status">Mengirim…</span> : <CheckCheck size={14} aria-label="Terkirim"/>)}</span></div></div>;
           })}
           <div ref={bottom}/>
         </div>

@@ -40,13 +40,20 @@ export async function GET(req: NextRequest) {
   return json({ items: (rows.data || []).slice(0, 30), has_more: (rows.data || []).length > 30, unread: unread.count || 0 });
 }
 export async function POST(req: NextRequest) {
+  if (req.headers.get("origin") !== req.nextUrl.origin) return json({ error: "Permintaan tidak valid." }, 403);
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
   if (!session) return json({ error: "Silakan masuk kembali." }, 401);
   const db = getSupabaseServerClient();
   if (!db) return unavailable();
   let body;
   try { body = await req.json(); } catch { return json({ error: "Permintaan tidak valid." }, 400); }
-  if (!body || body.action !== "read" || (body.id !== undefined && !uuid.test(String(body.id)))) return json({ error: "Permintaan tidak valid." }, 400);
+  if (!body || !["read", "delete"].includes(body.action) || (body.id !== undefined && !uuid.test(String(body.id))) || (body.action === "delete" && !body.id)) return json({ error: "Permintaan tidak valid." }, 400);
+  if (body.action === "delete") {
+    // Exact id + recipient: deleting a notice cannot delete its request or chat.
+    const result = await db.from("ops_notifications").delete().eq("id", body.id).eq("recipient_email", session.email.trim().toLowerCase()).select("id");
+    if (result.error) return unavailable();
+    return json({ ok: true, ids: (result.data || []).map(row => row.id) });
+  }
   let query = db.from("ops_notifications").update({ read_at: new Date().toISOString() }).eq("recipient_email", session.email.trim().toLowerCase()).is("read_at", null);
   if (body.id) query = query.eq("id", body.id);
   const result = await query.select("id");

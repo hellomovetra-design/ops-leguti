@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
   const selected = await db.from("ops_inbox_threads").select("*").eq("id", id).maybeSingle();
   if (selected.error) return unavailable();
   if (!selected.data || !canAccessInbox(selected.data, email, session.role, admin)) return json({ error: "Percakapan tidak ditemukan." }, 404);
-  let query = db.from("ops_inbox_messages").select("id,seq,thread_id,sender_email,sender_name,sender_role,kind,body,created_at").eq("thread_id", id).order("seq", { ascending: false }).limit(31);
+  let query = db.from("ops_inbox_messages").select("id,seq,thread_id,sender_email,sender_name,sender_role,kind,body,created_at,client_id").eq("thread_id", id).order("seq", { ascending: false }).limit(31);
   if (before) query = query.lt("seq", Number(before));
   const messages = await query;
   if (messages.error) return unavailable();
@@ -48,20 +48,22 @@ export async function POST(req: NextRequest) {
   if (ctx.response) return ctx.response;
   const { db, session, email, admin } = ctx;
   if (!body || !["send", "read"].includes(body.action) || !uuid.test(String(body.thread_id || ""))) return json({ error: "Percakapan tidak valid." }, 400);
-  const selected = await db.from("ops_inbox_threads").select("id,owner_email").eq("id", body.thread_id).maybeSingle();
-  if (selected.error) return unavailable();
-  if (!selected.data || !canAccessInbox(selected.data, email, session.role, admin)) return json({ error: "Percakapan tidak ditemukan." }, 404);
   if (body.action === "read") {
     if (!Number.isSafeInteger(body.seq) || body.seq < 1) return json({ error: "Status dibaca tidak valid." }, 400);
+    const selected = await db.from("ops_inbox_threads").select("id,owner_email").eq("id", body.thread_id).maybeSingle();
+    if (selected.error) return unavailable();
+    if (!selected.data || !canAccessInbox(selected.data, email, session.role, admin)) return json({ error: "Percakapan tidak ditemukan." }, 404);
     const result = await db.rpc("ops_inbox_mark_read", { p_thread: body.thread_id, p_email: email, p_seq: body.seq });
     return result.error ? unavailable() : json({ ok: true });
   }
   const text = typeof body.body === "string" ? body.body.trim() : "";
   if (!text || text.length > 2000 || !uuid.test(String(body.client_id || ""))) return json({ error: "Pesan wajib diisi, maksimal 2.000 karakter." }, 400);
-  const name = await db.rpc("ops_inbox_account_name", { p_email: email });
-  if (name.error) return unavailable();
-  const result = await db.rpc("ops_inbox_send", { p_thread: body.thread_id, p_email: email, p_name: name.data, p_admin: admin, p_body: text, p_client: body.client_id });
+  const started = performance.now();
+  const result = await db.rpc("ops_inbox_send_fast", { p_thread: body.thread_id, p_email: email, p_admin: admin, p_body: text, p_client: body.client_id });
+  if (result.error?.code === "P0002") return json({ error: "Percakapan tidak ditemukan." }, 404);
   if (result.error) return json({ error: "Pesan belum terkirim. Isian tetap tersimpan, silakan coba lagi." }, 503);
   after(() => dispatchPush().catch(() => console.error("Inbox push dispatch failed")));
-  return json({ ok: true, message: result.data });
+  const response = json({ ok: true, message: result.data });
+  response.headers.set("Server-Timing", `db;dur=${(performance.now() - started).toFixed(1)}`);
+  return response;
 }

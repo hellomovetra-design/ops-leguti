@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { subscribeInboxRealtime } from "./inbox-realtime";
 
 export function useInboxIndicator(admin = false) {
   const [unread, setUnread] = useState(0), [available, setAvailable] = useState(false);
@@ -16,8 +17,9 @@ export function useInboxIndicator(admin = false) {
       finally { busy = false; }
     };
     void refresh(); const timer = window.setInterval(refresh, 20000);
+    const unsubscribe = subscribeInboxRealtime(admin, () => { void refresh(); });
     window.addEventListener("focus", refresh); window.addEventListener("ops-inbox-read", refresh); document.addEventListener("visibilitychange", refresh);
-    return () => { alive = false; clearInterval(timer); window.removeEventListener("focus", refresh); window.removeEventListener("ops-inbox-read", refresh); document.removeEventListener("visibilitychange", refresh); };
+    return () => { unsubscribe(); alive = false; clearInterval(timer); window.removeEventListener("focus", refresh); window.removeEventListener("ops-inbox-read", refresh); document.removeEventListener("visibilitychange", refresh); };
   }, [admin]);
   return { unread, available };
 }

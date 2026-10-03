@@ -17,6 +17,8 @@ export type InboxThread = {
 };
 
 export type InboxMessage = {
+  client_id?: string | null;
+  pending?: boolean;
   id: string;
   seq: number;
   thread_id: string;

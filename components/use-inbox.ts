@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { InboxMessage, InboxThread } from "@/lib/inbox";
 import { DEMO_ADMIN, DEMO_USER, InboxDemo, initialInboxDemo } from "@/lib/inbox-demo";
+import { subscribeInboxRealtime } from "./inbox-realtime";
 
 const DEMO_KEY = "ops-inbox-local-preview-v1";
 const DEMO_EVENT = "ops-inbox-demo-change";
@@ -34,6 +35,9 @@ export function useInbox({ admin = false, demo = false, threadId = null }: { adm
   const [hasMore, setHasMore] = useState(false), [moreMessages, setMoreMessages] = useState(false), [sending, setSending] = useState(false);
   const sequence = useRef(0), sendLock = useRef(false), demoData = useRef<InboxDemo | null>(null);
   const requestId = useRef<{ id: string; thread: string; text: string } | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<InboxMessage | null>(null);
+  const activeThread = useRef(threadId);
+  activeThread.current = threadId;
   const scope = admin ? "admin" : "user";
 
   const applyDemo = useCallback((data: InboxDemo) => {
@@ -78,9 +82,10 @@ export function useInbox({ admin = false, demo = false, threadId = null }: { adm
     void refresh();
     const resume = () => { if (document.visibilityState === "visible") void refresh(); };
     const timer = window.setInterval(resume, 20000);
+    const unsubscribe = subscribeInboxRealtime(admin, resume);
     window.addEventListener("focus", resume); document.addEventListener("visibilitychange", resume);
-    return () => { sequence.current++; clearInterval(timer); window.removeEventListener("focus", resume); document.removeEventListener("visibilitychange", resume); };
-  }, [demo, applyDemo, refresh]);
+    return () => { unsubscribe(); sequence.current++; clearInterval(timer); window.removeEventListener("focus", resume); document.removeEventListener("visibilitychange", resume); };
+  }, [demo, admin, applyDemo, refresh]);
 
   const markRead = useCallback(async (seq: number) => {
     if (!threadId) return false;
@@ -113,14 +118,24 @@ export function useInbox({ admin = false, demo = false, threadId = null }: { adm
         if (admin) demoNotice({ threadId, audience: "user", title: `${actor.name} membalas request kamu`, body: message.body });
       } else {
         if (!requestId.current || requestId.current.thread !== threadId || requestId.current.text !== body.trim()) requestId.current = { id: crypto.randomUUID(), thread: threadId, text: body.trim() };
+        setPendingMessage({ id: requestId.current.id, client_id: requestId.current.id, seq: 0, thread_id: threadId,
+          sender_email: email, sender_name: "Kamu", sender_role: admin ? "admin" : "user", kind: "message",
+          body: body.trim(), created_at: new Date().toISOString(), pending: true });
         const response = await fetch("/api/inbox", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send", scope, thread_id: threadId, body: body.trim(), client_id: requestId.current.id }) });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Pesan belum terkirim. Silakan coba lagi.");
-        requestId.current = null; await refresh();
+        requestId.current = null;
+        const message = data.message as InboxMessage;
+        if (activeThread.current === threadId) setMessages(current => current.some(item => item.id === message.id) ? current : [...current, message].sort((a, b) => a.seq - b.seq));
+        const update = (item: InboxThread) => item.id === threadId ? { ...item, last_body: message.body, last_message_at: message.created_at,
+          ...(admin && !item.first_admin_email ? { first_admin_email: message.sender_email, first_admin_name: message.sender_name } : {}) } : item;
+        setThread(current => current ? update(current) : current);
+        setThreads(current => current.map(update).sort((a, b) => +new Date(b.last_message_at) - +new Date(a.last_message_at)));
+        if (activeThread.current === threadId) void refresh();
       }
       return true;
-    } catch (e) { setError(e instanceof Error ? e.message : "Pesan belum terkirim."); return false; }
-    finally { sendLock.current = false; setSending(false); }
+    } catch (e) { if (activeThread.current === threadId) setError(e instanceof Error ? e.message : "Pesan belum terkirim."); return false; }
+    finally { setPendingMessage(null); sendLock.current = false; setSending(false); }
   }
 
   async function loadMore(olderMessages = false) {
@@ -136,5 +151,6 @@ export function useInbox({ admin = false, demo = false, threadId = null }: { adm
       else { setThreads(current => [...current, ...(data.items || []).filter((item: InboxThread) => !current.some(row => row.id === item.id))]); setHasMore(!!data.has_more); }
     } catch (e) { setError(e instanceof Error ? e.message : "Riwayat belum dapat dimuat."); }
   }
-  return { threads, thread, messages, email, unread, loading, error, hasMore, moreMessages, sending, send, refresh, markRead, loadMore };
+  const visiblePending = pendingMessage?.thread_id === threadId && !messages.some(item => item.client_id === pendingMessage.client_id) ? pendingMessage : null;
+  return { threads, thread, messages, pendingMessage: visiblePending, email, unread, loading, error, hasMore, moreMessages, sending, send, refresh, markRead, loadMore };
 }
