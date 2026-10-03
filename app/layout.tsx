@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   description: "Ruang kerja operasional OPS LEGUTI",
   icons: {
     icon: [
-      { url: "/branding/app-logo-transparent-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/branding/app-logo-transparent-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/branding/browser-favicon-white-circle-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/branding/browser-favicon-white-circle-48.png", sizes: "48x48", type: "image/png" },
     ],
     apple: [{ url: "/branding/app-icon-180.png", sizes: "180x180", type: "image/png" }],
   },
