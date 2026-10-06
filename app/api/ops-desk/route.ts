@@ -178,6 +178,7 @@ export async function POST(req: NextRequest) {
   const multipart = isMultipart ? await req.formData() : null;
   const body = multipart ? Object.fromEntries(multipart.entries()) : await req.json();
   const pwaWriteActions = ["createRequest", "problem", "profile", "comment"];
+  if (session.role === "viewer" && !pwaWriteActions.includes(String(body.action))) return NextResponse.json({ ok: false, error: "Akun ini hanya dapat melakukan transaksi melalui PWA." }, { status: 403 });
   // PWA uses `reason`; the admin form uses `description`. Store both in one field.
   if(body.action==="problem"){
     body.description=String(body.description||body.reason||"").trim();
@@ -197,7 +198,6 @@ export async function POST(req: NextRequest) {
     if (saved.error) return NextResponse.json({ ok: false, error: saved.error.message }, { status: 400 });
     return NextResponse.json({ ok: true, photo_url: `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(storagePath)}` });
   }
-  if (session.role === "viewer" && !pwaWriteActions.includes(String(body.action))) return NextResponse.json({ ok: false, error: "Staff Biasa hanya dapat melihat data di dashboard. Input transaksi dilakukan melalui PWA." }, { status: 403 });
   if (body.action === "role" && session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat membuat role." }, { status: 403 });
   if (body.action === "role" && !["super_admin", "admin", "viewer"].includes(String(body.role))) return NextResponse.json({ ok: false, error: "Jenis akses tidak valid." }, { status: 400 });
   if (body.action === "role") {

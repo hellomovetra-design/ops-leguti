@@ -25,11 +25,13 @@ let mapping = { email: 'staff@test.example', employee_nik: '00123' }, active = t
 const db = { from(table) { const query = { select() { return query; }, eq() { return query; }, async maybeSingle() { return { data: table === 'ops_user_employee_links' ? mapping : { nik: '00123', active }, error: null }; } }; return query; } };
 const env = { NODE_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: 'https://example.test', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test', INTERNAL_AUTH_SECRET: 'x'.repeat(40), INTERNAL_SUPER_ADMIN_EMAIL: 'super@test.example' };
 const tokens = load('lib/auth-token.ts', {});
-const login = load('app/api/auth/login/route.ts', { '@/lib/auth-token': tokens, '@/lib/supabase': { getSupabaseServerClient: () => db }, '@supabase/supabase-js': { createClient: () => ({ auth: { async signInWithPassword({ email, password }) { authCalls++; lastEmail = email; return password === 'password123' ? { data: { user: { app_metadata: { role: authRole } } } } : { error: {}, data: {} }; } } }) } }, env);
+const policy = load('lib/access-policy.ts', {});
+const login = load('app/api/auth/login/route.ts', { '@/lib/access-policy': policy, '@/lib/auth-token': tokens, '@/lib/supabase': { getSupabaseServerClient: () => db }, '@supabase/supabase-js': { createClient: () => ({ auth: { async signInWithPassword({ email, password }) { authCalls++; lastEmail = email; return password === 'password123' ? { data: { user: { app_metadata: { role: authRole } } } } : { error: {}, data: {} }; } } }) } }, env);
 let ip = 0;
 async function sign(identifier, password = 'password123', sameIp) { return login.POST(new NextRequest('http://localhost/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': sameIp || String(++ip) }, body: JSON.stringify({ identifier, password }) })); }
 (async () => {
   let response = await sign('00123'); assert.equal(response.status, 200); assert.equal(lastEmail, 'staff@test.example');
+  assert.equal((await response.clone().json()).redirect, '/pwa');
   let cookie = response.cookies.get(tokens.SESSION_COOKIE).value;
   const session = await tokens.verifySessionToken(cookie, env.INTERNAL_AUTH_SECRET); assert.equal(session.employee_nik, '00123'); assert.equal(session.role, 'viewer');
   assert.equal((await sign('staff@test.example')).status, 401);

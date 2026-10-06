@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createSessionToken, decodeBase64Url, encodeBase64Url, SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/auth-token";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseServerClient } from "@/lib/supabase";
+import { loginDestination } from "@/lib/access-policy";
 
 export const runtime = "nodejs";
 
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
   }
   if (!record || record.resetAt <= now) attempts.set(ip, { count: 0, resetAt: now + WINDOW_MS });
 
-  let body: { email?: unknown; identifier?: unknown; password?: unknown };
+  let body: { email?: unknown; identifier?: unknown; password?: unknown; next?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 400 }); }
   if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 400 });
   const input = body.identifier ?? body.email;
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
   if (!["super_admin", "admin", "spv", "jr_spv", "coordinator", "viewer"].includes(role)) return failed();
   attempts.delete(ip);
   const token = await createSessionToken(email, role, secret, employeeNik);
-  const response = NextResponse.json({ ok: true, role }, { headers: { "Cache-Control": "no-store" } });
+  const response = NextResponse.json({ ok: true, role, redirect: loginDestination(role, body.next) }, { headers: { "Cache-Control": "no-store" } });
   response.cookies.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "strict",

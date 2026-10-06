@@ -2,10 +2,9 @@
 
 import { FormEvent, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { loginDestination } from "@/lib/access-policy";
 
 export function LoginForm() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
@@ -17,13 +16,12 @@ export function LoginForm() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier: email, password }),
+        body: JSON.stringify({ identifier: email, password, next: new URLSearchParams(window.location.search).get("next") }),
       });
-      const result = await response.json() as { error?: string };
+      const result = await response.json() as { error?: string; role?: "super_admin" | "admin" | "spv" | "jr_spv" | "coordinator" | "viewer"; redirect?: string };
       if (!response.ok) { setError(result.error || "Login gagal."); return; }
-      const next = new URLSearchParams(window.location.search).get("next");
-      router.replace(next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard");
-      router.refresh();
+      // Start a fresh document so a previous account's client router cache is discarded.
+      window.location.replace(loginDestination(result.role || "viewer", result.redirect));
     } catch { setError("Server tidak dapat dihubungi."); }
     finally { setLoading(false); }
   };
