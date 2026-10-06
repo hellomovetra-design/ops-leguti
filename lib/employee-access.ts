@@ -2,7 +2,7 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { SessionPayload } from "@/lib/auth-token";
 import { Courier, courierRole } from "@/lib/courier-checks";
 
-export type TeamEmployee = Courier & { superior: string; active: boolean };
+export type TeamEmployee = Courier & { superior: string; superior_nik?: string | null; active: boolean };
 const normalized = (value: string | null | undefined) => (value || "").trim().replace(/\s+/g, " ").toLowerCase();
 export function structuralCouriers(rows: TeamEmployee[], nik: string, unrestricted = false) {
   const eligible = (row: TeamEmployee) => row.active && (courierRole(row.position) || /\bleader\b/i.test(row.position));
@@ -18,10 +18,10 @@ export function structuralCouriers(rows: TeamEmployee[], nik: string, unrestrict
     const parent = pending.pop()!;
     if (visited.has(parent.nik)) continue;
     visited.add(parent.nik);
-    // A name-only hierarchy cannot safely distinguish duplicate supervisors.
-    if (names.get(normalized(parent.name))?.length !== 1) throw new Error("Nama atasan ganda di struktur. Administrator perlu memperbaiki struktur terlebih dahulu.");
+    // Legacy name links fail closed when ambiguous; NIK links remain unambiguous.
+    if (names.get(normalized(parent.name))?.length !== 1 && rows.some(row => !row.superior_nik && normalized(row.superior) === normalized(parent.name))) throw new Error("Nama atasan ganda di struktur. Administrator perlu memperbaiki struktur terlebih dahulu.");
     for (const row of rows) {
-      if (normalized(row.superior) !== normalized(parent.name) || row.nik === owner.nik) continue;
+      if ((row.superior_nik ? row.superior_nik !== parent.nik : normalized(row.superior) !== normalized(parent.name)) || row.nik === owner.nik) continue;
       descendants.add(row.nik);
       pending.push(row);
     }
@@ -39,7 +39,7 @@ export async function linkedEmployee(db: NonNullable<ReturnType<typeof getSupaba
 export async function scopedCouriers(db: NonNullable<ReturnType<typeof getSupabaseServerClient>>, session: SessionPayload) {
   const rows: TeamEmployee[] = [];
   for (let offset = 0; ; offset += 1000) {
-    const result = await db.from("ops_employees").select("nik,name,position,employment,hub,superior,active").order("nik").range(offset, offset + 999);
+    const result = await db.from("ops_employees").select("nik,name,position,employment,hub,superior,superior_nik,active").order("nik").range(offset, offset + 999);
     if (result.error) throw new Error("Data kurir belum dapat dimuat.");
     rows.push(...(result.data as TeamEmployee[] || []));
     if ((result.data || []).length < 1000) break;

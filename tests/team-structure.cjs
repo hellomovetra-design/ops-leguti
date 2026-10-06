@@ -15,6 +15,12 @@ assert.equal(teamManagement([person('0', 'Adit', 'SPV', '', false), courier]).su
 assert.equal(teamManagement([supervisor, person('9', 'Other', 'Supervisor')]).supervisor, undefined);
 assert.equal(teamManagement([supervisor, person('9', 'Other', 'Supervisor'), junior]).supervisor.nik, supervisor.nik);
 assert.equal(teamChildren(rows, supervisor)[0].nik, junior.nik);
+const joko = person('14060562', 'Joko Ariyanto', 'Inbound Delivery Leader');
+const child = { ...person('K001', 'Kurir', 'Kurir Motor Staff', 'Joko Arianto'), superior_nik: joko.nik };
+assert.equal(teamChildren([joko, child], joko)[0].nik, 'K001');
+assert.equal(teamChildren([{ ...joko, name: 'Nama baru' }, child], { ...joko, name: 'Nama baru' })[0].nik, 'K001');
+assert.equal(teamChildren([joko, { ...child, superior_nik: 'OTHER', superior: joko.name }], joko).length, 0);
+assert.equal(teamChildren([joko, { ...joko, nik: 'duplicate' }, { ...child, superior_nik: null, superior: joko.name }], joko).length, 0);
 assert.equal(DEFAULT_TEAM_PHOTO, '/default-employee.jpg');
 for (const nik of ['14010441', '15110895', '11050113']) {
   const employee = { ...person(nik, 'Person', 'Staff'), photo_url: '/wrong-upload.jpg' };

@@ -21,7 +21,7 @@ export function TeamStructure() {
       const text = (value: unknown) => String(value ?? "").trim();
       setRows((data.items || []).map((item: Record<string, unknown>) => ({
         nik: text(item.nik), name: text(item.name), position: text(item.position), dept: text(item.dept),
-        hub: text(item.hub).toUpperCase(), superior: text(item.superior), active: item.active !== false,
+        hub: text(item.hub).toUpperCase(), superior: text(item.superior), superior_nik: text(item.superior_nik) || null, active: item.active !== false,
         photo_url: text(item.photo_url) || DEFAULT_TEAM_PHOTO,
       })).filter((item: TeamPerson) => item.name));
     } catch (failure) { if (!signal?.aborted) setError(failure instanceof Error ? failure.message : "Data belum tersedia."); }

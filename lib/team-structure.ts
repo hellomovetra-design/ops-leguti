@@ -1,4 +1,4 @@
-export type TeamPerson = { nik: string; name: string; position: string; dept: string; hub: string; superior: string; active: boolean; photo_url?: string };
+export type TeamPerson = { nik: string; name: string; position: string; dept: string; hub: string; superior: string; superior_nik?: string | null; active: boolean; photo_url?: string };
 export const DEFAULT_TEAM_PHOTO = "/default-employee.jpg";
 // Requested display overrides for Adhitya, Giga and Budi; keep stored uploads intact.
 const cartoonPhotoNiks = new Set(["14010441", "15110895", "11050113"]);
@@ -11,9 +11,9 @@ export function teamManagement(rows: TeamPerson[]) {
   const active = rows.filter(person => person.active);
   const junior = active.find(person => /\b(jr|junior)\b/i.test(person.position) && /\b(spv|supervisor)\b/i.test(person.position));
   const supervisors = active.filter(isTeamSupervisor);
-  const superior = junior && supervisors.find(person => normalizeTeamName(person.name) === normalizeTeamName(junior.superior));
+  const superior = junior && supervisors.find(person => junior.superior_nik ? person.nik === junior.superior_nik : normalizeTeamName(person.name) === normalizeTeamName(junior.superior));
   return { junior, supervisor: superior || (supervisors.length === 1 ? supervisors[0] : undefined) };
 }
 export function teamChildren(rows: TeamPerson[], parent: TeamPerson) {
-  return rows.filter(person => person.nik !== parent.nik && normalizeTeamName(person.superior) === normalizeTeamName(parent.name));
+  return rows.filter(person => person.nik !== parent.nik && (person.superior_nik ? person.superior_nik === parent.nik : rows.filter(row => normalizeTeamName(row.name) === normalizeTeamName(parent.name)).length === 1 && normalizeTeamName(person.superior) === normalizeTeamName(parent.name)));
 }

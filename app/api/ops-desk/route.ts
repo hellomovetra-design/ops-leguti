@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
     const photo_url = photoPath ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photoPath)}${version}` : "";
     return NextResponse.json({ profile: result.data ? { ...result.data, display_name: personelName || result.data.display_name, photo_url } : { email: session.email, display_name: personelName, photo_url: "" }, error: result.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
-  const employeeFields = "nik,name,position,dept,hub,level,superior,active,employment,start_date,created_at";
+  const employeeFields = "nik,name,position,dept,hub,level,superior,superior_nik,active,employment,start_date,created_at";
   if (type === "employees" && p.get("view") === "structure") {
     const employees: any[] = [];
     for (let offset = 0; ; offset += 1000) {
