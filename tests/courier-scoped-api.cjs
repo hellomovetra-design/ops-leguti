@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),ts=require('typescript');
 const {NextRequest}=require('next/server');
-function moduleFrom(file,mocks){const source=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;const m={exports:{}};vm.runInNewContext(source,{exports:m.exports,module:m,require:n=>mocks[n]||require(n),console,process:{env:{}},crypto:globalThis.crypto,File,Response,URL,Date,Buffer});return m.exports;}
+function moduleFrom(file,mocks){const source=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;const m={exports:{}};vm.runInNewContext(source,{exports:m.exports,module:m,require:n=>mocks[n]||(n==='@/lib/history-scope'?moduleFrom('lib/history-scope.ts',{}):require(n)),console,process:{env:{}},crypto:globalThis.crypto,File,Response,URL,Date,Buffer});return m.exports;}
 const definitions=moduleFrom('lib/courier-checks.ts',{});
 assert.deepEqual(Array.from(definitions.DELIVERY_AREAS),['SPC LEGUTI','SP MALOKO']);
 assert.equal(definitions.deliveryArea(' SPC Leguti '),'SPC LEGUTI');

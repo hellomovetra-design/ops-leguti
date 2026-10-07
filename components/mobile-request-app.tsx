@@ -29,7 +29,7 @@ export function MobileRequestApp(){
  const [sending,setSending]=useState(false),[toast,setToast]=useState("");
  const submitLock=useRef(false),loadSequence=useRef(0);
  const finish=(message:string)=>{setSelected(null);setForm(initial);setPhotos([]);setMsg("");setView("home");setToast(message);window.scrollTo({top:0,behavior:"instant"})};
- const carry=useCourierChecks();
+ const carry=useCourierChecks("mine");
  const notifications=usePwaNotifications();
  const [carryEditing,setCarryEditing]=useState<CourierCheck|null>(null),[carryKey,setCarryKey]=useState(0);
  usePwaNavigation(
@@ -40,13 +40,13 @@ export function MobileRequestApp(){
  );
  const openCarry=(item:CourierCheck|null=null)=>{setCarryEditing(item);setCarryKey(k=>k+1);nav("carry")};
  const carrySaved=(item:CourierCheck)=>{carry.saved(item);setCarryEditing(null);setCarryKey(k=>k+1);finish("Pemeriksaan connote berhasil disimpan.");};
- const loadDaily=async()=>{try{const r=await fetch("/api/problem-solving-daily",{cache:"no-store"});const data=await r.json();if(!r.ok||data.error)throw new Error(data.error||"Catatan harian belum dapat dimuat.");setDailyItems(data.items||[]);setDailyError("");}catch(e){setDailyError(e instanceof Error?e.message:"Catatan harian belum dapat dimuat.");}};
+ const loadDaily=async()=>{try{const r=await fetch("/api/problem-solving-daily?scope=mine",{cache:"no-store"});const data=await r.json();if(!r.ok||data.error)throw new Error(data.error||"Catatan harian belum dapat dimuat.");setDailyItems(data.items||[]);setDailyError("");}catch(e){setDailyError(e instanceof Error?e.message:"Catatan harian belum dapat dimuat.");}};
  useEffect(()=>{loadDaily();const timer=window.setInterval(loadDaily,60000);return()=>clearInterval(timer)},[]);
  const openDaily=(record:DailyRecord|null=null)=>{setDailyEditing(record);setDailyKey(k=>k+1);nav("daily")};
  const dailySaved=(item:DailyRecord)=>{setDailyItems(items=>[item,...items.filter(x=>x.id!==item.id)].sort((a,b)=>+new Date(b.created_at)-+new Date(a.created_at)));setDailyError("");setDailyEditing(null);setDailyKey(k=>k+1);finish("Catatan Problem Solving Daily berhasil disimpan.");};
  const nav=(v:View)=>{if(submitLock.current)return;setToast("");setSelected(null);setInboxThread(null);setView(v);setQ("");setMsg("");window.scrollTo({top:0,behavior:"smooth"})}; const update=(k:string,v:string)=>setForm(x=>({...x,[k]:v}));
  useEffect(()=>{const params=new URLSearchParams(window.location.search);const thread=params.get("inbox");if(thread&&/^[0-9a-f-]{36}$/i.test(thread)){setView("inbox");setInboxThread(thread)}else if(params.has("notification"))setView("notifications")},[]);
- const load=async()=>{const ticket=++loadSequence.current;const [a,b,c,p]=await Promise.all([fetch("/api/ops-desk?type=cases").then(x=>x.json()),fetch("/api/ops-desk?type=problems").then(x=>x.json()),fetch("/api/ops-desk?type=requests").then(x=>x.json()),fetch("/api/ops-desk?type=profile").then(x=>x.json())]);if(ticket!==loadSequence.current)return;setOts(a.items||[]);setProblems(b.items||[]);setRequests(c.items||[]);setEmail(p.profile?.email||"");setDisplayName(p.profile?.display_name||"");if(p.profile?.photo_url)setPhoto(p.profile.photo_url);setLoadError([a,b,c].some(x=>x.error)?"Data aktivitas belum tersedia.":"");setLoading(false)};
+ const load=async()=>{const ticket=++loadSequence.current;const [a,b,c,p]=await Promise.all([fetch("/api/ops-desk?type=cases",{cache:"no-store"}).then(x=>x.json()),fetch("/api/ops-desk?type=problems&scope=mine",{cache:"no-store"}).then(x=>x.json()),fetch("/api/ops-desk?type=requests&scope=mine",{cache:"no-store"}).then(x=>x.json()),fetch("/api/ops-desk?type=profile",{cache:"no-store"}).then(x=>x.json())]);if(ticket!==loadSequence.current)return;setOts(a.items||[]);setProblems(b.items||[]);setRequests(c.items||[]);setEmail(p.profile?.email||"");setDisplayName(p.profile?.display_name||"");if(p.profile?.photo_url)setPhoto(p.profile.photo_url);setLoadError([a,b,c].some(x=>x.error)?"Data aktivitas belum tersedia.":"");setLoading(false)};
  useEffect(()=>{load().catch(()=>{setLoadError("Data aktivitas belum tersedia.");setLoading(false)});const t=window.setInterval(()=>load().catch(()=>{}),60000);return()=>clearInterval(t)},[]);
  useEffect(()=>{if(!profileFile){setProfilePreview("");return}const url=URL.createObjectURL(profileFile);setProfilePreview(url);return()=>URL.revokeObjectURL(url)},[profileFile]);
  const chooseProfilePhoto=(file:File|undefined)=>{if(!file)return;setProfileNotice("");setProfileFailed(false);if(!file.type.startsWith("image/")||file.size>5*1024*1024){setProfileFailed(true);setProfileNotice("Pilih gambar maksimal 5 MB.");return}setProfileFile(file)};

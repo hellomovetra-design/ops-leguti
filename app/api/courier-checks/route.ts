@@ -5,6 +5,7 @@ import { DELIVERY_AREAS, deliveryArea } from "@/lib/courier-checks";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit } from "@/lib/imagekit";
 import { linkedEmployee, scopedCouriers } from "@/lib/employee-access";
+import { scopeHistory } from "@/lib/history-scope";
 
 export const runtime = "nodejs";
 const TABLE = "ops_courier_checks";
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
       return new NextResponse(file.data, { headers: { "Content-Type": file.data.type, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" } });
     }
     let query = db.from(TABLE).select("*").order("created_at", { ascending: false });
-    if (session!.role === "viewer") query = query.eq("created_by", session!.email.toLowerCase());
+    query = scopeHistory(query, session!, req.nextUrl.searchParams);
     const offset = Number(req.nextUrl.searchParams.get("offset") || 0);
     if (!Number.isInteger(offset) || offset < 0) return json({ error: "Halaman tidak valid." }, 400);
     const result = await query.range(offset, offset + 199);

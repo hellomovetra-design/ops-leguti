@@ -10,6 +10,7 @@ import { applyProblemFilters, problemFilters } from "@/lib/problem-records";
 import { linkedEmployee } from "@/lib/employee-access";
 import { after } from "next/server";
 import { dispatchPush } from "@/lib/web-push";
+import { scopeHistory } from "@/lib/history-scope";
 
 const db = () => getSupabaseServerClient();
 const SUPER_ADMIN_EMAIL = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
     try {
       const filters = requestFilters(p), offset = Number(p.get("offset") || 0);
       if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("Halaman tidak valid.");
-      const result = await applyRequestFilters(supabase.from("ops_requests").select("*"), filters).order("created_at", { ascending: false }).order("id").range(offset, offset+100);
+      const result = await applyRequestFilters(scopeHistory(supabase.from("ops_requests").select("*"), session, p), filters).order("created_at", { ascending: false }).order("id").range(offset, offset+100);
       if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
       const pageItems=(result.data||[]).slice(0,100);
       const emails=Array.from(new Set<string>(pageItems.map((row:Record<string,any>)=>String(row.created_by||row.email||"").trim().toLowerCase()).filter(Boolean)));
@@ -84,7 +85,7 @@ export async function GET(req: NextRequest) {
     try {
       const filters = requestFilters(p), rows: any[] = [];
       for (let offset=0;;offset+=1000) {
-        let query = applyRequestFilters(supabase.from("ops_requests").select("*"), filters);
+        let query = applyRequestFilters(scopeHistory(supabase.from("ops_requests").select("*"), session, p), filters);
         if (p.get("id")) query = query.eq("id",p.get("id"));
         const result = await query.order("created_at",{ascending:false}).order("id").range(offset,offset+999);
         if (result.error) return NextResponse.json({ error:result.error.message },{status:500});
@@ -141,7 +142,7 @@ export async function GET(req: NextRequest) {
     try{
       const filters=problemFilters(p),offset=Number(p.get("offset")||0);
       if(!Number.isSafeInteger(offset)||offset<0)throw new Error("Halaman tidak valid.");
-      const result=await applyProblemFilters(supabase.from("ops_problems").select("*"),filters).order("created_at",{ascending:false}).order("id").range(offset,offset+100);
+      const result=await applyProblemFilters(scopeHistory(supabase.from("ops_problems").select("*"),session,p,"created_by_email"),filters).order("created_at",{ascending:false}).order("id").range(offset,offset+100);
       if(result.error)return NextResponse.json({error:result.error.message},{status:500});
       const rows=(result.data||[]).slice(0,100);
       const photoResult=rows.length?await supabase.from("ops_problem_photos").select("id,problem_id,file_name,content_type,storage_path,created_at").in("problem_id",rows.map((row:Record<string,any>)=>row.id)).order("created_at",{ascending:true}):{data:[],error:null};

@@ -3,6 +3,7 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { SESSION_COOKIE, verifySessionToken, SessionPayload } from "@/lib/auth-token";
 import { DAILY_ADMIN_ROLES, DAILY_CATEGORIES, DAILY_STATUSES } from "@/lib/problem-solving-daily";
 import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit } from "@/lib/imagekit";
+import { scopeHistory } from "@/lib/history-scope";
 
 export const runtime = "nodejs";
 const TABLE = "ops_problem_solving_daily";
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
       return new NextResponse(file.data, { headers: { "Content-Type": file.data.type, "Cache-Control": "private, max-age=300" } });
     }
     let query = db.from(TABLE).select("*", { count: "exact" }).order("created_at", { ascending: false }).order("id", { ascending: false });
-    if (session.role === "viewer") query = query.eq("created_by", session.email.toLowerCase());
+    query = scopeHistory(query, session, req.nextUrl.searchParams);
     let offset = 0;
     if (adminScope) {
       const params = req.nextUrl.searchParams;
