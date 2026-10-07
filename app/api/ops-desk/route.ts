@@ -11,6 +11,7 @@ import { linkedEmployee } from "@/lib/employee-access";
 import { after } from "next/server";
 import { dispatchPush } from "@/lib/web-push";
 import { scopeHistory } from "@/lib/history-scope";
+import { employeeState, employeeStatus } from "@/lib/employee-status";
 
 const db = () => getSupabaseServerClient();
 const SUPER_ADMIN_EMAIL = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
@@ -122,7 +123,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ profile: result.data ? { ...result.data, display_name: personelName || result.data.display_name, photo_url } : { email: session.email, display_name: personelName, photo_url: "" }, error: result.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   const employeeFields = "nik,name,position,dept,hub,level,superior,superior_nik,active,employment,start_date,created_at";
-  if (type === "employees" && p.get("view") === "structure") {
+  if (type === "employees" && ["structure", "summary"].includes(p.get("view") || "")) {
     const employees: any[] = [];
     for (let offset = 0; ; offset += 1000) {
       const page = await supabase.from("ops_employees").select(employeeFields).order("nik").range(offset, offset + 999);
@@ -130,6 +131,7 @@ export async function GET(req: NextRequest) {
       employees.push(...(page.data || []));
       if ((page.data || []).length < 1000) break;
     }
+    if (p.get("view") === "summary") return NextResponse.json({ items: employees }, { headers: { "Cache-Control": "private, no-store" } });
     const photos = new Map<string, string>();
     for (let offset = 0; offset < employees.length; offset += 500) {
       const result = await supabase.from("ops_employee_photos").select("nik,storage_path").in("nik", employees.slice(offset, offset + 500).map(row => row.nik));
@@ -343,14 +345,15 @@ export async function POST(req: NextRequest) {
   const photoFiles = multipart ? multipart.getAll("photos").filter((x): x is File => x instanceof File) : [];
   if (body.action === "bulkEmployees") {
     const incoming = (Array.isArray(body.rows) ? body.rows : []).map((row: any) => ({
-      nik: String(row.nik || "").trim(), name: String(row.name || "").trim(), position: row.position || "", dept: row.dept || "", hub: row.hub || "", level: row.level || "", superior: row.superior || "", employment: row.employment || (row.active === false ? "Nonaktif" : "Aktif"), active: row.active !== false,
+      nik: String(row.nik || "").trim(), name: String(row.name || "").trim(), position: row.position || "", dept: row.dept || "", hub: row.hub || "", level: row.level || "", superior: row.superior || "", ...employeeState(row),
     })).filter((row: any) => row.nik && row.name);
     if (!incoming.length) return NextResponse.json({ ok: false, error: "Tidak ada baris karyawan valid. Pastikan NIK dan nama terisi." }, { status: 400 });
     const merged = incoming;
-    const existing = await supabase.from("ops_employees").select("nik").limit(1000);
+    const existing = await supabase.from("ops_employees").select("nik,active,employment").limit(1000);
     if (existing.error) return NextResponse.json({ ok: false, error: existing.error.message }, { status: 500 });
     const incomingNiks = new Set(merged.map((row: any) => row.nik));
-    const missingNiks = (existing.data || []).map((row: any) => String(row.nik || "").trim()).filter((nik: string) => nik && !incomingNiks.has(nik));
+    // An omitted resignation does not prove that a replacement has arrived.
+    const missingNiks = (existing.data || []).filter((row: any) => employeeStatus(row) !== "resigned").map((row: any) => String(row.nik || "").trim()).filter((nik: string) => nik && !incomingNiks.has(nik));
     let result: any = { error: null };
     for (let i = 0; i < merged.length; i += 100) {
       result = await supabase.from("ops_employees").upsert(merged.slice(i, i + 100), { onConflict: "nik" });
@@ -373,7 +376,7 @@ export async function POST(req: NextRequest) {
   if (body.action === "comment") { const result = await supabase.from("ops_comments").insert({ case_id: body.id, author_name: body.authorName || "Admin OPS", body: body.body }); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   if (body.action === "close") { const result = await supabase.from("ops_cases").update({ status: "closed", closed_at: new Date().toISOString() }).eq("id", body.id); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   const table = body.action === "problem" ? "ops_problems" : ["employee", "updateEmployee"].includes(String(body.action)) ? "ops_employees" : "ops_users";
-  const employeePayload = { nik: String(body.nik || "").trim(), name: String(body.name || "").trim(), position: body.position || "", dept: body.dept || "", hub: body.hub || "", level: body.level || "", superior: body.superior || "", employment: body.employment || (body.active === false ? "Nonaktif" : "Aktif"), active: body.active !== false };
+  const employeePayload = { nik: String(body.nik || "").trim(), name: String(body.name || "").trim(), position: body.position || "", dept: body.dept || "", hub: body.hub || "", level: body.level || "", superior: body.superior || "", ...employeeState(body) };
   const payload = body.action === "role" ? { email: body.email, role: body.role, leader_name: body.leaderName || null } : body.action === "problem" ? { awb: body.awb, category: body.category, description: body.description, location: body.location, division: body.division, created_by: null, created_by_email: session.email, updated_at: new Date().toISOString() } : body.action === "employee" || body.action === "updateEmployee" ? employeePayload : body;
   const result = body.action === "employee" ? await supabase.from(table).insert(payload) : body.action === "updateEmployee" ? await supabase.from(table).update(payload).eq("nik", body.nik) : body.action === "role" ? await supabase.from(table).upsert(payload, { onConflict: "email" }).select("id").single() : await supabase.from(table).insert(payload).select(body.action === "problem" ? "*" : "id").single();
   if (body.action === "problem" && !result.error && photoFiles.length && result.data?.id) { for (const file of photoFiles) { const rawKey = `problems/${result.data.id}/${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "-")}`; const image = isImageKitConfigured() ? await uploadToImageKit(file, rawKey) : null; const key = image ? `imagekit:${image.path}` : rawKey; const uploaded = image ? { error: null } : await supabase.storage.from("ops-problem-photos").upload(key, file, { contentType: file.type }); if (!uploaded.error) await supabase.from("ops_problem_photos").insert({ problem_id: result.data.id, storage_path: key, file_name: file.name, content_type: file.type }); } }

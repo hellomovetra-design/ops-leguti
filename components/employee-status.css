@@ -1,0 +1,8 @@
+.status-resigned{display:inline-block;color:#9a6700;background:#fff6df;padding:4px 8px;border-radius:999px;font-size:12px}
+.status-dot.resigned{color:#d99316}
+.employee-summary-strip{flex-wrap:wrap;row-gap:12px}
+.employee-summary-strip .status-summary{white-space:nowrap}
+.employee-kpi.formation-kpi>span{justify-items:start;text-align:left;gap:4px;min-width:0}
+.employee-kpi.formation-kpi strong{margin-left:0;line-height:1.15}
+.employee-kpi.formation-kpi .formation-caption{font-size:11px;line-height:16px;font-weight:400;color:inherit;opacity:.72;margin-top:2px}
+.employee-data-state{padding:12px 18px;font-size:13px;color:#607086}
