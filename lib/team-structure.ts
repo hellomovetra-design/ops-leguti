@@ -1,4 +1,4 @@
-export type TeamPerson = { nik: string; name: string; position: string; dept: string; hub: string; superior: string; superior_nik?: string | null; active: boolean; photo_url?: string };
+export type TeamPerson = { nik: string; name: string; position: string; dept: string; hub: string; superior: string; superior_nik?: string | null; active: boolean; photo_url?: string; phone?: string; email?: string };
 export const DEFAULT_TEAM_PHOTO = "/default-employee.jpg";
 // Requested display overrides for Adhitya, Giga and Budi; keep stored uploads intact.
 const cartoonPhotoNiks = new Set(["14010441", "15110895", "11050113"]);

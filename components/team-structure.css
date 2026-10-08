@@ -35,6 +35,13 @@
 .team-structure-page .team-drawer p{font-size:14px;line-height:1.6;margin-bottom:16px}
 .team-structure-page .team-drawer dl{border-top:1px solid #e7edf5;margin-top:24px;padding-top:24px;grid-template-columns:110px minmax(0,1fr);line-height:1.6}
 .team-structure-page .team-drawer dd{overflow-wrap:anywhere}
+.team-structure-page .team-contact-list{display:grid;gap:4px}
+.team-structure-page .team-contact-link{display:inline-flex;align-items:center;gap:8px;min-height:36px;max-width:100%;color:#1765b8;text-decoration:none;line-height:1.5}
+.team-structure-page .team-contact-link svg{flex-shrink:0}
+.team-structure-page .team-contact-link span{min-width:0;overflow-wrap:anywhere}
+.team-structure-page .team-contact-link:hover span{text-decoration:underline}
+.team-structure-page .team-contact-link:focus-visible{outline:3px solid #8ab8e8;outline-offset:3px;border-radius:4px}
+.team-structure-page .team-contact-empty{display:inline-flex;align-items:center;min-height:36px;color:#71839a;font-weight:400}
 .team-structure-page button:focus-visible,.team-structure-page select:focus-visible{outline:3px solid #8ab8e8;outline-offset:3px}
 @media(max-width:900px){.team-structure-page .structure-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.team-structure-page .structure-toolbar select{flex:1;min-width:120px}.team-structure-page .structure-toolbar .search{flex-basis:100%}}
 @media(max-width:600px){.team-structure-page .structure-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.team-structure-page .team-hubs{grid-template-columns:minmax(0,1fr)}.team-structure-page .team-canvas{padding:20px 12px}.team-structure-page .team-fork{width:2px;border:0;background:#8ab8e8}.team-structure-page .structure-tabs button{font-size:11px;padding:8px 4px}.team-structure-page .team-drawer{padding:24px}}

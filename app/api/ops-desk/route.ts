@@ -12,6 +12,7 @@ import { after } from "next/server";
 import { dispatchPush } from "@/lib/web-push";
 import { scopeHistory } from "@/lib/history-scope";
 import { employeeState, employeeStatus } from "@/lib/employee-status";
+import { employeeEditPayload } from "@/lib/employee-edit";
 
 const db = () => getSupabaseServerClient();
 const SUPER_ADMIN_EMAIL = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
@@ -122,7 +123,7 @@ export async function GET(req: NextRequest) {
     const photo_url = photoPath ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photoPath)}${version}` : "";
     return NextResponse.json({ profile: result.data ? { ...result.data, display_name: personelName || result.data.display_name, photo_url } : { email: session.email, display_name: personelName, photo_url: "" }, error: result.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
-  const employeeFields = "nik,name,position,dept,hub,level,superior,superior_nik,active,employment,start_date,created_at";
+  const employeeFields = "nik,tgrid,phone,email,name,position,dept,hub,level,superior,superior_nik,active,employment,start_date,created_at";
   if (type === "employees" && ["structure", "summary"].includes(p.get("view") || "")) {
     const employees: any[] = [];
     for (let offset = 0; ; offset += 1000) {
@@ -156,9 +157,12 @@ export async function GET(req: NextRequest) {
   if (q) query = table === "ops_employees" ? query.or(`name.ilike.%${q}%,nik.ilike.%${q}%`) : table === "ops_problems" ? query.or(`awb.ilike.%${q}%,category.ilike.%${q}%`) : query.or(`awb.ilike.%${q}%,leader.ilike.%${q}%,zone.ilike.%${q}%`);
   const result = await query.limit(table === "ops_employees" ? 500 : table === "ops_cases" ? 100 : 100);
   if (table === "ops_employees" && result.data?.length) {
+    const courierRows = await supabase.from("ops_courier_master").select("employee_nik,tgrid").in("employee_nik", result.data.map((row: any) => row.nik));
+    if (courierRows.error) return NextResponse.json({ error: "TGR ID master kurir belum dapat dimuat. Coba muat ulang." }, { status: 503 });
+    const tgrIds = new Map((courierRows.data || []).map((row: any) => [row.employee_nik, row.tgrid]));
     const photoRows = await supabase.from("ops_employee_photos").select("nik,storage_path").in("nik", result.data.map((row: any) => row.nik));
     const photos = new Map((photoRows.data || []).map((row: any) => [row.nik, row.storage_path]));
-    return NextResponse.json({ items: result.data.map((row: any) => { const photoPath = photos.get(row.nik) || ""; return { ...row, photo_url: photoPath ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photoPath)}` : "/default-employee.jpg" }; }), error: (result as any).error?.message }, { headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=120" } });
+    return NextResponse.json({ items: result.data.map((row: any) => { const photoPath = photos.get(row.nik) || ""; return { ...row, tgrid: tgrIds.get(row.nik) || row.tgrid || "", photo_url: photoPath ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photoPath)}` : "/default-employee.jpg" }; }), error: (result as any).error?.message }, { headers: { "Cache-Control": "private, no-store" } });
   }
   if (table === "ops_problems" && result.data?.length) {
     const ids = result.data.map((row: any) => row.id);
@@ -367,6 +371,19 @@ export async function POST(req: NextRequest) {
     }
     if (!result.error) await audit(supabase, session, "bulk_upsert", "employee", undefined, { rows: merged.length });
     return NextResponse.json({ ok: !result.error, imported: merged.length, deactivated: missingNiks.length, error: result.error?.message });
+  }
+  if (body.action === "updateEmployee" || body.action === "employee") {
+    if (!["admin", "super_admin"].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya administrator pengelola yang dapat mengubah data karyawan." }, { status: 403 });
+    try {
+      const payload = employeeEditPayload(body);
+      if (Object.hasOwn(payload, "phone") || Object.hasOwn(payload, "email")) {
+        const ready = await supabase.from("ops_employees").select("phone,email").limit(1);
+        if (ready.error) return NextResponse.json({ ok: false, error: "Kolom kontak belum siap. Terapkan migration kontak karyawan terlebih dahulu." }, { status: 503 });
+      }
+      const result = await supabase.rpc("ops_save_employee_and_courier", { p_employee: payload, p_create: body.action === "employee", p_actor: session.email });
+      if (result.error) return NextResponse.json({ ok: false, error: ["PGRST202", "42883"].includes(result.error.code) ? "Sinkronisasi belum siap. Terapkan migration 20261008_employee_courier_edit.sql terlebih dahulu." : result.error.message }, { status: 409 });
+      return NextResponse.json({ ok: true, ...result.data }, { headers: { "Cache-Control": "no-store" } });
+    } catch (error) { return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Data karyawan tidak valid." }, { status: 400 }); }
   }
   if (body.action === "deleteEmployee") { const result = await supabase.from("ops_employees").delete().eq("nik", body.nik); return NextResponse.json({ ok: !result.error, error: result.error?.message }); }
   if (body.action === "import") {

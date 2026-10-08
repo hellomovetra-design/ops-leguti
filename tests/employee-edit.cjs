@@ -1,0 +1,24 @@
+const fs=require("node:fs"),vm=require("node:vm"),ts=require("typescript"),assert=require("node:assert/strict");
+function load(file,mocks={}) { const module={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:module.exports,require:n=>mocks[n]||require(n)});return module.exports; }
+const status=load("lib/employee-status.ts");
+const {employeeEditPayload}=load("lib/employee-edit.ts",{"./employee-status":status,"./employee-contacts":load("lib/employee-contacts.ts")});
+const base={nik:"13030319",name:"Nama Kurir",position:"Kurir Motor Staff",active:true,employment:"PKWT"};
+let p=employeeEditPayload({...base,tgrid:" tgrfl123 ",_originalNik:"wrong",photo_url:"ignored"});
+assert.equal(p.nik,"13030319");assert.equal(p.tgrid,"TGRFL123");assert(!("_originalNik" in p));assert(!("photo_url" in p));
+assert.equal(p.original_nik,"wrong");
+const contact=employeeEditPayload({...base,_originalNik:"old",phone:"0812 3456 7890",email:" NAME@EXAMPLE.COM "});
+assert.equal(contact.original_nik,"old");assert.equal(contact.phone,"081234567890");assert.equal(contact.email,"name@example.com");
+assert(!("phone" in employeeEditPayload(base)));assert(!("email" in employeeEditPayload(base)));
+assert.throws(()=>employeeEditPayload({...base,email:"Aktif"}));
+assert(!("tgrid" in employeeEditPayload(base)),"Old clients must not erase TGR ID");
+assert.equal(employeeEditPayload({...base,tgrid:""}).tgrid,"");
+for(const tgrid of ["13030319","TGR 159","TGR","https://evil.test","TGR159!"]) assert.throws(()=>employeeEditPayload({...base,tgrid}));
+assert.throws(()=>employeeEditPayload({...base,name:""}));
+assert.equal(employeeEditPayload({...base,employment:"Resign"}).active,false);
+const sql=fs.readFileSync("supabase/migrations/20261008_employee_courier_edit.sql","utf8");
+assert(sql.includes("where employee_nik=target_nik for update"));
+assert(sql.includes("ops_courier_id_aliases"));
+assert(sql.includes("revision=revision+1"));
+assert(sql.includes("from public,anon,authenticated"));
+assert(!/set[^;]*\b(area|district|zone|shift|vehicle|kanit)\s*=/s.test(sql),"Operational fields must not be overwritten");
+console.log("PASS: NIK/TGR separation, normalized ID, validation, old-client preservation, resignation and sync SQL safeguards (static).");

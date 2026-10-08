@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, ChevronDown, ChevronRight, Maximize2, Search, Users, X } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, Mail, Maximize2, MessageCircle, Search, Users, X } from "lucide-react";
+import { emailContact, whatsappContacts } from "@/lib/employee-contacts";
 import { DEFAULT_TEAM_PHOTO, TeamPerson, teamChildren, teamManagement, teamPhoto } from "@/lib/team-structure";
 import "./team-structure.css";
 
@@ -8,6 +9,15 @@ function PersonPhoto({ person, large = false }: { person?: TeamPerson; large?: b
   return <img className={large ? "team-drawer-photo" : "team-card-photo"} src={teamPhoto(person)} alt={person ? `Foto ${person.name}` : "Karikatur JNE"} onError={event => { if (!event.currentTarget.src.endsWith(DEFAULT_TEAM_PHOTO)) event.currentTarget.src = DEFAULT_TEAM_PHOTO; }} />;
 }
 const has = (person: TeamPerson, role: string) => new RegExp(role, "i").test(person.position);
+function PersonContacts({ person }: { person: TeamPerson }) {
+  const phones = whatsappContacts(person.phone), email = emailContact(person.email);
+  return <>
+    <dt>Telepon / WA</dt>
+    <dd className="team-contact-list">{phones.length ? phones.map(phone => <a key={phone.href} className="team-contact-link" href={phone.href} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${person.name}: ${phone.label}`}><MessageCircle size={16} aria-hidden="true"/><span>{phone.label}</span></a>) : <span className="team-contact-empty">Belum tersedia</span>}</dd>
+    <dt>Email</dt>
+    <dd>{email ? <a className="team-contact-link" href={email.href} aria-label={`Email ${person.name}: ${email.label}`}><Mail size={16} aria-hidden="true"/><span>{email.label}</span></a> : <span className="team-contact-empty">Belum tersedia</span>}</dd>
+  </>;
+}
 export function TeamStructure() {
   const [rows, setRows] = useState<TeamPerson[]>([]), [loading, setLoading] = useState(true), [error, setError] = useState("");
   const [hub, setHub] = useState("Semua Hub"), [division, setDivision] = useState("Semua Divisi"), [status, setStatus] = useState("Aktif"), [q, setQ] = useState("");
@@ -23,6 +33,7 @@ export function TeamStructure() {
         nik: text(item.nik), name: text(item.name), position: text(item.position), dept: text(item.dept),
         hub: text(item.hub).toUpperCase(), superior: text(item.superior), superior_nik: text(item.superior_nik) || null, active: item.active !== false,
         photo_url: text(item.photo_url) || DEFAULT_TEAM_PHOTO,
+        phone: text(item.phone), email: text(item.email),
       })).filter((item: TeamPerson) => item.name));
     } catch (failure) { if (!signal?.aborted) setError(failure instanceof Error ? failure.message : "Data belum tersedia."); }
     finally { if (!signal?.aborted) setLoading(false); }
@@ -64,6 +75,6 @@ export function TeamStructure() {
       {tab === "tree" && <>{supervisor ? <button className="team-root" onClick={() => setSelected(supervisor)}><PersonPhoto person={supervisor} large/><span className="team-position-badge">SPV</span><strong>{supervisor.name}</strong><small>{supervisor.position}</small><small>{visible.length} personel · {hubs.length} hub</small></button> : <p className="team-empty">SPV belum teridentifikasi di database.</p>}{junior && <><div className="team-connector"/><button className="team-management" onClick={() => setSelected(junior)}><PersonPhoto person={junior}/><span><strong>{junior.name}</strong><small>{junior.position}</small></span><ChevronRight size={16}/></button></>}<div className="team-fork"/></>}
       <div className="team-hubs">{hubs.filter(name => hub === "Semua Hub" || name === hub).map(branch)}</div>{visible.length === 0 && <p className="team-empty">Tidak ada personel sesuai filter.</p>}
     </div>}
-    {selected && <><button className="team-drawer-backdrop" aria-label="Tutup detail personel" onClick={() => setSelected(null)}/><aside className="team-drawer" role="dialog" aria-modal="true" aria-label={`Detail ${selected.name}`}><button autoFocus className="modal-close" aria-label="Tutup detail" onClick={() => setSelected(null)}><X size={18}/></button><PersonPhoto person={selected} large/><h2>{selected.name}</h2><p>{selected.position || "Jabatan belum tercatat"}</p><span className={selected.active ? "status-active" : "team-inactive"}>{selected.active ? "Aktif" : "Nonaktif"}</span><dl><dt>NIK</dt><dd>{selected.nik || "—"}</dd><dt>Jabatan</dt><dd>{selected.position || "—"}</dd><dt>Hub</dt><dd>{selected.hub || "—"}</dd><dt>Atasan Langsung</dt><dd>{selected.superior || "—"}</dd><dt>Departemen</dt><dd>{selected.dept || "—"}</dd></dl></aside></>}
+    {selected && <><button className="team-drawer-backdrop" aria-label="Tutup detail personel" onClick={() => setSelected(null)}/><aside className="team-drawer" role="dialog" aria-modal="true" aria-label={`Detail ${selected.name}`}><button autoFocus className="modal-close" aria-label="Tutup detail" onClick={() => setSelected(null)}><X size={18}/></button><PersonPhoto person={selected} large/><h2>{selected.name}</h2><p>{selected.position || "Jabatan belum tercatat"}</p><span className={selected.active ? "status-active" : "team-inactive"}>{selected.active ? "Aktif" : "Nonaktif"}</span><dl><dt>NIK</dt><dd>{selected.nik || "—"}</dd><dt>Jabatan</dt><dd>{selected.position || "—"}</dd><dt>Hub</dt><dd>{selected.hub || "—"}</dd><dt>Atasan Langsung</dt><dd>{selected.superior || "—"}</dd><dt>Departemen</dt><dd>{selected.dept || "—"}</dd><PersonContacts person={selected}/></dl></aside></>}
   </section>;
 }
