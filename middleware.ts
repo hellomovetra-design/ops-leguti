@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
+import { SESSION_COOKIE, SESSION_MAX_AGE, createSessionToken, verifySessionToken } from "@/lib/auth-token";
 import { canOpenRoute, isProtectedRoute, loginDestination } from "@/lib/access-policy";
 
 function withSecurityHeaders(response: NextResponse) {
@@ -25,25 +25,32 @@ function withSecurityHeaders(response: NextResponse) {
 
 export async function middleware(request: NextRequest) {
   const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
+  const finish = async (response: NextResponse) => {
+    if (session && session.exp - Math.floor(Date.now() / 1000) < SESSION_MAX_AGE - 24 * 60 * 60) {
+      const token = await createSessionToken(session.email, session.role, process.env.INTERNAL_AUTH_SECRET!, session.employee_nik);
+      response.cookies.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/", maxAge: SESSION_MAX_AGE });
+    }
+    return withSecurityHeaders(response);
+  };
   const isProtected = isProtectedRoute(request.nextUrl.pathname);
   if (isProtected && !session) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("next", request.nextUrl.pathname + request.nextUrl.search);
-    return withSecurityHeaders(NextResponse.redirect(loginUrl));
+    return finish(NextResponse.redirect(loginUrl));
   }
   if (session && isProtected && !canOpenRoute(session.role, request.nextUrl.pathname)) {
     const response = NextResponse.redirect(new URL(loginDestination(session.role), request.url));
     response.headers.set("Cache-Control", "private, no-store, max-age=0");
-    return withSecurityHeaders(response);
+    return finish(response);
   }
   if (request.nextUrl.pathname === "/login" && session) {
     const response = NextResponse.redirect(new URL(loginDestination(session.role, request.nextUrl.searchParams.get("next")), request.url));
     response.headers.set("Cache-Control", "private, no-store, max-age=0");
-    return withSecurityHeaders(response);
+    return finish(response);
   }
   const response = NextResponse.next();
   if (isProtected) response.headers.set("Cache-Control", "private, no-store, max-age=0");
-  return withSecurityHeaders(response);
+  return finish(response);
 }
 
 export const config = {

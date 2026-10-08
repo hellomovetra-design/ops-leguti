@@ -34,7 +34,9 @@ async function sign(identifier, password = 'password123', sameIp) { return login
   assert.equal((await response.clone().json()).redirect, '/pwa');
   let cookie = response.cookies.get(tokens.SESSION_COOKIE).value;
   const session = await tokens.verifySessionToken(cookie, env.INTERNAL_AUTH_SECRET); assert.equal(session.employee_nik, '00123'); assert.equal(session.role, 'viewer');
-  assert.equal((await sign('staff@test.example')).status, 401);
+  response = await sign('staff@test.example'); assert.equal(response.status, 200);
+  assert.equal((await tokens.verifySessionToken(response.cookies.get(tokens.SESSION_COOKIE).value, env.INTERNAL_AUTH_SECRET)).employee_nik, '00123');
+  assert.equal(response.cookies.get(tokens.SESSION_COOKIE).maxAge, 365 * 24 * 60 * 60);
   active = false; const before = authCalls; assert.equal((await sign('00123')).status, 401); assert.equal(authCalls, before); active = true;
   mapping = null; assert.equal((await sign('missing')).status, 401); mapping = { email: 'staff@test.example', employee_nik: '00123' };
   assert.equal((await sign('00123', 'wrongpass')).status, 401);
@@ -43,5 +45,9 @@ async function sign(identifier, password = 'password123', sameIp) { return login
   cookie = response.cookies.get(tokens.SESSION_COOKIE).value; assert.equal((await tokens.verifySessionToken(cookie, env.INTERNAL_AUTH_SECRET)).employee_nik, undefined);
   for (let i = 0; i < 5; i++) assert.equal((await sign('missing', 'wrongpass', 'ratelimit')).status, 401);
   assert.equal((await sign('missing', 'wrongpass', 'ratelimit')).status, 429);
-  console.log('PASS: NIK + password, Super Admin email, inactive/unlinked denial, role preservation, rate limit, hierarchy, duplicates, cycles, unknown area.');
+  authRole = 'viewer';
+  assert.equal((await sign('staff@test.example', 'password123', 'ratelimit')).status, 200, 'Another user sharing the IP is not locked out');
+  active = false; assert.equal((await sign('staff@test.example')).status, 401); active = true;
+  mapping = null; assert.equal((await sign('staff@test.example')).status, 403);
+  console.log('PASS: NIK and linked email login, persistent cookie, Super Admin email, inactive/unlinked denial, role preservation, isolated rate limit, hierarchy and structural scope.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -1,5 +1,6 @@
 export const SESSION_COOKIE = "jne_session";
-export const SESSION_MAX_AGE = 60 * 60 * 8;
+// Persistent cookie survives app/browser restarts; page visits renew it daily.
+export const SESSION_MAX_AGE = 60 * 60 * 24 * 365;
 
 export type SessionPayload = {
   email: string;
@@ -62,7 +63,7 @@ export async function verifySessionToken(token: string | undefined, secret: stri
     const received = decodeBase64Url(signaturePart);
     if (!constantTimeEqual(expected, received)) return null;
     const payload = JSON.parse(new TextDecoder().decode(decodeBase64Url(payloadPart))) as SessionPayload;
-    if (!payload.email || !["super_admin", "admin", "spv", "jr_spv", "coordinator", "viewer"].includes(payload.role) || payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    if (typeof payload.email !== "string" || !payload.email || !["super_admin", "admin", "spv", "jr_spv", "coordinator", "viewer"].includes(payload.role) || !Number.isFinite(payload.exp) || payload.exp <= Math.floor(Date.now() / 1000)) return null;
     return payload;
   } catch {
     return null;
