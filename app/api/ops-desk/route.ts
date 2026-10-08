@@ -206,7 +206,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, photo_url: `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(storagePath)}` });
   }
   if (body.action === "role" && session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat membuat role." }, { status: 403 });
-  if (body.action === "role" && !["super_admin", "admin", "viewer"].includes(String(body.role))) return NextResponse.json({ ok: false, error: "Jenis akses tidak valid." }, { status: 400 });
+  if (body.action === "role" && !["super_admin", "admin", "spv", "viewer"].includes(String(body.role))) return NextResponse.json({ ok: false, error: "Jenis akses tidak valid." }, { status: 400 });
   if (body.action === "role") {
     const email = String(body.email || "").trim().toLowerCase();
     const password = String(body.password || "");
