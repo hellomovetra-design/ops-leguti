@@ -1,2 +1,2 @@
-import { OpsDeskView } from "@/components/ops-desk-view";
-export default function Page() { return <OpsDeskView mode="ots" />; }
+import { OtsMonitoring } from "@/components/ots-monitoring";
+export default function Page() { return <OtsMonitoring />; }
