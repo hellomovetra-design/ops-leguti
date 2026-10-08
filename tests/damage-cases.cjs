@@ -1,0 +1,47 @@
+const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
+const {NextRequest}=require('next/server');
+function load(file,mocks={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{module:m,exports:m.exports,require:n=>mocks[n]||require(n),process:{env:{}},console,URL,Date,File,Response,Uint8Array,crypto:globalThis.crypto});return m.exports;}
+const lib=load('lib/damage-case.ts');
+const values={awb:' jt123 ',trip:'TRIP1',fleet:'Truck',plate:'b 1234 aa',remark:'Kemasan rusak'};
+assert.equal(lib.damageValues(k=>values[k]).awb,'JT123');
+assert.throws(()=>lib.damageValues(k=>k==='remark'?'':values[k]));
+let session={email:'staff@example.test',role:'viewer'},rows=[],stored=new Map(),missing=false,failUpload=-1,uploadCount=0;
+const db={from(){let mode='select',payload,filters=[],bounds=[0,999];const q={select(){return q},order(){return q},eq(k,v){filters.push(r=>r[k]===v);return q},gte(k,v){filters.push(r=>Date.parse(r[k])>=Date.parse(v));return q},lte(k,v){filters.push(r=>Date.parse(r[k])<=Date.parse(v));return q},ilike(k,v){filters.push(r=>String(r[k]).toLowerCase().includes(v.slice(1,-1).toLowerCase()));return q},range(a,b){bounds=[a,b];return q},insert(p){mode='insert';payload=p;return q},update(p){mode='update';payload=p;return q},single(){return run(true)},maybeSingle(){return run(true)},then(resolve,reject){return run(false).then(resolve,reject)}};
+async function run(single){if(missing)return{error:{code:'42P01'},data:null};if(mode==='insert'){if(rows.some(r=>r.id===payload.id))return{data:null,error:{code:'23505'}};rows.push({...payload,status:'open',resolution:'',created_at:'2026-10-08T01:00:00Z',updated_at:'2026-10-08T01:00:00Z'});}const found=rows.filter(r=>filters.every(f=>f(r)));if(mode==='update')found.forEach(r=>Object.assign(r,payload,{updated_at:'2026-10-08T02:00:00Z'}));return{data:single?found[0]||null:found.slice(bounds[0],bounds[1]+1),count:found.length,error:null};}return q},storage:{from(){return{async remove(){return{error:null}}}}}};
+const api=load('app/api/damage-cases/route.ts',{'@/lib/damage-case':lib,'@/lib/imagekit':{isImageKitConfigured:()=>true,uploadToImageKit:async(file,path)=>{const index=uploadCount++;if(index===failUpload)throw Error('Upload failure');stored.set('imagekit:'+path,file);return{path,fileId:'imagekit:'+path}},fetchFromImageKit:async(path)=>{const file=stored.get('imagekit:'+path);return new Response(file,{headers:{'content-type':file.type}})},deleteFromImageKit:async(id)=>stored.delete(id)},'@/lib/supabase':{getSupabaseServerClient:()=>db},'@/lib/auth-token':{SESSION_COOKIE:'jne_session',verifySessionToken:async()=>session}});
+const id='11111111-1111-4111-8111-111111111111';
+const png=()=>new File([new Uint8Array([137,80,78,71,13,10,26,10,1])],'evidence.png',{type:'image/png'});
+async function post(extra={},count=4,bad=false,origin='http://localhost'){const form=new FormData();Object.entries({id,action:'create',...values,...extra}).forEach(([k,v])=>form.append(k,v));if(extra.action!=='review')for(let i=0;i<count;i++)form.append(`photo${i}`,bad?new File(['fake'],'bad.png',{type:'image/png'}):png());return api.POST(new NextRequest('http://localhost/api/damage-cases',{method:'POST',headers:{origin},body:form}));}
+const get=(q='')=>api.GET(new NextRequest('http://localhost/api/damage-cases'+q));
+(async()=>{
+ session=null;assert.equal((await get()).status,401);session={email:'staff@example.test',role:'viewer'};
+ assert.equal((await get('?scope=admin')).status,403);
+ assert.equal((await post({},4,false,'https://evil.test')).status,403);
+ assert.equal((await post({},3)).status,400);assert.equal((await post({},4,true)).status,400);
+ assert.equal((await post({awb:''})).status,400);assert.equal(stored.size,0);
+ failUpload=1;assert.equal((await post()).status,400);assert.equal(rows.length,0);assert.equal(stored.size,0,'Clean up partial uploads before insert');failUpload=-1;
+ let result=await(await post()).json();assert(result.ok);assert.equal(rows.length,1);assert.equal(stored.size,4);
+ assert.equal(result.item.photos.length,4);assert(!result.item.photos[0].path);assert(!JSON.stringify(result.item).includes('imagekit:'));assert.equal(result.item.evidence_url,'/pwa/damage-evidence/'+id);
+ await post();assert.equal(rows.length,1);assert.equal(stored.size,4,'Retry must not upload twice');
+ assert.equal((await get('?id='+id)).status,200);assert.equal((await get('?type=photo&id='+id+'&index=0')).status,200);
+ assert.equal((await get('?type=photo&id='+id)).status,400);assert.equal((await get('?type=photo&id='+id+'&index=4')).status,400);
+ assert.equal((await post({action:'review',status:'completed',resolution:'Barang dikonfirmasi',updated_at:rows[0].updated_at},0)).status,403);
+ session={email:'other@example.test',role:'viewer'};assert.equal((await(await get()).json()).total,0);assert.equal((await get('?id='+id)).status,404);assert.equal((await get('?type=photo&id='+id+'&index=0')).status,404);assert.equal((await post()).status,409);
+ session={email:'admin@example.test',role:'admin'};assert.equal((await(await get('?scope=admin')).json()).total,1);assert.equal((await(await get()).json()).total,0,'Admin PWA must still be personal');
+ assert.equal((await post({action:'review',status:'completed',resolution:'',updated_at:rows[0].updated_at},0)).status,400);
+ assert.equal((await post({action:'review',status:'in_progress',resolution:'Diperiksa',updated_at:'2026-10-07T01:00:00Z'},0)).status,409);
+ assert.equal((await post({action:'review',status:'completed',resolution:'Sudah ditindaklanjuti',updated_at:rows[0].updated_at},0)).status,200);
+ assert.equal((await(await get('?scope=admin&status=open')).json()).total,0);
+ assert.equal((await(await get('?scope=admin&q=JT123')).json()).total,1);assert.equal((await get('?offset=-1')).status,400);
+ const report=await get('?type=export&scope=admin');assert.equal(report.status,200);assert(report.headers.get('content-disposition').includes('report-damage-case.csv'));const csv=await report.text();assert(csv.includes('LINK 4 FOTO BUKTI'));assert(csv.includes('http://localhost/pwa/damage-evidence/'+id));assert(csv.includes('Sudah ditindaklanjuti'));
+ assert.equal((await get('?from=2026-02-30')).status,400);assert.equal((await get('?from=2026-10-09&to=2026-10-08')).status,400);
+ assert.equal((await(await get('?type=export&from=2026-10-09')).text()).includes('JT123'),false);
+ assert.equal((await(await get('?type=export&from=2026-10-08&to=2026-10-08')).text()).includes('JT123'),true);
+ assert.equal((await(await get('?type=export&q=UNKNOWN')).text()).includes('JT123'),false);
+ const before=rows.length;for(let i=0;i<1001;i++)rows.push({...rows[0],id:crypto.randomUUID(),awb:'BULK'+i});const bulk=await(await get('?type=export&q=BULK')).text();assert(bulk.includes('BULK1000'));rows.splice(before);
+ assert(lib.damageCsv([{...rows[0],awb:'001234',remark:'=SUM(1)'}],'https://ops.movetra.id').includes('"001234"'));assert(lib.damageCsv([{...rows[0],remark:'=SUM(1)'}],'https://ops.movetra.id').includes("'=SUM(1)"));
+ session={email:'staff@example.test',role:'viewer'};assert.equal((await get('?type=export')).status,403);
+ session=null;assert.equal((await get('?type=export')).status,401);session={email:'admin@example.test',role:'admin'};
+ missing=true;assert.equal((await get()).status,503);assert.equal((await get('?type=export')).status,503);
+ console.log('PASS: Damage Case fields, four-photo validation, private ImageKit proxy, partial-upload cleanup, persistence, idempotent retry, personal PWA history, admin-only review, optimistic locking, filters and migration errors.');
+})().catch(e=>{console.error(e);process.exitCode=1;});
