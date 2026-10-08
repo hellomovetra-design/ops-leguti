@@ -3,9 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowUpRight, CheckCheck, ChevronRight, Headphones, Inbox, Loader2, MessageCircle, Package, Search, Send, ShieldCheck } from "lucide-react";
 import { InboxThread, inboxDone, inboxInitials, inboxThreadStatus, inboxTime } from "@/lib/inbox";
+import { DEFAULT_TEAM_PHOTO } from "@/lib/team-structure";
 import { useInbox } from "./use-inbox";
 import { PwaPushSettings } from "./pwa-push-settings";
 import "./inbox.css";
+
+function UserAvatar({ name }: { name: string }) {
+  const [failed, setFailed] = useState(false);
+  return <span className="inbox-avatar inbox-user-avatar">{failed ? inboxInitials(name) : <img src={DEFAULT_TEAM_PHOTO} alt="" width={42} height={42} loading="lazy" decoding="async" onError={() => setFailed(true)}/>}</span>;
+}
 
 type Props = { admin?: boolean; demo?: boolean; threadId: string | null; onSelect: (id: string | null) => void };
 export function InboxPanel({ admin = false, demo = false, threadId, onSelect }: Props) {
@@ -53,7 +59,7 @@ export function InboxPanel({ admin = false, demo = false, threadId, onSelect }: 
 
     <div className="inbox-conversation">
       {!threadId ? <div className="inbox-welcome"><div className="inbox-welcome-art"><MessageCircle size={48}/><span><CheckCheck size={21}/></span></div><span className="inbox-eyebrow">SATU REQUEST, SATU PERCAKAPAN</span><h2>Mulai dari request yang masuk.</h2><p>Pilih percakapan untuk melihat detail request,<br/>memprosesnya, dan memberi konfirmasi kepada user.</p><div className="inbox-welcome-steps"><span>Request masuk</span><ChevronRight size={15}/><span>Proses</span><ChevronRight size={15}/><span>Balas</span></div>{admin && !demo && <PwaPushSettings audience="admin"/>}</div> : openThread ? <>
-        <header className="inbox-chat-header"><button className="inbox-back" aria-label="Kembali ke daftar Inbox" onClick={() => onSelect(null)}><ArrowLeft size={21}/></button><span className={`inbox-avatar ${admin ? "" : "is-admin"}`}>{admin ? inboxInitials(person) : <Headphones size={22}/>}</span><div className="inbox-chat-person"><strong>{person}</strong><small>{admin ? "Pengirim request · " + openThread.subject : openThread.first_admin_name ? "Admin penanggap request kamu" : "Menunggu admin pertama membalas"}</small></div><span className={`inbox-status ${inboxDone(openThread.status) ? "done" : ""}`}>{inboxThreadStatus(openThread)}</span></header>
+        <header className="inbox-chat-header"><button className="inbox-back" aria-label="Kembali ke daftar Inbox" onClick={() => onSelect(null)}><ArrowLeft size={21}/></button>{admin ? <UserAvatar name={person}/> : <span className="inbox-avatar is-admin"><Headphones size={22}/></span>}<div className="inbox-chat-person"><strong>{person}</strong><small>{admin ? "Pengirim request · " + openThread.subject : openThread.first_admin_name ? "Admin penanggap request kamu" : "Menunggu admin pertama membalas"}</small></div><span className={`inbox-status ${inboxDone(openThread.status) ? "done" : ""}`}>{inboxThreadStatus(openThread)}</span></header>
         <div className="inbox-chat-context"><ShieldCheck size={15}/><span>Terhubung ke request · <strong>{openThread.reference || openThread.subject}</strong></span></div>
         <div className="inbox-messages" aria-label="Riwayat percakapan">
           {model.moreMessages && <button className="inbox-load-more" onClick={() => void model.loadMore(true)}>Pesan sebelumnya</button>}
@@ -63,7 +69,7 @@ export function InboxPanel({ admin = false, demo = false, threadId, onSelect }: 
           {!openThread.first_admin_email && <div className="inbox-awaiting"><span/><p>{admin ? "Belum ada admin yang membalas. Balasan pertamamu akan menampilkan namamu di PWA user." : "Request sudah diterima. Nama admin akan muncul setelah ada balasan."}</p></div>}
           {[...model.messages, ...(model.pendingMessage ? [model.pendingMessage] : [])].filter(item => item.kind !== "request").map(message => {
             const mine = message.sender_email === model.email;
-            return <div className={`inbox-message ${mine ? "mine" : "theirs"}`} key={message.id}><div className="inbox-message-author">{message.sender_name}{message.sender_role === "admin" && <span>Admin</span>}</div><div className="inbox-bubble"><p>{message.body}</p><span>{inboxTime(message.created_at)}{mine && (message.pending ? <span role="status">Mengirim…</span> : <CheckCheck size={14} aria-label="Terkirim"/>)}</span></div></div>;
+            return <div className={`inbox-message ${mine ? "mine" : "theirs"}`} key={message.id}><div className="inbox-message-author">{admin && message.sender_role === "user" && <UserAvatar name={message.sender_name}/ >}{message.sender_name}{message.sender_role === "admin" && <span>Admin</span>}</div><div className="inbox-bubble"><p>{message.body}</p><span>{inboxTime(message.created_at)}{mine && (message.pending ? <span role="status">Mengirim…</span> : <CheckCheck size={14} aria-label="Terkirim"/>)}</span></div></div>;
           })}
           <div ref={bottom}/>
         </div>
@@ -77,5 +83,5 @@ export function InboxPanel({ admin = false, demo = false, threadId, onSelect }: 
 
 function ThreadRow({ thread, admin, selected, onClick }: { thread: InboxThread; admin: boolean; selected: boolean; onClick: () => void }) {
   const person = admin ? thread.owner_name : thread.first_admin_name || "Tim Admin LEGUTI";
-  return <button className={`inbox-thread${selected ? " active" : ""}${thread.unread ? " unread" : ""}`} onClick={onClick}><span className={`inbox-avatar ${admin ? "" : "is-admin"}`}>{admin ? inboxInitials(person) : <Headphones size={21}/>}</span><span className="inbox-thread-copy"><span className="inbox-thread-line"><strong>{person}</strong><time>{inboxTime(thread.last_message_at)}</time></span><span className="inbox-thread-subject">{thread.entity_type === "problem" ? <Package size={12}/> : <Headphones size={12}/>} {thread.subject}</span><span className="inbox-thread-preview">{thread.last_body}</span><span className="inbox-thread-meta"><span className={`inbox-status ${inboxDone(thread.status) ? "done" : ""}`}>{inboxThreadStatus(thread)}</span><small>{thread.reference}</small></span></span>{thread.unread > 0 && <span className="inbox-unread">{thread.unread > 99 ? "99+" : thread.unread}</span>}</button>;
+  return <button className={`inbox-thread${selected ? " active" : ""}${thread.unread ? " unread" : ""}`} onClick={onClick}>{admin ? <UserAvatar name={person}/> : <span className="inbox-avatar is-admin"><Headphones size={21}/></span>}<span className="inbox-thread-copy"><span className="inbox-thread-line"><strong>{person}</strong><time>{inboxTime(thread.last_message_at)}</time></span><span className="inbox-thread-subject">{thread.entity_type === "problem" ? <Package size={12}/> : <Headphones size={12}/>} {thread.subject}</span><span className="inbox-thread-preview">{thread.last_body}</span><span className="inbox-thread-meta"><span className={`inbox-status ${inboxDone(thread.status) ? "done" : ""}`}>{inboxThreadStatus(thread)}</span><small>{thread.reference}</small></span></span>{thread.unread > 0 && <span className="inbox-unread">{thread.unread > 99 ? "99+" : thread.unread}</span>}</button>;
 }
