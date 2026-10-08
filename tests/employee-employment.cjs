@@ -29,4 +29,10 @@ assert.ok(strip.indexOf('statusButton("active"')<strip.indexOf('statusButton("in
 assert.ok(strip.indexOf('statusButton("inactive"')<strip.indexOf('statusButton("resigned"'));
 assert.ok(strip.indexOf('statusButton("resigned"')<strip.indexOf('className="employment-summary-filters"'));
 assert.ok(strip.includes('["contract","permanent","outsource","unknown"]'));
+const styles=fs.readFileSync('components/employee-status.css','utf8');
+assert.ok(styles.includes('.employee-summary-strip.employee-overview-strip button[aria-pressed=true]{background:linear-gradient(135deg,#0759b7,#1686d9);color:#fff;'));
+assert.ok(styles.includes('button[aria-pressed=true] .status-dot{color:#fff}'));
+const statusButtonSource=source.split('\n').find(line=>line.includes('const statusButton='));
+assert.ok(statusButtonSource.includes('className="status-summary"'), 'Avoid legacy .status-summary.active !important transparent override');
+assert.ok(statusButtonSource.includes('aria-pressed={statusFilter===v}'));
 console.log('PASS: freelance grouped as outsource, no standalone freelance category, original data preserved, independent lifecycle status and dashboard filters.');

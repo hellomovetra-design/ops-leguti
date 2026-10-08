@@ -14,10 +14,9 @@
 .employment-summary-filters{display:grid;grid-column:span 4;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;min-width:0}
 .employee-overview-strip>button,.employee-overview-strip .employment-summary-filters button{justify-content:center;align-items:center;min-width:0;border-radius:8px;padding:8px 4px;gap:6px;white-space:normal;line-height:1.5}
 .employee-overview-strip>button svg,.employee-overview-strip button b{flex-shrink:0}
-.employee-overview-strip .employment-summary-filters button[aria-pressed=true]{background:linear-gradient(135deg,#0759b7,#1686d9);color:#fff;box-shadow:0 4px 12px rgba(7,89,183,.18)}
-.employee-overview-strip .employment-summary-filters button[aria-pressed=true] b{color:#fff}
-.employee-overview-strip>button[aria-pressed=true]{background:#edf5ff;border-radius:8px;padding:8px;color:#0759b7}
-.employee-overview-strip .employment-summary-filters button:focus-visible{outline:3px solid #75baff;outline-offset:2px}
+.employee-summary-strip.employee-overview-strip button[aria-pressed=true]{background:linear-gradient(135deg,#0759b7,#1686d9);color:#fff;box-shadow:0 4px 12px rgba(7,89,183,.18)}
+.employee-summary-strip.employee-overview-strip button[aria-pressed=true] b,.employee-summary-strip.employee-overview-strip button[aria-pressed=true] .status-dot{color:#fff}
+.employee-summary-strip.employee-overview-strip button:focus-visible{outline:3px solid #75baff;outline-offset:2px}
 @media(max-width:1200px){.employee-kpis.employee-overview-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.employee-summary-strip.employee-overview-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.employment-summary-filters{grid-column:1/-1}}
 @media(max-width:640px){.employee-kpis.employee-overview-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.employee-summary-strip.employee-overview-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.employee-overview-strip .employment-summary-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.employee-overview-strip .employment-summary-filters button{justify-content:center}}
 @media(prefers-reduced-motion:reduce){.employee-overview-strip button{transition:none;transform:none}}
