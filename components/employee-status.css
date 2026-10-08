@@ -10,7 +10,7 @@
 .employee-overview-kpis .employee-kpi{min-width:0;padding:18px 14px;gap:10px}
 .employee-overview-kpis .employee-kpi>svg{flex-shrink:0}
 .employee-overview-kpis .employee-kpi.segment-active>svg{color:#fff}
-.employee-summary-strip.employee-overview-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) 1.5fr .8fr;align-items:stretch;gap:6px;padding:10px 12px}
+.employee-summary-strip.employee-overview-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) 1.5fr repeat(4,minmax(0,1fr));align-items:stretch;gap:6px;padding:10px 12px}
 .employment-summary-filters{display:grid;grid-column:span 4;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;min-width:0}
 .employee-overview-strip>button,.employee-overview-strip .employment-summary-filters button{justify-content:center;align-items:center;min-width:0;border-radius:8px;padding:8px 4px;gap:6px;white-space:normal;line-height:1.5}
 .employee-overview-strip>button svg,.employee-overview-strip button b{flex-shrink:0}
