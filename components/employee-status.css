@@ -6,19 +6,21 @@
 .employee-kpi.formation-kpi strong{margin-left:0;line-height:1.15}
 .employee-kpi.formation-kpi .formation-caption{font-size:11px;line-height:16px;font-weight:400;color:inherit;opacity:.72;margin-top:2px}
 .employee-data-state{padding:12px 18px;font-size:13px;color:#607086}
-.employment-panel{margin:16px 0;padding:18px;background:#fff;border:1px solid #e1e7ef;border-radius:14px}
-.employment-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;font-size:14px;font-weight:700;color:#102544}
-.employment-panel-heading small{font-size:12px;font-weight:400;color:#607086}
-.employment-filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
-.employment-filters button{border:1px solid #e1e7ef;background:#f8fafc;border-radius:10px;padding:12px;text-align:left;color:#526780;font:inherit;cursor:pointer;min-width:0;font-size:12px;transition:background .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease}
-.employment-filters button strong{display:block;font-size:22px;color:#102544;margin-top:6px}
-.employment-filters button:hover{border-color:#7b8bd5;transform:translateY(-2px);box-shadow:0 8px 20px rgba(16,24,40,.12)}
-.employment-filters button[aria-pressed=true]{border-color:#0759b7;background:linear-gradient(135deg,#0759b7,#1686d9);color:#fff;box-shadow:0 6px 16px rgba(7,89,183,.18)}
-.employment-filters button[aria-pressed=true] strong{color:#fff}
-.employment-filters button:focus-visible{outline:3px solid #75baff;outline-offset:3px}
-@media(prefers-reduced-motion:reduce){.employment-filters button{transition:none}.employment-filters button:hover{transform:none}}
+.employee-kpis.employee-overview-kpis{grid-template-columns:1.35fr repeat(5,minmax(0,1fr))}
+.employee-overview-kpis .employee-kpi{min-width:0;padding:18px 14px;gap:10px}
+.employee-overview-kpis .employee-kpi>svg{flex-shrink:0}
+.employee-overview-kpis .employee-kpi.segment-active>svg{color:#fff}
+.employee-summary-strip.employee-overview-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr)) 1.5fr .8fr;align-items:stretch;gap:6px;padding:10px 12px}
+.employment-summary-filters{display:grid;grid-column:span 4;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;min-width:0}
+.employee-overview-strip>button,.employee-overview-strip .employment-summary-filters button{justify-content:center;align-items:center;min-width:0;border-radius:8px;padding:8px 4px;gap:6px;white-space:normal;line-height:1.5}
+.employee-overview-strip>button svg,.employee-overview-strip button b{flex-shrink:0}
+.employee-overview-strip .employment-summary-filters button[aria-pressed=true]{background:linear-gradient(135deg,#0759b7,#1686d9);color:#fff;box-shadow:0 4px 12px rgba(7,89,183,.18)}
+.employee-overview-strip .employment-summary-filters button[aria-pressed=true] b{color:#fff}
+.employee-overview-strip>button[aria-pressed=true]{background:#edf5ff;border-radius:8px;padding:8px;color:#0759b7}
+.employee-overview-strip .employment-summary-filters button:focus-visible{outline:3px solid #75baff;outline-offset:2px}
+@media(max-width:1200px){.employee-kpis.employee-overview-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.employee-summary-strip.employee-overview-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.employment-summary-filters{grid-column:1/-1}}
+@media(max-width:640px){.employee-kpis.employee-overview-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.employee-summary-strip.employee-overview-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.employee-overview-strip .employment-summary-filters{grid-template-columns:repeat(2,minmax(0,1fr))}.employee-overview-strip .employment-summary-filters button{justify-content:center}}
+@media(prefers-reduced-motion:reduce){.employee-overview-strip button{transition:none;transform:none}}
 .employment-badge{display:inline-block;padding:4px 8px;background:#edf3fa;color:#365879;border-radius:6px;white-space:nowrap;font-size:12px}
 .employee-pagination{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-top:1px solid #e1e7ef;color:#607086;font-size:12px}
 .employee-pagination button{padding:8px 12px;border:1px solid #d7e2ef;background:#fff;border-radius:8px;color:#1268bb;cursor:pointer}
-@media(max-width:900px){.employment-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.employment-panel-heading{align-items:flex-start;flex-direction:column}}
-@media(max-width:420px){.employment-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
