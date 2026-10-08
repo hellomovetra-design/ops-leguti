@@ -6,3 +6,19 @@
 .employee-kpi.formation-kpi strong{margin-left:0;line-height:1.15}
 .employee-kpi.formation-kpi .formation-caption{font-size:11px;line-height:16px;font-weight:400;color:inherit;opacity:.72;margin-top:2px}
 .employee-data-state{padding:12px 18px;font-size:13px;color:#607086}
+.employment-panel{margin:16px 0;padding:18px;background:#fff;border:1px solid #e1e7ef;border-radius:14px}
+.employment-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px;font-size:14px;font-weight:700;color:#102544}
+.employment-panel-heading small{font-size:12px;font-weight:400;color:#607086}
+.employment-filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.employment-filters button{border:1px solid #e1e7ef;background:#f8fafc;border-radius:10px;padding:12px;text-align:left;color:#526780;font:inherit;cursor:pointer;min-width:0;font-size:12px;transition:background .18s ease,border-color .18s ease,box-shadow .18s ease,transform .18s ease}
+.employment-filters button strong{display:block;font-size:22px;color:#102544;margin-top:6px}
+.employment-filters button:hover{border-color:#7b8bd5;transform:translateY(-2px);box-shadow:0 8px 20px rgba(16,24,40,.12)}
+.employment-filters button[aria-pressed=true]{border-color:#0759b7;background:linear-gradient(135deg,#0759b7,#1686d9);color:#fff;box-shadow:0 6px 16px rgba(7,89,183,.18)}
+.employment-filters button[aria-pressed=true] strong{color:#fff}
+.employment-filters button:focus-visible{outline:3px solid #75baff;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){.employment-filters button{transition:none}.employment-filters button:hover{transform:none}}
+.employment-badge{display:inline-block;padding:4px 8px;background:#edf3fa;color:#365879;border-radius:6px;white-space:nowrap;font-size:12px}
+.employee-pagination{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 18px;border-top:1px solid #e1e7ef;color:#607086;font-size:12px}
+.employee-pagination button{padding:8px 12px;border:1px solid #d7e2ef;background:#fff;border-radius:8px;color:#1268bb;cursor:pointer}
+@media(max-width:900px){.employment-filters{grid-template-columns:repeat(3,minmax(0,1fr))}.employment-panel-heading{align-items:flex-start;flex-direction:column}}
+@media(max-width:420px){.employment-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
