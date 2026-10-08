@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase";
+import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit, deleteFromImageKit } from "@/lib/imagekit";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 import { BARKUR_ROLES, BARKUR_STATUSES, barkurUuid, barkurTime, driveEvidence, barkurFilters, applyBarkurFilters, barkurCsv, BarkurRecord } from "@/lib/barkur";
 export const runtime = "nodejs";
@@ -26,6 +27,10 @@ export async function GET(req: NextRequest) {
       if (record.error) return json({ error: databaseError(record.error) }, 503);
       const item = record.data?.evidence?.[index];
       if (!item) return json({ error: "Bukti tidak ditemukan." }, 404);
+      if (item.path.startsWith("imagekit:")) {
+        const file = await fetchFromImageKit(item.path.slice(9));
+        return new NextResponse(file.body, { headers: { "Content-Type": file.headers.get("content-type") || "image/png", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" } });
+      }
       const file = await db.storage.from(BUCKET).download(item.path);
       if (file.error || !file.data) return json({ error: "Bukti belum dapat dibuka." }, 404);
       return new NextResponse(file.data, { headers: { "Content-Type": file.data.type || "image/png", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
@@ -52,6 +57,7 @@ export async function POST(req: NextRequest) {
   const ctx = await context(req); if (ctx.error) return ctx.error;
   const db = ctx.db!, session = ctx.session!;
   const uploaded: string[] = [];
+  const imagekitIds: string[] = [];
   let committed = false;
   try {
     const form = await req.formData(), get = (key: string) => String(form.get(key) || "").trim();
@@ -74,6 +80,12 @@ export async function POST(req: NextRequest) {
       const valid = file.type === "image/png" ? [137,80,78,71,13,10,26,10].every((v,i) => bytes[i]===v) : file.type === "image/jpeg" ? bytes[0]===255 && bytes[1]===216 && bytes[2]===255 : String.fromCharCode(...bytes.slice(0,4)) === "RIFF" && String.fromCharCode(...bytes.slice(8,12)) === "WEBP";
       if (!valid) throw new Error("Isi berkas tidak sesuai format gambar.");
       const path = `${id}/${crypto.randomUUID()}.${file.type === "image/png" ? "png" : file.type === "image/jpeg" ? "jpg" : "webp"}`;
+      if (isImageKitConfigured()) {
+        const image = await uploadToImageKit(file, `barkur/${path}`);
+        imagekitIds.push(image.fileId);
+        evidence.push({ path: `imagekit:${image.path}`, name: file.name.slice(0,200) });
+        continue;
+      }
       const result = await db.storage.from(BUCKET).upload(path, file, { contentType: file.type });
       if (result.error) throw new Error("Upload bukti gagal. Pastikan bucket migration tersedia, lalu coba lagi.");
       uploaded.push(path); evidence.push({ path, name: file.name.slice(0,200) });
@@ -86,5 +98,8 @@ export async function POST(req: NextRequest) {
     committed = true;
     return json({ ok: true, item: decorate(result.data) });
   } catch (error) { return json({ error: error instanceof Error ? error.message : "Data belum berhasil disimpan." }, 400); }
-  finally { if (!committed && uploaded.length) await db.storage.from(BUCKET).remove(uploaded).catch(() => {}); }
+  finally {
+    if (!committed && uploaded.length) await db.storage.from(BUCKET).remove(uploaded).catch(() => {});
+    if (!committed) await Promise.all(imagekitIds.map(id => deleteFromImageKit(id).catch(() => {})));
+  }
 }

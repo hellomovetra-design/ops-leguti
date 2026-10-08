@@ -1,9 +1,12 @@
 import { Buffer } from "node:buffer";
+import { createHmac } from "node:crypto";
 
 const uploadEndpoint = "https://upload.imagekit.io/api/v1/files/upload";
 
 export function isImageKitConfigured() {
-  return Boolean(process.env.IMAGEKIT_PRIVATE_KEY && process.env.IMAGEKIT_URL_ENDPOINT);
+  const configured = Boolean(process.env.IMAGEKIT_PRIVATE_KEY && process.env.IMAGEKIT_URL_ENDPOINT);
+  if (!configured && process.env.IMAGEKIT_REQUIRED === "true") throw new Error("Penyimpanan foto belum siap. Hubungi administrator.");
+  return configured;
 }
 
 export async function uploadToImageKit(file: File, filePath: string) {
@@ -15,6 +18,7 @@ export async function uploadToImageKit(file: File, filePath: string) {
     folder: filePath.substring(0, filePath.lastIndexOf("/")) || "/ops-leguti",
     useUniqueFileName: "false",
     tags: "ops-leguti",
+    isPrivateFile: "true",
   });
   const response = await fetch(uploadEndpoint, {
     method: "POST",
@@ -29,7 +33,24 @@ export async function uploadToImageKit(file: File, filePath: string) {
 export async function fetchFromImageKit(filePath: string) {
   const endpoint = process.env.IMAGEKIT_URL_ENDPOINT?.replace(/\/$/, "");
   if (!endpoint) throw new Error("IMAGEKIT_URL_ENDPOINT belum dikonfigurasi.");
-  const response = await fetch(`${endpoint}/${filePath.replace(/^\//, "")}`, { cache: "no-store" });
+  const key = process.env.IMAGEKIT_PRIVATE_KEY;
+  if (!key) throw new Error("Penyimpanan foto belum siap.");
+  const segments = filePath.replace(/^\//, "").split("/");
+  if (segments.some(part => !part || part === "." || part === ".." || /[%?#\\]/.test(part))) throw new Error("Path foto tidak valid.");
+  const relative = segments.map(encodeURIComponent).join("/");
+  const expiry = Math.floor(Date.now() / 1000) + 300;
+  const signature = createHmac("sha1", key).update(relative + expiry).digest("hex");
+  const response = await fetch(`${endpoint}/${relative}?ik-t=${expiry}&ik-s=${signature}`, { cache: "no-store", redirect: "error", signal: AbortSignal.timeout(15000) });
   if (!response.ok || !response.body) throw new Error("Foto ImageKit tidak ditemukan.");
   return response;
+}
+
+export async function deleteFromImageKit(fileId: string) {
+  const key = process.env.IMAGEKIT_PRIVATE_KEY;
+  if (!key) throw new Error("Penyimpanan foto belum siap.");
+  const response = await fetch(`https://api.imagekit.io/v1/files/${encodeURIComponent(fileId)}`, {
+    method: "DELETE", headers: { Authorization: `Basic ${Buffer.from(`${key}:`).toString("base64")}` },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok && response.status !== 404) throw new Error("Pembersihan foto gagal.");
 }
