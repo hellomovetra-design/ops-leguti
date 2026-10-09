@@ -27,7 +27,7 @@ async function run(single){if(missing)return{error:{code:'42P01'},data:null};if(
 const api=load('app/api/damage-cases/route.ts',{'@/lib/damage-case':lib,'@/lib/imagekit':{isImageKitConfigured:()=>true,uploadToImageKit:async(file,path)=>{const index=uploadCount++;if(index===failUpload)throw Error('Upload failure');stored.set('imagekit:'+path,file);return{path,fileId:'imagekit:'+path}},fetchFromImageKit:async(path)=>{const file=stored.get('imagekit:'+path);return new Response(file,{headers:{'content-type':file.type}})},deleteFromImageKit:async(id)=>stored.delete(id)},'@/lib/supabase':{getSupabaseServerClient:()=>db},'@/lib/auth-token':{SESSION_COOKIE:'jne_session',verifySessionToken:async()=>session}});
 const id='11111111-1111-4111-8111-111111111111';
 const png=()=>new File([new Uint8Array([137,80,78,71,13,10,26,10,1])],'evidence.png',{type:'image/png'});
-async function post(extra={},count=4,bad=false,origin='http://localhost'){const form=new FormData();Object.entries({id,action:'create',...values,...extra}).forEach(([k,v])=>form.append(k,v));if(extra.action!=='review')for(let i=0;i<count;i++)form.append(`photo${i}`,bad?new File(['fake'],'bad.png',{type:'image/png'}):png());return api.POST(new NextRequest('http://localhost/api/damage-cases',{method:'POST',headers:{origin},body:form}));}
+async function post(extra={},count=4,bad=false,origin='http://localhost',startSlot=0){const form=new FormData();Object.entries({id,action:'create',...values,...extra}).forEach(([k,v])=>form.append(k,v));if(extra.action!=='review')for(let i=0;i<count;i++)form.append(`photo${i+startSlot}`,bad?new File(['fake'],'bad.png',{type:'image/png'}):png());return api.POST(new NextRequest('http://localhost/api/damage-cases',{method:'POST',headers:{origin},body:form}));}
 const get=(q='')=>api.GET(new NextRequest('http://localhost/api/damage-cases'+q));
 (async()=>{
  session=null;assert.equal((await get('?type=vehicles')).status,401);assert.equal((await get()).status,401);session={email:'staff@example.test',role:'viewer'};
@@ -35,7 +35,7 @@ const get=(q='')=>api.GET(new NextRequest('http://localhost/api/damage-cases'+q)
  assert.equal((await post({plate:'UNKNOWN'})).status,400);assert.equal(stored.size,0);
  assert.equal((await get('?scope=admin')).status,403);
  assert.equal((await post({},4,false,'https://evil.test')).status,403);
- assert.equal((await post({},3)).status,400);assert.equal((await post({},4,true)).status,400);
+ assert.equal((await post({},0)).status,400);assert.equal((await post({},5)).status,400);assert.equal((await post({},4,true)).status,400);
  assert.equal((await post({awb:''})).status,400);assert.equal(stored.size,0);
  failUpload=1;assert.equal((await post()).status,400);assert.equal(rows.length,0);assert.equal(stored.size,0,'Clean up partial uploads before insert');failUpload=-1;
  let result=await(await post({trip:'WH CGK',fleet:'',plate:'b 1234 aa'})).json();assert(result.ok);assert.equal(rows.length,1);assert.equal(stored.size,4);assert.equal(rows[0].plate,'B 1234 AA');assert.equal(rows[0].trip,'WH CGK');assert.equal(rows[0].fleet,'');
@@ -51,7 +51,7 @@ const get=(q='')=>api.GET(new NextRequest('http://localhost/api/damage-cases'+q)
  assert.equal((await post({action:'review',status:'completed',resolution:'Sudah ditindaklanjuti',updated_at:rows[0].updated_at},0)).status,200);
  assert.equal((await(await get('?scope=admin&status=open')).json()).total,0);
  assert.equal((await(await get('?scope=admin&q=JT123')).json()).total,1);assert.equal((await get('?offset=-1')).status,400);
- const report=await get('?type=export&scope=admin');assert.equal(report.status,200);assert(report.headers.get('content-disposition').includes('report-damage-case.csv'));const csv=await report.text();assert(csv.includes('LINK 4 FOTO BUKTI'));assert(csv.includes('http://localhost/pwa/damage-evidence/'+id));assert(csv.includes('Sudah ditindaklanjuti'));
+ const report=await get('?type=export&scope=admin');assert.equal(report.status,200);assert(report.headers.get('content-disposition').includes('report-damage-case.csv'));const csv=await report.text();assert(csv.includes('LINK FOTO BUKTI'));assert(csv.includes('http://localhost/pwa/damage-evidence/'+id));assert(csv.includes('Sudah ditindaklanjuti'));
  assert.equal((await get('?from=2026-02-30')).status,400);assert.equal((await get('?from=2026-10-09&to=2026-10-08')).status,400);
  assert.equal((await(await get('?type=export&from=2026-10-09')).text()).includes('JT123'),false);
  assert.equal((await(await get('?type=export&from=2026-10-08&to=2026-10-08')).text()).includes('JT123'),true);
@@ -61,5 +61,13 @@ const get=(q='')=>api.GET(new NextRequest('http://localhost/api/damage-cases'+q)
  session={email:'staff@example.test',role:'viewer'};assert.equal((await get('?type=export')).status,403);
  session=null;assert.equal((await get('?type=export')).status,401);session={email:'admin@example.test',role:'admin'};
  missing=true;assert.equal((await get()).status,503);assert.equal((await get('?type=export')).status,503);
- console.log('PASS: Damage Case fields, four-photo validation, private ImageKit proxy, partial-upload cleanup, persistence, idempotent retry, personal PWA history, admin-only review, optimistic locking, filters and migration errors.');
+ for(const [count,slot] of [[1,0],[1,3],[2,1],[3,0]]) {
+   rows=[];stored.clear();missing=false;session={email:'staff@example.test',role:'viewer'};
+   const result=await(await post({},count,false,'http://localhost',slot)).json();
+   assert(result.ok);assert.equal(result.item.photos.length,count);
+   assert.equal(result.item.photos[0].slot,slot);
+   assert.equal((await get('?type=photo&id='+id+'&index=0')).status,200);
+   assert.equal(stored.size,count);
+ }
+ console.log('PASS: Damage Case fields, one-to-four-photo validation, sparse slots, private ImageKit proxy, partial-upload cleanup, persistence, idempotent retry, personal PWA history, admin-only review, optimistic locking, filters and migration errors.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -15,10 +15,10 @@ export function damageCsv(rows: DamageCase[], origin: string) {
     if (/^\s*[=+@-]/.test(text)) text = "'" + text;
     return '"' + text.replace(/"/g, '""') + '"';
   };
-  const data = [["NO", "WAKTU LAPORAN (WIB)", "NO AWB", "ORIGIN WAREHOUSE", "ARMADA (DATA LAMA)", "NOPOL", "REMARK PROBLEM", "STATUS", "TINDAK LANJUT", "PENGIRIM", "LINK 4 FOTO BUKTI", "DIPERBARUI (WIB)"], ...rows.map((row,index) => [index+1, time(row.created_at), row.awb, row.trip, row.fleet, row.plate, row.remark, DAMAGE_STATUSES[row.status], row.resolution, row.created_by, `${origin}/pwa/damage-evidence/${row.id}`, time(row.updated_at)])];
+  const data = [["NO", "WAKTU LAPORAN (WIB)", "NO AWB", "ORIGIN WAREHOUSE", "ARMADA (DATA LAMA)", "NOPOL", "REMARK PROBLEM", "STATUS", "TINDAK LANJUT", "PENGIRIM", "LINK FOTO BUKTI", "DIPERBARUI (WIB)"], ...rows.map((row,index) => [index+1, time(row.created_at), row.awb, row.trip, row.fleet, row.plate, row.remark, DAMAGE_STATUSES[row.status], row.resolution, row.created_by, `${origin}/pwa/damage-evidence/${row.id}`, time(row.updated_at)])];
   return "\uFEFF" + data.map(row => row.map(cell).join(",")).join("\r\n");
 }
-export type DamageCase = { id: string; awb: string; trip: string; fleet: string; plate: string; remark: string; status: keyof typeof DAMAGE_STATUSES; resolution: string; created_by: string; created_at: string; updated_at: string; evidence_url: string; photos: { name: string; url: string }[] };
+export type DamageCase = { id: string; awb: string; trip: string; fleet: string; plate: string; remark: string; status: keyof typeof DAMAGE_STATUSES; resolution: string; created_by: string; created_at: string; updated_at: string; evidence_url: string; photos: { name: string; url: string; slot?: number }[] };
 export function damageValues(get: (key: string) => string) {
   const values = { awb: get("awb").trim().toUpperCase(), trip: get("trip").trim(), fleet: (get("fleet") || "").trim(), plate: get("plate").trim().toUpperCase(), remark: get("remark").trim() };
   for (const [key, limit] of [["awb", 80], ["trip", 100], ["plate", 30], ["remark", 5000]] as const) {

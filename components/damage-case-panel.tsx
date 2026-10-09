@@ -24,10 +24,10 @@ async function compactPhoto(file: File) {
 function PhotoPicker({ index, file, busy, onChange }: { index: number; file: File|null; busy: boolean; onChange: (file: File|null)=>void }) {
   const [preview,setPreview] = useState("");
   useEffect(()=>{if(!file){setPreview("");return;} const url=URL.createObjectURL(file);setPreview(url);return()=>URL.revokeObjectURL(url);},[file]);
-  return <label className="damage-photo-picker"><span>{DAMAGE_PHOTO_LABELS[index]} *</span>{preview ? <img src={preview} alt={DAMAGE_PHOTO_LABELS[index]}/> : <span className="damage-photo-placeholder"><Camera size={24}/>Ambil foto</span>}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={busy} required={!file} onChange={e=>onChange(e.target.files?.[0]||null)}/>{file&&<small>{Math.ceil(file.size/1024)} KB · Ketuk untuk mengganti</small>}</label>;
+  return <label className="damage-photo-picker"><span>{DAMAGE_PHOTO_LABELS[index]}</span>{preview ? <img src={preview} alt={DAMAGE_PHOTO_LABELS[index]}/> : <span className="damage-photo-placeholder"><Camera size={24}/>Ambil foto</span>}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={busy} onChange={e=>onChange(e.target.files?.[0]||null)}/>{file&&<small>{Math.ceil(file.size/1024)} KB · Ketuk untuk mengganti</small>}</label>;
 }
 export function DamageGallery({ item }: { item: DamageCase }) {
-  return <div className="damage-gallery">{item.photos.map((photo,index)=><a key={index} href={photo.url} target="_blank" rel="noopener noreferrer"><img src={photo.url} alt={DAMAGE_PHOTO_LABELS[index]} loading="lazy"/><span>{DAMAGE_PHOTO_LABELS[index]}</span></a>)}</div>;
+  return <div className="damage-gallery">{item.photos.map((photo,index)=><a key={index} href={photo.url} target="_blank" rel="noopener noreferrer"><img src={photo.url} alt={DAMAGE_PHOTO_LABELS[photo.slot??index]} loading="lazy"/><span>{DAMAGE_PHOTO_LABELS[photo.slot??index]}</span></a>)}</div>;
 }
 export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; onSaved?: (item: DamageCase)=>void }) {
   const [items,setItems]=useState<DamageCase[]>([]),[total,setTotal]=useState(0),[loading,setLoading]=useState(true),[error,setError]=useState("");
@@ -73,10 +73,10 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
   };
   const submit=async(event:React.FormEvent)=>{
     event.preventDefault();if(locked.current||processing.length)return;
-    if(files.some(file=>!file)){setNotice("Lengkapi foto AWB dan tiga foto bukti.");return;}
+    if(!files.some(Boolean)){setNotice("Tambahkan minimal 1 foto.");return;}
     locked.current=true;setSaving(true);setNotice("");
     try {
-      const data=new FormData();data.append("action","create");Object.entries(form).forEach(([k,v])=>data.append(k,v));files.forEach((file,i)=>data.append(`photo${i}`,file!));
+      const data=new FormData();data.append("action","create");Object.entries(form).forEach(([k,v])=>data.append(k,v));files.forEach((file,i)=>{if(file)data.append(`photo${i}`,file);});
       const response=await fetch("/api/damage-cases",{method:"POST",body:data}),result=await response.json();
       if(!response.ok||!result.ok)throw new Error(result.error||"Laporan belum berhasil dikirim.");
       setForm({id:crypto.randomUUID(),awb:"",trip:"",plate:"",remark:""});setFiles([null,null,null,null]);
@@ -93,7 +93,7 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
   const open=(item:DamageCase)=>{setSelected(item);setReview({status:item.status,resolution:item.resolution});setNotice("");};
   const copyEvidence=async()=>{
     if(!selected)return;
-    try{await navigator.clipboard.writeText(new URL(selected.evidence_url,window.location.origin).href);setNotice("Tautan 4 foto bukti berhasil disalin.");}
+    try{await navigator.clipboard.writeText(new URL(selected.evidence_url,window.location.origin).href);setNotice("Tautan foto bukti berhasil disalin.");}
     catch{setNotice("Tautan belum dapat disalin. Buka galeri lalu salin alamatnya.");}
   };
   return <section className={`damage-module${admin?" admin":""}`}>
@@ -104,9 +104,9 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
         <label>Origin Warehouse<input required maxLength={100} value={form.trip} onChange={e=>setForm({...form,trip:e.target.value})}/></label>
         <DamageVehiclePicker key={form.id} value={form.plate} disabled={saving} onChange={plate=>setForm({...form,plate})}/>
         <label>Remark problem<textarea required rows={4} maxLength={5000} value={form.remark} onChange={e=>setForm({...form,remark:e.target.value})}/></label>
-        <div className="damage-photo-grid">{files.map((file,index)=><PhotoPicker key={`${form.id}-${index}`} index={index} file={file} busy={saving||processing.includes(index)} onChange={file=>void choose(index,file)}/>)}</div>
+        <p className="damage-photo-hint">Minimal 1 foto, maksimal 4 foto.</p><div className="damage-photo-grid">{files.map((file,index)=><PhotoPicker key={`${form.id}-${index}`} index={index} file={file} busy={saving||processing.includes(index)} onChange={file=>void choose(index,file)}/>)}</div>
         {processing.length>0&&<p role="status">Menyiapkan foto…</p>}
-        <button className="mobile-submit" disabled={saving||processing.length>0||files.some(f=>!f)||!form.plate}>{saving?"Mengirim…":"Kirim Damage Case"}</button>
+        <button className="mobile-submit" disabled={saving||processing.length>0||!files.some(Boolean)||!form.plate}>{saving?"Mengirim…":"Kirim Damage Case"}</button>
       </fieldset>
     </form>}
     {notice&&<p className="damage-notice" role="status">{notice}</p>}
@@ -116,7 +116,7 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
     <div className="damage-pagination"><button className="btn" disabled={loading||offset===0} onClick={()=>setOffset(Math.max(0,offset-25))}>Sebelumnya</button><small>{total?`${offset+1}–${Math.min(offset+25,total)} dari ${total}`:"0 laporan"}</small><button className="btn" disabled={loading||offset+25>=total} onClick={()=>setOffset(offset+25)}>Berikutnya</button></div>
     {selected&&<section className="damage-detail card"><div className="damage-detail-head"><h2>AWB {selected.awb}</h2><button className="icon-btn" disabled={saving} aria-label="Tutup detail Damage Case" onClick={()=>setSelected(null)}><X size={18}/></button></div>
       <dl>{[["Origin Warehouse",selected.trip],...(selected.fleet?[["Armada (data lama)",selected.fleet]]:[]),["Nopol",selected.plate],["Pengirim",selected.created_by],["Remark problem",selected.remark]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-      <a className="damage-evidence-link" href={selected.evidence_url} target="_blank" rel="noopener noreferrer"><ExternalLink size={16}/>Buka tautan 4 foto bukti</a><button className="btn" type="button" onClick={()=>void copyEvidence()}>Salin tautan</button><DamageGallery item={selected}/>
+      <a className="damage-evidence-link" href={selected.evidence_url} target="_blank" rel="noopener noreferrer"><ExternalLink size={16}/>Buka tautan foto bukti</a><button className="btn" type="button" onClick={()=>void copyEvidence()}>Salin tautan</button><DamageGallery item={selected}/>
       {admin?<form onSubmit={saveReview}><fieldset disabled={saving}><label>Status<select value={review.status} onChange={e=>setReview({...review,status:e.target.value})}>{Object.entries(DAMAGE_STATUSES).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Tindak lanjut<textarea rows={3} maxLength={5000} required={review.status==="completed"} value={review.resolution} onChange={e=>setReview({...review,resolution:e.target.value})}/></label><button className="primary" disabled={saving}>{saving?"Menyimpan…":"Simpan tindak lanjut"}</button></fieldset></form>:<p>{DAMAGE_STATUSES[selected.status]}{selected.resolution&&` · ${selected.resolution}`}</p>}
     </section>}
   </section>;

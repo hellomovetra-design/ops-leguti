@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 const TABLE = "ops_damage_cases", BUCKET = "ops-damage-photos";
 const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
 const failure = (error: { code?: string }) => ["42P01", "PGRST205"].includes(error.code || "") ? "Fitur Damage Case belum siap. Terapkan migration 20261008_damage_cases.sql." : "Data belum dapat diproses. Silakan coba lagi.";
-const decorate = (row: any) => ({ ...row, evidence_url: `/pwa/damage-evidence/${row.id}`, photos: row.photos.map((p: any, index: number) => ({ name: p.name, url: `/api/damage-cases?type=photo&id=${row.id}&index=${index}` })) });
+const decorate = (row: any) => ({ ...row, evidence_url: `/pwa/damage-evidence/${row.id}`, photos: row.photos.map((p: any, index: number) => ({ name: p.name, slot: p.slot ?? index, url: `/api/damage-cases?type=photo&id=${row.id}&index=${index}` })) });
 async function context(req: NextRequest) {
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
   if (!session) return { error: json({ error: "Silakan login kembali." }, 401) };
@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
   if (req.headers.get("origin") !== req.nextUrl.origin) return json({ error: "Permintaan tidak valid." }, 403);
   const ctx = await context(req); if (ctx.error) return ctx.error;
   const { db, session, admin } = ctx;
-  const uploaded: { path: string; name: string; fileId?: string }[] = [];
+  const uploaded: { path: string; name: string; slot: number; fileId?: string }[] = [];
   let insertAttempted = false;
   try {
     if (Number(req.headers.get("content-length") || 0) > 4*1024*1024) return json({ error: "Unggahan terlalu besar." }, 413);
@@ -105,25 +105,26 @@ export async function POST(req: NextRequest) {
     if (vehicle.error) return json({error:"Master Nopol belum dapat diakses. Silakan coba lagi."},503);
     if (!vehicle.data) return json({error:"Pilih Nopol yang tersedia pada daftar kendaraan."},400);
     values.plate=vehicle.data.plate;
-    const files = Array.from({ length: 4 }, (_, i) => form.get(`photo${i}`));
-    if (Array.from({length:4},(_,i)=>form.getAll(`photo${i}`).length).some(n=>n!==1) || files.some(f => !(f instanceof File) || f.size <= 0 || f.size > 1024*1024) || files.reduce((n,f) => n + (f instanceof File ? f.size : 0), 0) > 3*1024*1024) return json({ error: "Wajib 1 foto AWB dan 3 foto bukti. Maksimal 1 MB per foto, total 3 MB." }, 400);
-    for (const file of files as File[]) if (!damageImageValid(new Uint8Array(await file.arrayBuffer()), file.type)) return json({ error: "Gunakan foto JPG, PNG, atau WebP yang valid." }, 400);
+    const entries = Array.from({length:4},(_,slot)=>({slot,file:form.get(`photo${slot}`)})).filter(entry=>entry.file!==null);
+    if (Array.from(form.keys()).some(key=>key.startsWith("photo")&&!/^photo[0-3]$/.test(key)) || Array.from({length:4},(_,i)=>form.getAll(`photo${i}`).length).some(n=>n>1) || !entries.length || entries.some(({file})=>!(file instanceof File)||file.size<=0||file.size>1024*1024) || entries.reduce((n,{file})=>n+(file instanceof File?file.size:0),0)>3*1024*1024) return json({error:"Tambahkan 1–4 foto. Maksimal 1 MB per foto, total 3 MB."},400);
+    const photos=entries as {slot:number;file:File}[];
+    for (const {file} of photos) if (!damageImageValid(new Uint8Array(await file.arrayBuffer()), file.type)) return json({ error: "Gunakan foto JPG, PNG, atau WebP yang valid." }, 400);
     const imagekit = isImageKitConfigured();
-    const uploads = await Promise.allSettled((files as File[]).map(async (file, i) => {
+    const uploads = await Promise.allSettled(photos.map(async ({file,slot}, i) => {
       const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
       const path = `${id}/${crypto.randomUUID()}-${i}.${ext}`;
       if (imagekit) {
         const result = await uploadToImageKit(file, `damage-cases/${path}`);
-        uploaded[i] = { path: `imagekit:${result.path}`, name: file.name.slice(0,200), fileId: result.fileId };
+        uploaded[i] = { path: `imagekit:${result.path}`, name: file.name.slice(0,200), slot, fileId: result.fileId };
       } else {
         const result = await db!.storage.from(BUCKET).upload(path, file, { contentType: file.type });
         if (result.error) throw new Error("Foto gagal diunggah. Silakan coba lagi.");
-        uploaded[i] = { path, name: file.name.slice(0,200) };
+        uploaded[i] = { path, name: file.name.slice(0,200), slot };
       }
     }));
     if (uploads.some(r=>r.status === "rejected")) throw new Error("Foto gagal diunggah. Laporan belum disimpan; silakan coba lagi.");
     insertAttempted = true;
-    const result = await db!.from(TABLE).insert({ ...values, id, photos: uploaded.map(({path,name})=>({path,name})), created_by: session!.email.toLowerCase(), updated_by: session!.email.toLowerCase() }).select().single();
+    const result = await db!.from(TABLE).insert({ ...values, id, photos: uploaded.map(({path,name,slot})=>({path,name,slot})), created_by: session!.email.toLowerCase(), updated_by: session!.email.toLowerCase() }).select().single();
     if (result.error) {
       // A lost response can happen after commit. Keep photos; retry the stable ID safely.
       const check = await db!.from(TABLE).select("*").eq("id", id).maybeSingle();
