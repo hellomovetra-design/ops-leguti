@@ -2,6 +2,12 @@ const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),asser
 const {NextRequest}=require('next/server');
 function load(file,mocks={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{module:m,exports:m.exports,require:n=>mocks[n]||require(n),process:{env:{}},console,URL,Date,File,Response,Uint8Array,crypto:globalThis.crypto});return m.exports;}
 const lib=load('lib/damage-case.ts');
+const vehicle={plate:'B 9271 CCG',vehicle_code:'TGR 132',vehicle_type:'CDD LONG'};
+for(const query of ['b9271','9271 ccg','TGR132','tgr 132','cddlong',''])assert(lib.damageVehicleMatches(vehicle,query),query);
+assert(!lib.damageVehicleMatches(vehicle,'9999'));
+const picker=fs.readFileSync('components/damage-vehicle-picker.tsx','utf8');
+assert(picker.includes('role="combobox"'));assert(picker.includes('role="listbox"'));
+assert(!picker.includes('<select'));assert(picker.includes('onChange("")'));
 const values={awb:' jt123 ',trip:'TRIP1',fleet:'Truck',plate:'b 1234 aa',remark:'Kemasan rusak'};
 assert.equal(lib.damageValues(k=>values[k]).awb,'JT123');
 const warehouseValues={...values,trip:'WH CGK',fleet:''};
@@ -11,6 +17,7 @@ assert.throws(()=>lib.damageValues(k=>k==='plate'?'':warehouseValues[k]));
 const panel=fs.readFileSync('components/damage-case-panel.tsx','utf8');
 assert(panel.includes('<label>Origin Warehouse'));
 assert(panel.includes('<DamageVehiclePicker'));
+assert(panel.includes('{admin&&<div className="damage-toolbar">'));
 assert(!panel.includes('<label>Armada'));
 assert(lib.damageCsv([], 'https://ops.movetra.id').includes('ORIGIN WAREHOUSE'));
 assert.throws(()=>lib.damageValues(k=>k==='remark'?'':values[k]));

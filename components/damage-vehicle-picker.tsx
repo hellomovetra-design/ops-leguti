@@ -1,10 +1,13 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { DamageVehicle, damagePlateKey } from "@/lib/damage-case";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ChevronDown, Search } from "lucide-react";
+import { DamageVehicle, damageVehicleMatches } from "@/lib/damage-case";
 
 export function DamageVehiclePicker({value,disabled,onChange}:{value:string;disabled:boolean;onChange:(value:string)=>void}) {
   const [items,setItems]=useState<DamageVehicle[]>([]);
-  const [query,setQuery]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState("");
+  const [query,setQuery]=useState(value),[loading,setLoading]=useState(true),[error,setError]=useState("");
+  const [open,setOpen]=useState(false),[highlight,setHighlight]=useState(0);
+  const input=useRef<HTMLInputElement>(null), listId=useId(), inputId=useId();
   const load=useCallback(async(signal?:AbortSignal)=>{
     setLoading(true);setError("");
     try {
@@ -15,15 +18,32 @@ export function DamageVehiclePicker({value,disabled,onChange}:{value:string;disa
     finally{if(!signal?.aborted)setLoading(false);}
   },[]);
   useEffect(()=>{const controller=new AbortController();void load(controller.signal);return()=>controller.abort();},[load]);
-  const matches=useMemo(()=>items.filter(item=>!query.trim()||damagePlateKey(item.plate).includes(damagePlateKey(query))||[item.vehicle_code,item.vehicle_type].some(text=>text.toUpperCase().includes(query.trim().toUpperCase()))),[items,query]);
-  const selected=items.find(item=>item.plate===value);
-  return <div className="damage-vehicle-picker">
-    <label htmlFor="damage-vehicle-search">Cari Nopol<input id="damage-vehicle-search" type="search" value={query} disabled={disabled||loading} placeholder="Nomor plat atau nomor mobil…" autoComplete="off" onChange={e=>setQuery(e.target.value)}/></label>
-    <label htmlFor="damage-vehicle-select">Nopol<select id="damage-vehicle-select" required value={value} disabled={disabled||loading||!!error||!items.length} onChange={e=>onChange(e.target.value)}>
-      <option value="">{loading?"Memuat Nopol…":"Pilih Nopol"}</option>
-      {selected&&!matches.includes(selected)&&<option value={selected.plate}>{selected.plate} · {selected.vehicle_code}</option>}
-      {matches.map(item=><option key={item.plate} value={item.plate}>{item.plate} · {item.vehicle_code} · {item.vehicle_type}</option>)}
-    </select></label>
-    {error?<div role="alert"><small>{error}</small><button type="button" className="btn" disabled={disabled||loading} onClick={()=>void load()}>Coba lagi</button></div>:!loading&&<small role="status">{items.length===0?"Daftar Nopol belum tersedia.":matches.length===0?"Nopol tidak ditemukan. Ubah pencarian.":`${matches.length} kendaraan tersedia`}</small>}
+  useEffect(()=>{if(value)setQuery(value);input.current?.setCustomValidity(value?"":"Pilih Nopol dari hasil pencarian.");},[value]);
+  const matches=useMemo(()=>items.filter(item=>damageVehicleMatches(item,query)),[items,query]);
+  const choose=(item:DamageVehicle)=>{setQuery(item.plate);onChange(item.plate);setOpen(false);};
+  useEffect(()=>{document.getElementById(`${listId}-${highlight}`)?.scrollIntoView({block:"nearest"});},[highlight,listId]);
+  return <div className="damage-vehicle-picker" onBlur={e=>{if(!e.currentTarget.contains(e.relatedTarget as Node|null))setOpen(false);}}>
+    <label htmlFor={inputId}>Nopol</label>
+    <div className="damage-vehicle-combobox">
+      <Search size={17} aria-hidden="true"/>
+      <input ref={input} id={inputId} role="combobox" aria-autocomplete="list" aria-expanded={open&&!disabled} aria-controls={listId}
+        aria-activedescendant={open&&matches[highlight]?`${listId}-${highlight}`:undefined}
+        type="text" required value={query} disabled={disabled} placeholder={loading?"Memuat Nopol…":"Cari dan pilih Nopol / nomor mobil…"} autoComplete="off"
+        onFocus={()=>setOpen(true)} onChange={e=>{setQuery(e.target.value);onChange("");setHighlight(0);setOpen(true);}}
+        onKeyDown={e=>{
+          if(e.key==="ArrowDown"||e.key==="ArrowUp"){e.preventDefault();setOpen(true);setHighlight(n=>Math.max(0,Math.min(matches.length-1,n+(e.key==="ArrowDown"?1:-1))));}
+          if(e.key==="Escape"){e.preventDefault();setOpen(false);}
+          if(e.key==="Enter"&&open){e.preventDefault();if(matches[highlight])choose(matches[highlight]);}
+        }}/>
+      <ChevronDown size={16} aria-hidden="true"/>
+    </div>
+    {open&&!disabled&&<div className="damage-vehicle-options" id={listId} role="listbox" aria-label="Daftar Nopol">
+      {loading?<p role="status">Memuat kendaraan…</p>:error?<div role="alert"><p>{error}</p><button type="button" className="btn" onClick={()=>void load()}>Coba lagi</button></div>:matches.length?matches.map((item,index)=>
+        <button type="button" role="option" aria-selected={value===item.plate} id={`${listId}-${index}`} key={item.plate}
+          className={highlight===index?"highlighted":""} onMouseDown={e=>e.preventDefault()} onClick={()=>choose(item)}>
+          <strong>{item.plate}</strong><small>{item.vehicle_code} · {item.vehicle_type}</small>
+        </button>):<p role="status">{items.length?"Nopol tidak ditemukan. Ubah pencarian.":"Daftar Nopol belum tersedia."}</p>}
+    </div>}
+    {!open&&error&&<div role="alert"><small>{error}</small><button type="button" className="btn" disabled={disabled||loading} onClick={()=>void load()}>Coba lagi</button></div>}
   </div>;
 }
