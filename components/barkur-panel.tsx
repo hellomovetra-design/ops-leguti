@@ -1,7 +1,7 @@
 "use client";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Plus, Search, Download, X, Paperclip, ArrowUpRight, Pencil, Loader2, PackageSearch } from "lucide-react";
-import { BARKUR_STATUSES, BarkurRecord, jakartaInput, emailDelay } from "@/lib/barkur";
+import { BARKUR_MAX_PHOTOS, BARKUR_MAX_UPLOAD_BYTES, BARKUR_STATUSES, BarkurRecord, jakartaInput, emailDelay } from "@/lib/barkur";
 import "./barkur-panel.css";
 const newForm = () => ({ awb: "", bag_number: "", origin: "", destination: "SPC LEGUTI", incident_at: jakartaInput(), email_sent_at: "", pic: "", description: "", status: "open", resolution: "", evidence_link: "" });
 type Form = ReturnType<typeof newForm>;
@@ -11,7 +11,7 @@ export function BarkurPanel() {
   const [q,setQ] = useState(""), [status,setStatus] = useState(""), [from,setFrom] = useState(""), [to,setTo] = useState(""), [offset,setOffset] = useState(0);
   const [loading,setLoading] = useState(true), [error,setError] = useState(""), [message,setMessage] = useState("");
   const [detail,setDetail] = useState<BarkurRecord|null>(null), [editing,setEditing] = useState<BarkurRecord|null>(null), [open,setOpen] = useState(false);
-  const [form,setForm] = useState<Form>(newForm), [files,setFiles] = useState<File[]>([]), [previews,setPreviews] = useState<string[]>([]), [formError,setFormError] = useState("");
+  const [form,setForm] = useState<Form>(newForm), [files,setFiles] = useState<(File|null)[]>(Array(BARKUR_MAX_PHOTOS).fill(null)), [previews,setPreviews] = useState<string[]>([]), [formError,setFormError] = useState("");
   const [busy,setBusy] = useState(false), [exporting,setExporting] = useState(false);
   const lock = useRef(false), request = useRef(0), recordId = useRef(""), dialog = useRef<HTMLDialogElement>(null), detailDialog = useRef<HTMLDialogElement>(null);
   const params = new URLSearchParams({q,status,from,to}).toString();
@@ -25,23 +25,29 @@ export function BarkurPanel() {
     finally {if(ticket===request.current)setLoading(false);}
   }, [params,offset]);
   useEffect(() => {const timer = setTimeout(()=>void load(),250); return()=>{clearTimeout(timer);request.current++;};}, [load]);
-  useEffect(() => {const urls=files.map(file=>URL.createObjectURL(file));setPreviews(urls);return()=>urls.forEach(url=>URL.revokeObjectURL(url));},[files]);
+  useEffect(() => {const urls=files.map(file=>file?URL.createObjectURL(file):"");setPreviews(urls);return()=>urls.forEach(url=>URL.revokeObjectURL(url));},[files]);
   useEffect(() => {if(open&&!dialog.current?.open)dialog.current?.showModal();if(!open)dialog.current?.close();},[open]);
   useEffect(() => {if(detail&&!detailDialog.current?.open)detailDialog.current?.showModal();if(!detail)detailDialog.current?.close();},[detail]);
   const start = (record: BarkurRecord|null = null) => {
     setDetail(null);setEditing(record);recordId.current=record?.id||crypto.randomUUID();
     setForm(record?{awb:record.awb,bag_number:record.bag_number,origin:record.origin,destination:record.destination,incident_at:jakartaInput(new Date(record.incident_at)),email_sent_at:record.email_sent_at?jakartaInput(new Date(record.email_sent_at)):"",pic:record.pic,description:record.description,status:record.status,resolution:record.resolution,evidence_link:record.evidence_link}:newForm());
-    setFiles([]);setFormError("");setOpen(true);setMessage("");
+    setFiles(Array(BARKUR_MAX_PHOTOS).fill(null));setFormError("");setOpen(true);setMessage("");
   };
   const update = (key: keyof Form, value: string) => setForm(current=>({...current,[key]:value}));
   const filter = (setter: (value:string)=>void,value:string) => {setter(value);setOffset(0);};
+  const chooseEvidence = (index: number, file: File|null) => {
+    if(file && !["image/png","image/jpeg","image/webp"].includes(file.type)){setFormError("Pilih foto JPG, PNG, atau WebP.");return;}
+    const next = files.map((current,i)=>i===index?file:current);
+    if(next.reduce((sum,item)=>sum+(item?.size||0),0)>BARKUR_MAX_UPLOAD_BYTES){setFormError("Total foto baru maksimal 3 MB. Pilih gambar berukuran lebih kecil.");return;}
+    setFiles(next);setFormError("");
+  };
   const save = async (event: FormEvent) => {
     event.preventDefault(); if(lock.current)return;lock.current=true;setBusy(true);setFormError("");
     try {
-      const data = new FormData();Object.entries(form).forEach(([key,value])=>data.append(key,value));data.append("id",recordId.current);data.append("action",editing?"update":"create");if(editing)data.append("updated_at",editing.updated_at);files.forEach(file=>data.append("evidence",file));
+      const data = new FormData();Object.entries(form).forEach(([key,value])=>data.append(key,value));data.append("id",recordId.current);data.append("action",editing?"update":"create");if(editing)data.append("updated_at",editing.updated_at);files.forEach(file=>{if(file)data.append("evidence",file);});
       const response=await fetch("/api/barkur",{method:"POST",body:data}), result=await response.json();
       if(!response.ok||!result.ok)throw new Error(result.error||"Catatan belum berhasil disimpan.");
-      setOpen(false);setFiles([]);setMessage(editing?"Catatan BARKUR berhasil diperbarui.":"Catatan BARKUR dan bukti berhasil disimpan.");void load();
+      setOpen(false);setFiles(Array(BARKUR_MAX_PHOTOS).fill(null));setMessage(editing?"Catatan BARKUR berhasil diperbarui.":"Catatan BARKUR dan bukti berhasil disimpan.");void load();
     }catch(e){setFormError(e instanceof Error?e.message:"Koneksi terputus. Isian tetap tersedia, silakan coba lagi.");}
     finally{lock.current=false;setBusy(false);}
   };
@@ -62,8 +68,18 @@ export function BarkurPanel() {
       <label>Waktu kekurangan diketahui *<input type="datetime-local" required value={form.incident_at} onChange={e=>update("incident_at",e.target.value)}/></label><label>Waktu email dikirim<input type="datetime-local" min={form.incident_at} value={form.email_sent_at} onChange={e=>update("email_sent_at",e.target.value)}/></label>
       <label>PIC tindak lanjut *<input required maxLength={160} value={form.pic} onChange={e=>update("pic",e.target.value)}/></label><label>Status<select value={form.status} onChange={e=>update("status",e.target.value)}>{Object.entries(BARKUR_STATUSES).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>
     </div><label>Uraian kekurangan<textarea rows={3} maxLength={10000} value={form.description} onChange={e=>update("description",e.target.value)} placeholder="Catat kondisi bag dan kiriman yang tidak ditemukan."/></label><label>Hasil penelusuran / tindak lanjut {form.status==='completed'?'*':''}<textarea rows={3} required={form.status==='completed'} maxLength={10000} value={form.resolution} onChange={e=>update("resolution",e.target.value)}/></label>
-      <div className="barkur-evidence-box"><label><Paperclip size={16}/> Screenshot email<input type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={e=>{setFiles(Array.from(e.target.files||[]));setFormError("");}}/><small>Maksimal 3 gambar per catatan; total upload 3 MB. Link bukti dibuat setelah tersimpan.</small></label>{editing?.evidence.length? <small>{editing.evidence.length} bukti tersimpan tetap dipertahankan.</small>:null}<div className="barkur-previews">{previews.map((url,index)=><figure key={url}><img src={url} alt={`Preview bukti ${index+1}`}/><figcaption>{files[index]?.name}</figcaption></figure>)}</div><label>Link Google Drive (bukti lama)<input type="url" maxLength={2048} placeholder="https://drive.google.com/…" value={form.evidence_link} onChange={e=>update("evidence_link",e.target.value)}/><small>Akses link lama tetap mengikuti izin berbagi Google Drive.</small></label></div>
+      <div className="barkur-evidence-box">
+        <strong><Paperclip size={16}/> Foto bukti</strong><small>Tambahkan hingga 4 foto. Total unggahan baru maksimal 3 MB (JPG, PNG, WebP).</small>
+        <div className="barkur-photo-slots">{Array.from({length:BARKUR_MAX_PHOTOS},(_,index)=>{
+          const saved=editing?.evidence[index], fileIndex=index-(editing?.evidence.length||0);
+          return saved?<a className="barkur-photo-slot saved" key={index} href={saved.url} target="_blank" rel="noopener noreferrer"><img src={saved.url} alt={`Bukti ${index+1}`} loading="lazy"/><strong>Foto {index+1}</strong><small>Tersimpan · Buka foto</small></a>:<div className="barkur-photo-slot" key={index}>
+            <label><strong>Foto {index+1}</strong>{previews[fileIndex]?<img src={previews[fileIndex]} alt={`Preview bukti ${index+1}`}/>:<span className="barkur-photo-placeholder"><Plus size={24}/>Pilih foto</span>}<input type="file" aria-label={`Pilih foto bukti ${index+1}`} accept="image/png,image/jpeg,image/webp" onChange={e=>{const file=e.target.files?.[0];if(file)chooseEvidence(fileIndex,file);e.target.value="";}}/><small>{files[fileIndex]?.name||"Belum dipilih"}</small></label>
+            {files[fileIndex]&&<button type="button" className="btn" onClick={()=>chooseEvidence(fileIndex,null)}>Batalkan foto</button>}
+          </div>;
+        })}</div>
+        <label>Link Google Drive (bukti lama)<input type="url" maxLength={2048} placeholder="https://drive.google.com/…" value={form.evidence_link} onChange={e=>update("evidence_link",e.target.value)}/><small>Akses link lama tetap mengikuti izin berbagi Google Drive.</small></label>
+      </div>
     </fieldset>{formError&&<div className="barkur-notice" role="alert">{formError}</div>}<footer><button className="btn" type="button" disabled={busy} onClick={()=>setOpen(false)}>Batal</button><button className="primary" type="submit" disabled={busy}>{busy?<><Loader2 size={16}/>Menyimpan…</>:"Simpan catatan"}</button></footer></form></dialog>
-    <dialog ref={detailDialog} className="barkur-dialog" onCancel={()=>setDetail(null)}>{detail&&<><header><div><small>DETAIL BARKUR</small><h2>{detail.awb}</h2><span className={`barkur-badge ${detail.status}`}>{BARKUR_STATUSES[detail.status]}</span></div><button type="button" className="icon-btn" aria-label="Tutup detail" onClick={()=>setDetail(null)}><X size={20}/></button></header><dl className="barkur-details">{[["Nomor bag",detail.bag_number],["Origin",detail.origin],["Unit penerima",detail.destination],["PIC",detail.pic],["Kekurangan diketahui (WIB)",displayTime(detail.incident_at)],["Email dikirim (WIB)",displayTime(detail.email_sent_at)],["Selisih kejadian ke email",emailDelay(detail)],["Dicatat oleh",detail.created_by],["Terakhir diperbarui (WIB)",displayTime(detail.updated_at)]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><p className="barkur-muted">Selisih waktu bersifat informatif, belum menjadi penilaian SLA 3 jam.</p><h3>Uraian kekurangan</h3><p className="barkur-text">{detail.description||"Belum dicatat."}</p><h3>Hasil penelusuran</h3><p className="barkur-text">{detail.resolution||"Belum dicatat."}</p><h3>Bukti email</h3><p className="barkur-muted">Screenshot aplikasi hanya dapat dibuka oleh akun dashboard yang berwenang.</p><div className="barkur-evidence-links">{detail.evidence.map((item,index)=><a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer"><Paperclip size={16}/><span>{item.name||`Bukti ${index+1}`}</span><ArrowUpRight size={16}/></a>)}{detail.evidence_link&&<a href={detail.evidence_link} target="_blank" rel="noopener noreferrer"><Paperclip size={16}/>Buka bukti Google Drive<ArrowUpRight size={16}/></a>}{!detail.evidence.length&&!detail.evidence_link&&<p>Belum ada bukti terlampir.</p>}</div><footer><button className="btn" onClick={()=>setDetail(null)}>Tutup</button><button className="primary" onClick={()=>start(detail)}><Pencil size={16}/>Edit catatan</button></footer></>}</dialog>
+    <dialog ref={detailDialog} className="barkur-dialog" onCancel={()=>setDetail(null)}>{detail&&<><header><div><small>DETAIL BARKUR</small><h2>{detail.awb}</h2><span className={`barkur-badge ${detail.status}`}>{BARKUR_STATUSES[detail.status]}</span></div><button type="button" className="icon-btn" aria-label="Tutup detail" onClick={()=>setDetail(null)}><X size={20}/></button></header><dl className="barkur-details">{[["Nomor bag",detail.bag_number],["Origin",detail.origin],["Unit penerima",detail.destination],["PIC",detail.pic],["Kekurangan diketahui (WIB)",displayTime(detail.incident_at)],["Email dikirim (WIB)",displayTime(detail.email_sent_at)],["Selisih kejadian ke email",emailDelay(detail)],["Dicatat oleh",detail.created_by],["Terakhir diperbarui (WIB)",displayTime(detail.updated_at)]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl><p className="barkur-muted">Selisih waktu bersifat informatif, belum menjadi penilaian SLA 3 jam.</p><h3>Uraian kekurangan</h3><p className="barkur-text">{detail.description||"Belum dicatat."}</p><h3>Hasil penelusuran</h3><p className="barkur-text">{detail.resolution||"Belum dicatat."}</p><h3>Bukti email</h3><p className="barkur-muted">Screenshot aplikasi hanya dapat dibuka oleh akun dashboard yang berwenang.</p><div className="barkur-evidence-links">{detail.evidence.map((item,index)=><a key={item.url} href={item.url} target="_blank" rel="noopener noreferrer"><img src={item.url} alt={`Foto bukti ${index+1}`} loading="lazy"/><span>{item.name||`Bukti ${index+1}`}</span><ArrowUpRight size={16}/></a>)}{detail.evidence_link&&<a href={detail.evidence_link} target="_blank" rel="noopener noreferrer"><Paperclip size={16}/>Buka bukti Google Drive<ArrowUpRight size={16}/></a>}{!detail.evidence.length&&!detail.evidence_link&&<p>Belum ada bukti terlampir.</p>}</div><footer><button className="btn" onClick={()=>setDetail(null)}>Tutup</button><button className="primary" onClick={()=>start(detail)}><Pencil size={16}/>Edit catatan</button></footer></>}</dialog>
   </section>;
 }

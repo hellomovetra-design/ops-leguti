@@ -13,7 +13,7 @@ const db={from(){let mode='select',payload,filters=[],bounds=[0,999];const q={se
 async function run(single){if(missing)return{error:{code:'42P01'},data:null};if(mode==='insert'){rows.push({...payload,created_at:'2026-10-08T01:00:00Z',updated_at:String(++version)});}const found=rows.filter(r=>filters.every(f=>f(r)));if(mode==='update')found.forEach(r=>Object.assign(r,payload,{updated_at:String(++version)}));return{data:single?found[0]||null:found.slice(bounds[0],bounds[1]+1),count:found.length,error:null};}return q},storage:{from(){return{async upload(path,file){stored.set(path,file);return{error:null}},async download(path){return{data:stored.get(path),error:null}},async remove(paths){paths.forEach(path=>stored.delete(path));return{error:null}}}}}};
 const api=load('app/api/barkur/route.ts',{'@/lib/imagekit':{isImageKitConfigured:()=>true,uploadToImageKit:async(file,path)=>{stored.set('imagekit:'+path,file);return{path,fileId:'imagekit:'+path}},fetchFromImageKit:async(path)=>{const file=stored.get('imagekit:'+path);return new Response(file,{headers:{'content-type':file.type}})},deleteFromImageKit:async(id)=>{stored.delete(id)}},'@/lib/barkur':lib,'@/lib/supabase':{getSupabaseServerClient:()=>db},'@/lib/auth-token':{SESSION_COOKIE:'jne_session',verifySessionToken:async()=>session}});
 const id='11111111-1111-4111-8111-111111111111';
-async function post(extra={},file){const form=new FormData();Object.entries({id,action:'create',awb:'JT123',bag_number:'BAG1',origin:'CGK',destination:'SPC LEGUTI',incident_at:'2026-10-08T09:00',email_sent_at:'2026-10-08T10:00',pic:'Tim OTS',status:'open',description:'Kurang fisik',resolution:'',evidence_link:'',...extra}).forEach(([k,v])=>form.append(k,v));if(file)form.append('evidence',file);return api.POST(new NextRequest('http://localhost/api/barkur',{method:'POST',body:form}));}
+async function post(extra={},file){const form=new FormData();Object.entries({id,action:'create',awb:'JT123',bag_number:'BAG1',origin:'CGK',destination:'SPC LEGUTI',incident_at:'2026-10-08T09:00',email_sent_at:'2026-10-08T10:00',pic:'Tim OTS',status:'open',description:'Kurang fisik',resolution:'',evidence_link:'',...extra}).forEach(([k,v])=>form.append(k,v));if(file)for(const image of (Array.isArray(file)?file:[file]))form.append('evidence',image);return api.POST(new NextRequest('http://localhost/api/barkur',{method:'POST',body:form}));}
 const get=(q='')=>api.GET(new NextRequest('http://localhost/api/barkur'+q));
 (async()=>{
  session=null;assert.equal((await get()).status,401);session={email:'viewer@example.test',role:'viewer'};assert.equal((await get()).status,403);assert.equal((await post()).status,403);session={email:'admin@example.test',role:'admin'};
@@ -28,6 +28,22 @@ const get=(q='')=>api.GET(new NextRequest('http://localhost/api/barkur'+q));
  assert.equal((await(await get('?q=JT123')).json()).total,1);assert.equal((await(await get('?q=NOTFOUND')).json()).total,0);assert.equal((await(await get('?status=open')).json()).total,0);
  assert.equal((await get('?offset=-1')).status,400);assert.equal((await get('?from=2026-02-30')).status,400);
  const csv=await(await get('?type=export')).text();assert(csv.includes('http://localhost/api/barkur?type=evidence'));assert(csv.includes('Barang ditemukan'));assert(csv.includes('drive.google.com'));
+ // Append three photos to the existing screenshot, preserving its private path.
+ const originalPath=rows[0].evidence[0].path;
+ result=await(await post({action:'update',updated_at:rows[0].updated_at},[png,png,png])).json();
+ assert(result.ok);assert.equal(result.item.evidence.length,4);assert.equal(rows[0].evidence[0].path,originalPath);assert.equal(stored.size,4);
+ for(let index=0;index<4;index++)assert.equal((await get('?type=evidence&id='+id+'&index='+index)).status,200);
+ assert.equal((await get('?type=evidence&id='+id+'&index=4')).status,400);
+ assert.equal((await post({action:'update',updated_at:rows[0].updated_at},png)).status,400);
+ assert.equal(stored.size,4);assert.equal(rows[0].evidence.length,4);
+ assert((await(await get('?type=export')).text()).includes('index=3'));
+ const newId='22222222-2222-4222-8222-222222222222';
+ assert.equal((await post({id:newId},[png,png,png,png,png])).status,400);
+ assert.equal(stored.size,4);
+ assert.equal((await post({id:newId},[png,new File(['invalid'],'bad.png',{type:'image/png'})])).status,400);
+ assert.equal(stored.size,4,'Failed batch must clean up its uploaded photos');
+ assert.equal((await post({id:newId},[png,png,png,png])).status,200);
+ assert.equal(rows[1].evidence.length,4);
  session=null;assert.equal((await get('?'+evidenceUrl)).status,401);session={email:'admin@example.test',role:'admin'};missing=true;assert.equal((await get()).status,503);
  assert(lib.barkurCsv([{...rows[0],awb:'=SUM(1)'}],'https://ops.movetra.id').includes("'=SUM(1)"));
  console.log('PASS: BARKUR auth/roles, WIB/date validation, Drive URL safety, screenshot validation, persistence, safe retries, evidence access, optimistic edits, filters/export, missing migration.');

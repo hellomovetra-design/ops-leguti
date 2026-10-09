@@ -1,3 +1,5 @@
+export const BARKUR_MAX_PHOTOS = 4;
+export const BARKUR_MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
 export const BARKUR_ROLES = ["super_admin", "admin", "coordinator", "spv", "jr_spv"];
 export const BARKUR_STATUSES = { open: "Belum Ditangani", investigating: "Ditelusuri", completed: "Selesai" } as const;
 export type BarkurRecord = {

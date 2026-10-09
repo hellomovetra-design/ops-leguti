@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit, deleteFromImageKit } from "@/lib/imagekit";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
-import { BARKUR_ROLES, BARKUR_STATUSES, barkurUuid, barkurTime, driveEvidence, barkurFilters, applyBarkurFilters, barkurCsv, BarkurRecord } from "@/lib/barkur";
+import { BARKUR_MAX_PHOTOS, BARKUR_MAX_UPLOAD_BYTES, BARKUR_ROLES, BARKUR_STATUSES, barkurUuid, barkurTime, driveEvidence, barkurFilters, applyBarkurFilters, barkurCsv, BarkurRecord } from "@/lib/barkur";
 export const runtime = "nodejs";
 const TABLE = "ops_barkur", BUCKET = "ops-barkur-evidence";
 const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   try {
     if (params.get("type") === "evidence") {
       const id = params.get("id") || "", index = Number(params.get("index"));
-      if (!barkurUuid.test(id) || params.get("index") === null || !Number.isInteger(index) || index < 0 || index > 2) return json({ error: "Bukti tidak valid." }, 400);
+      if (!barkurUuid.test(id) || params.get("index") === null || !Number.isInteger(index) || index < 0 || index >= BARKUR_MAX_PHOTOS) return json({ error: "Bukti tidak valid." }, 400);
       const record = await db.from(TABLE).select("evidence").eq("id", id).maybeSingle();
       if (record.error) return json({ error: databaseError(record.error) }, 503);
       const item = record.data?.evidence?.[index];
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     if (values.status === "completed" && !values.resolution) return json({ error: "Isi hasil penelusuran sebelum menyelesaikan catatan." }, 400);
     const files = form.getAll("evidence").filter((file): file is File => file instanceof File && file.size > 0);
     const evidence = [...(existing.data?.evidence || [])];
-    if (files.length + evidence.length > 3 || files.reduce((n,f) => n+f.size, 0) > 3*1024*1024 || files.some(f => !["image/png", "image/jpeg", "image/webp"].includes(f.type))) return json({ error: "Maksimal 3 screenshot JPG/PNG/WebP, total unggahan maksimal 3 MB." }, 400);
+    if (files.length + evidence.length > BARKUR_MAX_PHOTOS || files.reduce((n,f) => n+f.size, 0) > BARKUR_MAX_UPLOAD_BYTES || files.some(f => !["image/png", "image/jpeg", "image/webp"].includes(f.type))) return json({ error: "Maksimal 4 foto bukti JPG/PNG/WebP, total unggahan maksimal 3 MB." }, 400);
     for (const file of files) {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const valid = file.type === "image/png" ? [137,80,78,71,13,10,26,10].every((v,i) => bytes[i]===v) : file.type === "image/jpeg" ? bytes[0]===255 && bytes[1]===216 && bytes[2]===255 : String.fromCharCode(...bytes.slice(0,4)) === "RIFF" && String.fromCharCode(...bytes.slice(8,12)) === "WEBP";
