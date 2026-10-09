@@ -7,6 +7,8 @@ for (const [value, expected] of [['PKWTT','permanent'],[' tetap ','permanent'],[
 }
 assert.equal(employeeEmployment({ employment: 'FREELANCE', nik: 'TGRFL123' }), 'outsource');
 assert.equal(employeeEmployment({ employment: 'PKWTT', active: false }), 'permanent');
+assert.equal(employeeEmployment({employment:'Resign',employment_type:'contract'}),'contract');
+assert.equal(employeeEmployment({employment:'PKWT',employment_type:'unknown'}),'unknown');
 assert.equal(Object.keys(EMPLOYMENT_LABELS).length, 4);
 assert.equal('freelance' in EMPLOYMENT_LABELS, false);
 const row = { employment: 'FREELANCE' };

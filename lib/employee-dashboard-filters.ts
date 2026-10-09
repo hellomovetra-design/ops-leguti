@@ -2,7 +2,7 @@ import { employeeEmployment, EmploymentType } from "./employee-employment";
 import { employeeStatus, EmployeeStatus } from "./employee-status";
 
 export type Segment = "motor" | "mobil" | "staff" | "leader" | "coordinator";
-type Person = { active?: boolean; employment?: unknown; position?: unknown; hub?: unknown; name?: unknown; nik?: unknown; superior?: unknown };
+type Person = { active?: boolean; employment?: unknown; employment_type?: unknown; position?: unknown; hub?: unknown; name?: unknown; nik?: unknown; superior?: unknown };
 export type DashboardFilters = { status: EmployeeStatus | "current"; employment: EmploymentType | "all"; segment: Segment | null; hub: string | null; query: string };
 export function inSegment(row: Person, segment: Segment) {
   const position = String(row.position || "");

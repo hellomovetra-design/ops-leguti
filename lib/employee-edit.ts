@@ -6,6 +6,10 @@ export function employeeEditPayload(body: Record<string, any>) {
   const nik = text(body.nik), name = text(body.name);
   if (!nik || !name || nik.length > 80 || name.length > 250) throw new Error("NIK dan nama karyawan wajib diisi dengan benar.");
   const result: Record<string, any> = { nik, name, ...employeeState(body) };
+  if (Object.hasOwn(body, "employment_type")) {
+    if (!["permanent", "contract", "outsource", "unknown"].includes(String(body.employment_type))) throw new Error("Status kepegawaian tidak valid.");
+    result.employment_type = body.employment_type;
+  }
   if (body._originalNik) {
     result.original_nik = text(body._originalNik);
     if (result.original_nik.length > 80) throw new Error("NIK asal tidak valid.");

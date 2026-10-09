@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
     const photo_url = photoPath ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photoPath)}${version}` : "";
     return NextResponse.json({ profile: result.data ? { ...result.data, display_name: personelName || result.data.display_name, photo_url } : { email: session.email, display_name: personelName, photo_url: "" }, error: result.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
-  const employeeFields = "nik,tgrid,phone,email,name,position,dept,hub,level,superior,superior_nik,active,employment,start_date,created_at";
+  const employeeFields = "nik,tgrid,phone,email,name,position,dept,hub,level,superior,superior_nik,active,employment,employment_type,start_date,created_at";
   if (type === "employees" && ["structure", "summary"].includes(p.get("view") || "")) {
     const employees: any[] = [];
     for (let offset = 0; ; offset += 1000) {
@@ -376,6 +376,10 @@ export async function POST(req: NextRequest) {
     if (!["admin", "super_admin", "spv"].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat mengubah data karyawan." }, { status: 403 });
     try {
       const payload = employeeEditPayload(body);
+      if (Object.hasOwn(payload, "employment_type")) {
+        const ready = await supabase.from("ops_employees").select("employment_type").limit(1);
+        if (ready.error) return NextResponse.json({ ok: false, error: "Status kepegawaian belum siap. Terapkan migration 20261009_employee_employment_type.sql terlebih dahulu." }, { status: 503 });
+      }
       if (Object.hasOwn(payload, "phone") || Object.hasOwn(payload, "email")) {
         const ready = await supabase.from("ops_employees").select("phone,email").limit(1);
         if (ready.error) return NextResponse.json({ ok: false, error: "Kolom kontak belum siap. Terapkan migration kontak karyawan terlebih dahulu." }, { status: 503 });
