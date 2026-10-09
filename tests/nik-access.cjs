@@ -40,7 +40,7 @@ async function sign(identifier, password = 'password123', sameIp) { return login
   active = false; const before = authCalls; assert.equal((await sign('00123')).status, 401); assert.equal(authCalls, before); active = true;
   mapping = null; assert.equal((await sign('missing')).status, 401); mapping = { email: 'staff@test.example', employee_nik: '00123' };
   assert.equal((await sign('00123', 'wrongpass')).status, 401);
-  authRole = 'super_admin'; assert.equal((await sign('00123')).status, 401);
+  authRole = 'super_admin'; assert.equal((await sign('00123')).status, 200, 'Promoted Super Admin can keep using linked NIK');
   response = await sign('super@test.example'); assert.equal(response.status, 200);
   cookie = response.cookies.get(tokens.SESSION_COOKIE).value; assert.equal((await tokens.verifySessionToken(cookie, env.INTERNAL_AUTH_SECRET)).employee_nik, undefined);
   for (let i = 0; i < 5; i++) assert.equal((await sign('missing', 'wrongpass', 'ratelimit')).status, 401);

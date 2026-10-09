@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
     if (!employee.data?.active) return failed();
     employeeNik = employee.data.nik;
   }
-  if ((role === "super_admin" && employeeNik) || (role !== "super_admin" && !employeeNik)) return failed();
+  if ((email === superAdminEmail && employeeNik) || (role !== "super_admin" && !employeeNik)) return failed();
   if (!["super_admin", "admin", "spv", "jr_spv", "coordinator", "viewer"].includes(role)) return failed();
   attempts.delete(attemptKey);
   const token = await createSessionToken(email, role, secret, employeeNik);

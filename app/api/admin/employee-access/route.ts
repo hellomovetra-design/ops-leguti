@@ -5,11 +5,11 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
 async function context(req: NextRequest) {
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
-  return session?.role === "super_admin" ? getSupabaseServerClient() : null;
+  return session && ["super_admin", "admin", "spv"].includes(session.role) ? getSupabaseServerClient() : null;
 }
 export async function GET(req: NextRequest) {
   const db = await context(req);
-  if (!db) return json({ error: "Hanya Super Admin yang dapat mengelola pengaitan NIK." }, 403);
+  if (!db) return json({ error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat mengelola pengaitan NIK." }, 403);
   const [employees, links] = await Promise.all([
     db.from("ops_employees").select("nik,name,position,hub").eq("active", true).order("name").limit(1000),
     db.from("ops_user_employee_links").select("email,employee_nik"),
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 }
 export async function POST(req: NextRequest) {
   const db = await context(req);
-  if (!db) return json({ error: "Hanya Super Admin yang dapat mengelola pengaitan NIK." }, 403);
+  if (!db) return json({ error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat mengelola pengaitan NIK." }, 403);
   let body;
   try { body = await req.json(); } catch { return json({ error: "Permintaan tidak valid." }, 400); }
   if (!body || typeof body !== "object" || Array.isArray(body)) return json({ error: "Permintaan tidak valid." }, 400);

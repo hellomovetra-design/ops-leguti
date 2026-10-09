@@ -30,7 +30,7 @@ export type InboxMessage = {
   created_at: string;
 };
 
-export const INBOX_ADMIN_ROLES = ["super_admin", "admin"];
+export const INBOX_ADMIN_ROLES = ["super_admin", "admin", "spv"];
 export const inboxStatus = (status: string) =>
   ({ pending: "Menunggu admin", open: "Menunggu admin", approved: "Dikonfirmasi", sent: "Diproses", verified: "Dikonfirmasi", in_progress: "Diproses", completed: "Selesai", resolved: "Selesai", closed: "Selesai", rejected: "Ditolak" }[status] || status);
 export const inboxDone = (status: string) => ["completed", "resolved", "closed"].includes(status);

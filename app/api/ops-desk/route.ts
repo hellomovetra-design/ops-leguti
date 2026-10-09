@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
       const emails=Array.from(new Set<string>(pageItems.map((row:Record<string,any>)=>String(row.created_by||row.email||"").trim().toLowerCase()).filter(Boolean)));
       const profiles=emails.length?await supabase.from("ops_user_profiles").select("email,display_name").in("email",emails):{data:[]};
       const names=new Map((profiles.data||[]).map(profile=>[profile.email,String(profile.display_name||"").trim()]));
-      return NextResponse.json({ items: pageItems.map((row:Record<string,any>)=>({...row,requester_name:names.get(String(row.created_by||row.email||"").trim().toLowerCase())||""})), has_more: (result.data || []).length>100, can_manage: ["super_admin","admin"].includes(session.role) }, { headers: { "Cache-Control": "no-store" } });
+      return NextResponse.json({ items: pageItems.map((row:Record<string,any>)=>({...row,requester_name:names.get(String(row.created_by||row.email||"").trim().toLowerCase())||""})), has_more: (result.data || []).length>100, can_manage: ["super_admin","admin","spv"].includes(session.role) }, { headers: { "Cache-Control": "no-store" } });
     } catch(error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Filter tidak valid." }, { status:400 }); }
   }
   if (type === "requests-export") {
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
     } catch(error) { return NextResponse.json({error:error instanceof Error?error.message:"Filter tidak valid."},{status:400}); }
   }
   if (type === "users") {
-    if (session.role !== "super_admin") return NextResponse.json({ error: "Hanya Super Admin yang dapat melihat akun." }, { status: 403 });
+    if (!["super_admin", "admin", "spv"].includes(session.role)) return NextResponse.json({ error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat melihat akun." }, { status: 403 });
     const [roleRows, authRows] = await Promise.all([
       supabase.from("ops_users").select("id,email,role,leader_name,created_at").order("created_at", { ascending: false }),
       supabase.auth.admin.listUsers({ page: 1, perPage: 1000 }),
@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
       const rows=(result.data||[]).slice(0,100);
       const photoResult=rows.length?await supabase.from("ops_problem_photos").select("id,problem_id,file_name,content_type,storage_path,created_at").in("problem_id",rows.map((row:Record<string,any>)=>row.id)).order("created_at",{ascending:true}):{data:[],error:null};
       if(photoResult.error)return NextResponse.json({error:"Foto laporan belum dapat dimuat. "+photoResult.error.message},{status:500});
-      return NextResponse.json({items:rows.map((row:Record<string,any>)=>({...row,photos:(photoResult.data||[]).filter(photo=>photo.problem_id===row.id).map(photo=>({id:photo.id,file_name:photo.file_name,url:`/api/ops-desk?type=problem-photo&path=${encodeURIComponent(photo.storage_path)}`}))})),has_more:(result.data||[]).length>100,can_delete:["super_admin","admin"].includes(session.role),can_create:session.role!=="viewer",can_manage:["super_admin","admin","coordinator","spv","jr_spv"].includes(session.role)},{headers:{"Cache-Control":"no-store"}});
+      return NextResponse.json({items:rows.map((row:Record<string,any>)=>({...row,photos:(photoResult.data||[]).filter(photo=>photo.problem_id===row.id).map(photo=>({id:photo.id,file_name:photo.file_name,url:`/api/ops-desk?type=problem-photo&path=${encodeURIComponent(photo.storage_path)}`}))})),has_more:(result.data||[]).length>100,can_delete:["super_admin","admin","spv"].includes(session.role),can_create:session.role!=="viewer",can_manage:["super_admin","admin","coordinator","spv","jr_spv"].includes(session.role)},{headers:{"Cache-Control":"no-store"}});
     }catch(error){return NextResponse.json({error:error instanceof Error?error.message:"Filter tidak valid."},{status:400})}
   }
   let query = supabase.from(table).select(table === "ops_employees" ? employeeFields : "*").order("created_at", { ascending: false });
@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
     if (saved.error) return NextResponse.json({ ok: false, error: saved.error.message }, { status: 400 });
     return NextResponse.json({ ok: true, photo_url: `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(storagePath)}` });
   }
-  if (body.action === "role" && session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat membuat role." }, { status: 403 });
+  if (body.action === "role" && !["super_admin", "admin", "spv"].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat membuat role." }, { status: 403 });
   if (body.action === "role" && !["super_admin", "admin", "spv", "viewer"].includes(String(body.role))) return NextResponse.json({ ok: false, error: "Jenis akses tidak valid." }, { status: 400 });
   if (body.action === "role") {
     const email = String(body.email || "").trim().toLowerCase();
@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: !result.error, id: result.data?.id, item: result.data, inbox_thread_id: inbox?.data?.id, emailSubject: subject, emailBody, error: result.error?.message });
   }
   if (body.action === "approveRequest") {
-    if (!['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin atau Admin Pengelola yang dapat memproses request." }, { status: 403 });
+    if (!['super_admin', 'admin', 'spv'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat memproses request." }, { status: 403 });
     const id = String(body.id || "");
     if (!id) return NextResponse.json({ ok: false, error: "Request tidak valid." }, { status: 400 });
     const current = await supabase.from("ops_requests").select("*").eq("id", id).single();
@@ -251,7 +251,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, request: updated.data, mail: { to: HELP_DESK_TO, cc: HELP_DESK_CC, subject: current.data.email_subject || "Request Helpdesk OPS LEGUTI", body: current.data.email_body || "" } });
   }
   if (body.action === "updateRequestStatus") {
-    if (!['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin atau Admin Pengelola yang dapat memproses request." }, { status: 403 });
+    if (!['super_admin', 'admin', 'spv'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat memproses request." }, { status: 403 });
     const id = String(body.id || ""), nextStatus = String(body.status || "");
     if (!id || !['rejected', 'completed', 'sent'].includes(nextStatus)) return NextResponse.json({ ok: false, error: "Status request tidak valid." }, { status: 400 });
     const patch: Record<string, any> = { status: nextStatus, updated_at: new Date().toISOString(), last_action_at: new Date().toISOString() };
@@ -265,7 +265,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, request: updated.data });
   }
   if (body.action === "archiveRequest" || body.action === "deleteRequest") {
-    if (!['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin atau Admin Pengelola yang dapat mengelola riwayat request." }, { status: 403 });
+    if (!['super_admin', 'admin', 'spv'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat mengelola riwayat request." }, { status: 403 });
     const ids = Array.from(new Set<string>(Array.isArray(body.ids) ? body.ids.map((id:unknown)=>String(id)) : [String(body.id || "")]));
     if (!ids.length || ids.length>100 || ids.some(id=>!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(id))) return NextResponse.json({ok:false,error:"Pilih 1–100 request yang valid."},{status:400});
     const current = await supabase.from("ops_requests").select("id").in("id",ids);
@@ -292,7 +292,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, problem: updated.data });
   }
   if (body.action === "deleteProblem") {
-    if (!['super_admin', 'admin'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin atau Admin Pengelola yang dapat menghapus problem." }, { status: 403 });
+    if (!['super_admin', 'admin', 'spv'].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat menghapus problem." }, { status: 403 });
     const id = String(body.id || "");
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return NextResponse.json({ ok: false, error: "Problem tidak valid." }, { status: 400 });
     const photos = await supabase.from("ops_problem_photos").select("storage_path").eq("problem_id", id);
@@ -327,7 +327,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: !saved.error, profile: saved.data ? { ...saved.data, photo_url: photoUrl } : null, error: saved.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   if (body.action === "resetUserPassword" || body.action === "deleteUser") {
-    if (session.role !== "super_admin") return NextResponse.json({ ok: false, error: "Hanya super admin yang dapat mengelola akun." }, { status: 403 });
+    if (!["super_admin", "admin", "spv"].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat mengelola akun." }, { status: 403 });
     const email = String(body.email || "").trim().toLowerCase();
     if (!email || email === SUPER_ADMIN_EMAIL) return NextResponse.json({ ok: false, error: "Akun super admin utama tidak dapat diubah dari sini." }, { status: 400 });
     const listed = await supabase.auth.admin.listUsers({ page: 1, perPage: 1000 });
@@ -373,7 +373,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: !result.error, imported: merged.length, deactivated: missingNiks.length, error: result.error?.message });
   }
   if (body.action === "updateEmployee" || body.action === "employee") {
-    if (!["admin", "super_admin"].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya administrator pengelola yang dapat mengubah data karyawan." }, { status: 403 });
+    if (!["admin", "super_admin", "spv"].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat mengubah data karyawan." }, { status: 403 });
     try {
       const payload = employeeEditPayload(body);
       if (Object.hasOwn(payload, "phone") || Object.hasOwn(payload, "email")) {

@@ -27,13 +27,18 @@ const db = {
     if (unavailable) return { error: { message: "missing migration" } };
     if (name === "ops_inbox_list") return { data: { items: threads.filter(row => params.p_admin || row.owner_email === params.p_email), unread: 2 }, error: null };
     if (name === "ops_inbox_account_name") return { data: "Andi Pratama", error: null };
+    if (name === "ops_inbox_send_fast") {
+      const thread=threads.find(row=>row.id===params.p_thread);
+      if (!thread || (!params.p_admin && thread.owner_email!==params.p_email)) return { error: { code: "P0002" } };
+      return { data: { id: "saved" }, error: null };
+    }
     return { data: { id: "saved" }, error: null };
   },
 };
 function load(file, dependencies) {
   const module = { exports: {} };
   vm.runInNewContext(ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
-    { module, exports: module.exports, require: name => dependencies[name] || require(name), process: { env: { SUPABASE_SERVICE_ROLE_KEY: "test-only" } }, console });
+    { module, exports: module.exports, require: name => dependencies[name] || require(name), process: { env: { SUPABASE_SERVICE_ROLE_KEY: "test-only" } }, performance, console });
   return module.exports;
 }
 const inbox = load("lib/inbox.ts", {});
@@ -63,8 +68,8 @@ const post = (body, origin = "http://localhost") => route.POST(new NextRequest("
   assert.equal((await post({ ...send, body: "x".repeat(2001) })).status, 400);
   assert.equal((await post({ ...send, client_id: "bad" })).status, 400);
   assert.equal((await post(send)).status, 200);
-  const saved = calls.filter(call => call.name === "ops_inbox_send").at(-1).params;
-  assert.equal(saved.p_email, session.email); assert.equal(saved.p_name, "Andi Pratama"); assert.equal(saved.p_admin, false); assert.equal(saved.p_body, "Siap bro"); assert.equal(saved.p_client, client);
+  const saved = calls.filter(call => call.name === "ops_inbox_send_fast").at(-1).params;
+  assert.equal(saved.p_email, session.email); assert.equal(saved.p_name, undefined); assert.equal(saved.p_admin, false); assert.equal(saved.p_body, "Siap bro"); assert.equal(saved.p_client, client);
   assert.equal((await post({ action: "read", scope: "user", thread_id: other, seq: 40 })).status, 404);
   assert.equal((await post({ action: "read", scope: "user", thread_id: own, seq: -1 })).status, 400);
   assert.equal((await post({ action: "read", scope: "user", thread_id: own, seq: 40 })).status, 200);
@@ -72,7 +77,10 @@ const post = (body, origin = "http://localhost") => route.POST(new NextRequest("
   data = await (await get("scope=admin")).json(); assert.equal(data.items.length, 2);
   assert.equal((await get("scope=user&thread_id=" + own)).status, 404);
   assert.equal((await post({ ...send, scope: "admin" })).status, 200);
-  assert.equal(calls.filter(call => call.name === "ops_inbox_send").at(-1).params.p_admin, true);
+  assert.equal(calls.filter(call => call.name === "ops_inbox_send_fast").at(-1).params.p_admin, true);
+  session = { email: "spv@example.test", role: "spv" };
+  assert.equal((await get("scope=admin")).status,200);
+  assert.equal((await post({ ...send, scope: "admin" })).status,200);
   unavailable = true; assert.equal((await get("scope=admin")).status, 503); unavailable = false;
   session = null; assert.equal((await get()).status, 401); assert.equal((await post(send)).status, 401);
   console.log("PASS: Inbox account isolation, admin permissions, sender spoof rejection, origin, pagination, sequence receipts, message validation, auth and missing-schema handling.");

@@ -37,13 +37,13 @@ export async function GET(req:NextRequest){
       const output=masterCourierXlsx(template,complete,month);
       return new NextResponse(Buffer.from(output),{headers:{...headers,"Content-Type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","Content-Disposition":`attachment; filename="UPDATE_KURIR_${month}.xlsx"`}});
     }
-    return json({items:s.records,revision:s.revision,incomplete:s.records.filter(x=>x.active&&missingMasterFields(x).length).length,can_manage:["admin","super_admin"].includes(session.role)});
+    return json({items:s.records,revision:s.revision,incomplete:s.records.filter(x=>x.active&&missingMasterFields(x).length).length,can_manage:["admin","super_admin","spv"].includes(session.role)});
   }catch(e){return json({error:e instanceof Error?e.message:"Master kurir gagal dimuat."},503);}
 }
 export async function POST(req:NextRequest){
   const session=await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value,process.env.INTERNAL_AUTH_SECRET);
   if(!session)return json({error:"Silakan login kembali."},401);
-  if(!["admin","super_admin"].includes(session.role))return json({error:"Hanya administrator pengelola yang dapat mengubah master kurir."},403);
+  if(!["admin","super_admin","spv"].includes(session.role))return json({error:"Hanya Super Admin, Admin Pengelola, atau SPV yang dapat mengubah master kurir."},403);
   if(req.headers.get("origin")!==req.nextUrl.origin)return json({error:"Asal permintaan tidak valid."},403);
   const db=getSupabaseServerClient();if(!db)return json({error:"Database belum terhubung."},503);
   try{

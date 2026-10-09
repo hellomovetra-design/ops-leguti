@@ -1,5 +1,5 @@
 export const DAILY_CATEGORIES = ["Jaringan", "Perangkat", "Aplikasi", "Operasional", "Lainnya"] as const;
-export const DAILY_ADMIN_ROLES = ["super_admin", "admin"];
+export const DAILY_ADMIN_ROLES = ["super_admin", "admin", "spv"];
 export const DAILY_STATUSES = { open: "Belum Ditangani", in_progress: "Diproses", completed: "Selesai" } as const;
 export type DailyRecord = {
   id: string; title: string; category: string; incident_date: string; incident_time: string;

@@ -1,4 +1,4 @@
-export const DAMAGE_ADMINS = ["super_admin", "admin"];
+export const DAMAGE_ADMINS = ["super_admin", "admin", "spv"];
 export const DAMAGE_STATUSES = { open: "Baru", in_progress: "Diproses", completed: "Selesai" } as const;
 export const DAMAGE_PHOTO_LABELS = ["Foto AWB", "Bukti 1", "Bukti 2", "Bukti 3"] as const;
 export const DAMAGE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

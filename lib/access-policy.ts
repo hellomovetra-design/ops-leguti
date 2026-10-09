@@ -2,14 +2,15 @@ import type { SessionPayload } from "@/lib/auth-token";
 
 export const dashboardRoles = ["super_admin", "admin", "spv", "jr_spv", "coordinator"];
 const desktopRoots = ["/dashboard", "/reports", "/master", "/settings", "/public"];
-const superAdminRoots = ["/settings/ops-access", "/master/personnel-changes"];
+const fullAccessRoles = ["super_admin", "admin", "spv"];
+const fullAccessRoots = ["/settings/ops-access", "/master/personnel-changes"];
 export const withinRoute = (path: string, root: string) => path === root || path.startsWith(`${root}/`);
 export const isDesktopRoute = (path: string) => desktopRoots.some(root => withinRoute(path, root));
 export const isProtectedRoute = (path: string) => isDesktopRoute(path) || withinRoute(path, "/pwa");
 export function canOpenRoute(role: SessionPayload["role"], path: string) {
   if (withinRoute(path, "/pwa")) return true;
   if (!isDesktopRoute(path) || !dashboardRoles.includes(role)) return false;
-  return !superAdminRoots.some(root => withinRoute(path, root)) || role === "super_admin";
+  return !fullAccessRoots.some(root => withinRoute(path, root)) || fullAccessRoles.includes(role);
 }
 export function loginDestination(role: SessionPayload["role"], next?: unknown) {
   const fallback = dashboardRoles.includes(role) ? "/dashboard" : "/pwa";

@@ -44,7 +44,7 @@ export async function scopedCouriers(db: NonNullable<ReturnType<typeof getSupaba
     rows.push(...(result.data as TeamEmployee[] || []));
     if ((result.data || []).length < 1000) break;
   }
-  const unrestricted = ["admin", "super_admin"].includes(session.role);
+  const unrestricted = ["admin", "super_admin", "spv"].includes(session.role);
   const owner = unrestricted ? null : await linkedEmployee(db, session.email);
   return structuralCouriers(rows, owner?.nik || "", unrestricted);
 }

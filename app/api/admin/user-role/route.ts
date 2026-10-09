@@ -6,7 +6,7 @@ const json = (body: unknown, status = 200) => NextResponse.json(body, { status, 
 export async function POST(req: NextRequest) {
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
   if (!session) return json({ error: "Silakan login kembali." }, 401);
-  if (session.role !== "super_admin") return json({ error: "Hanya Super Admin yang dapat mengubah role." }, 403);
+  if (!["super_admin", "admin", "spv"].includes(session.role)) return json({ error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat mengubah role." }, 403);
   if (req.headers.get("origin") !== req.nextUrl.origin) return json({ error: "Permintaan tidak valid." }, 403);
   const db = getSupabaseServerClient();
   if (!db) return json({ error: "Penyimpanan belum siap." }, 503);
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   const email = String(body.email || "").trim().toLowerCase(), role = String(body.role || ""), previousRole = String(body.previousRole || "");
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !["super_admin", "admin", "spv", "viewer"].includes(role)) return json({ error: "Akun atau role tidak valid." }, 400);
   const primary = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
-  if ((email === primary || email === session.email.toLowerCase()) && role !== "super_admin") return json({ error: "Role Super Admin utama dan akun Anda sendiri tidak dapat diturunkan." }, 400);
+  if ((email === primary || (email === session.email.toLowerCase() && session.role === "super_admin")) && role !== "super_admin") return json({ error: "Role Super Admin utama dan akun Anda sendiri tidak dapat diturunkan." }, 400);
   try {
     let user;
     for (let page = 1; ; page++) {

@@ -1,7 +1,10 @@
 const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
 const {NextRequest}=require('next/server');
 function load(file,mocks={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:m,exports:m.exports,require:n=>mocks[n]||require(n),process:{env:{NODE_ENV:'production',INTERNAL_AUTH_SECRET:'x'.repeat(40)}},crypto:globalThis.crypto,TextEncoder,TextDecoder,Uint8Array,btoa,atob,Date,URL});return m.exports;}
-const tokens=load('lib/auth-token.ts'),policy=load('lib/access-policy.ts');
+// Cryptographic renewal tests run offline; production role lookup has its own suite.
+const tokenModule={exports:{}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/auth-token.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{module:tokenModule,exports:tokenModule.exports,process:{env:{NODE_ENV:'test'}},crypto:globalThis.crypto,TextEncoder,TextDecoder,Uint8Array,btoa,atob,Date});
+const tokens=tokenModule.exports,policy=load('lib/access-policy.ts');
 let session,renewals=0;
 const mw=load('middleware.ts',{'@/lib/auth-token':{...tokens,verifySessionToken:async()=>session,createSessionToken:async(email,role,secret,nik)=>{renewals++;assert.equal(nik,'00123');return 'renewed';}},'@/lib/access-policy':policy});
 (async()=>{

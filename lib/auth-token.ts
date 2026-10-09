@@ -64,6 +64,25 @@ export async function verifySessionToken(token: string | undefined, secret: stri
     if (!constantTimeEqual(expected, received)) return null;
     const payload = JSON.parse(new TextDecoder().decode(decodeBase64Url(payloadPart))) as SessionPayload;
     if (typeof payload.email !== "string" || !payload.email || !["super_admin", "admin", "spv", "jr_spv", "coordinator", "viewer"].includes(payload.role) || !Number.isFinite(payload.exp) || payload.exp <= Math.floor(Date.now() / 1000)) return null;
+    // Never authorize a long-lived session using its old role snapshot.
+    // Read the access record on every server request so promotions AND demotions apply.
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (url && key) {
+      const endpoint = new URL("/rest/v1/ops_users", url);
+      endpoint.searchParams.set("select", "role");
+      endpoint.searchParams.set("email", `eq.${payload.email.trim().toLowerCase()}`);
+      endpoint.searchParams.set("limit", "2");
+      const response = await fetch(endpoint, { headers: { apikey: key, Authorization: `Bearer ${key}` }, cache: "no-store", signal: AbortSignal.timeout(5000) });
+      if (!response.ok) return null;
+      const records = await response.json();
+      if (!Array.isArray(records) || records.length > 1) return null;
+      const primary = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
+      const role = payload.email.toLowerCase() === primary ? "super_admin" : records[0]?.role;
+      if (!["super_admin", "admin", "spv", "jr_spv", "coordinator", "viewer"].includes(role)) return null;
+      return { ...payload, role } as SessionPayload;
+    }
+    if (process.env.NODE_ENV === "production") return null;
     return payload;
   } catch {
     return null;

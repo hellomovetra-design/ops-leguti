@@ -108,7 +108,7 @@ export async function POST(req: NextRequest) {
     // Preserve historical employee snapshot when editing an existing examination.
     const allowed = await scopedCouriers(db, session);
     const selected = allowed.find(row => row.nik === values.courier_id && deliveryArea(row.hub || "") === values.delivery_area);
-    const historicalAdminEdit = editing && ["admin", "super_admin"].includes(session.role) && existing.data?.courier_id === values.courier_id && deliveryArea(existing.data.delivery_area) === values.delivery_area;
+    const historicalAdminEdit = editing && ["admin", "super_admin", "spv"].includes(session.role) && existing.data?.courier_id === values.courier_id && deliveryArea(existing.data.delivery_area) === values.delivery_area;
     if (!selected && !historicalAdminEdit) return json({ ok: false, error: "Personel tidak berada dalam area delivery atau struktur yang dapat Anda periksa." }, 403);
     if (existing.data && existing.data.courier_id === values.courier_id) {
       values.courier_name = existing.data.courier_name;
