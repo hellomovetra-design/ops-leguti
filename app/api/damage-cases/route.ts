@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
-import { DAMAGE_ADMINS, DAMAGE_STATUSES, DAMAGE_UUID, damageCsv, damageImageValid, damageValues } from "@/lib/damage-case";
+import { DAMAGE_ADMINS, DAMAGE_STATUSES, DAMAGE_UUID, damagePlateKey, damageCsv, damageImageValid, damageValues } from "@/lib/damage-case";
 import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit, deleteFromImageKit } from "@/lib/imagekit";
 export const runtime = "nodejs";
 const TABLE = "ops_damage_cases", BUCKET = "ops-damage-photos";
@@ -20,6 +20,11 @@ export async function GET(req: NextRequest) {
   const { db, session, admin } = ctx; const p = req.nextUrl.searchParams;
   try {
     const id = p.get("id"), type = p.get("type");
+    if (type === "vehicles") {
+      const result = await db!.from("ops_damage_vehicle_master").select("plate,vehicle_code,vehicle_type").eq("active", true).order("plate").range(0,999);
+      if (result.error) return json({error:"Daftar Nopol belum siap. Terapkan migration 20261009_damage_vehicle_master.sql."},503);
+      return json({items:result.data || []});
+    }
     if (type === "export" && !admin) return json({ error: "Unduh report khusus administrator." }, 403);
     if (id || type === "photo") {
       if (!id || !DAMAGE_UUID.test(id)) return json({ error: "Catatan tidak valid." }, 400);
@@ -96,6 +101,10 @@ export async function POST(req: NextRequest) {
     if (existing.error) return json({ error: failure(existing.error) }, 503);
     if (existing.data) return existing.data.created_by === session!.email.toLowerCase() ? json({ ok: true, item: decorate(existing.data) }) : json({ error: "ID laporan sudah digunakan." }, 409);
     const values = damageValues(get);
+    const vehicle = await db!.from("ops_damage_vehicle_master").select("plate").eq("plate_key",damagePlateKey(values.plate)).eq("active",true).maybeSingle();
+    if (vehicle.error) return json({error:"Master Nopol belum dapat diakses. Silakan coba lagi."},503);
+    if (!vehicle.data) return json({error:"Pilih Nopol yang tersedia pada daftar kendaraan."},400);
+    values.plate=vehicle.data.plate;
     const files = Array.from({ length: 4 }, (_, i) => form.get(`photo${i}`));
     if (Array.from({length:4},(_,i)=>form.getAll(`photo${i}`).length).some(n=>n!==1) || files.some(f => !(f instanceof File) || f.size <= 0 || f.size > 1024*1024) || files.reduce((n,f) => n + (f instanceof File ? f.size : 0), 0) > 3*1024*1024) return json({ error: "Wajib 1 foto AWB dan 3 foto bukti. Maksimal 1 MB per foto, total 3 MB." }, 400);
     for (const file of files as File[]) if (!damageImageValid(new Uint8Array(await file.arrayBuffer()), file.type)) return json({ error: "Gunakan foto JPG, PNG, atau WebP yang valid." }, 400);

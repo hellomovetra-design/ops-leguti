@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, ChevronRight, Download, ExternalLink, Package, Search, X } from "lucide-react";
 import { DAMAGE_PHOTO_LABELS, DAMAGE_STATUSES, DamageCase } from "@/lib/damage-case";
+import { DamageVehiclePicker } from "./damage-vehicle-picker";
 import "./damage-case.css";
 
 async function compactPhoto(file: File) {
@@ -33,7 +34,7 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
   const [q,setQ]=useState(""),[status,setStatus]=useState(""),[offset,setOffset]=useState(0),[selected,setSelected]=useState<DamageCase|null>(null);
   const [from,setFrom]=useState(""),[to,setTo]=useState(""),[exporting,setExporting]=useState(false);
   const exportLock=useRef(false);
-  const [form,setForm]=useState(()=>({id:crypto.randomUUID(),awb:"",trip:"",fleet:"",plate:"",remark:""}));
+  const [form,setForm]=useState(()=>({id:crypto.randomUUID(),awb:"",trip:"",plate:"",remark:""}));
   const [files,setFiles]=useState<(File|null)[]>([null,null,null,null]),[processing,setProcessing]=useState<number[]>([]),[saving,setSaving]=useState(false),[notice,setNotice]=useState("");
   const [review,setReview]=useState({status:"open",resolution:""});
   const locked=useRef(false),photoVersions=useRef([0,0,0,0]),mounted=useRef(true);
@@ -78,7 +79,7 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
       const data=new FormData();data.append("action","create");Object.entries(form).forEach(([k,v])=>data.append(k,v));files.forEach((file,i)=>data.append(`photo${i}`,file!));
       const response=await fetch("/api/damage-cases",{method:"POST",body:data}),result=await response.json();
       if(!response.ok||!result.ok)throw new Error(result.error||"Laporan belum berhasil dikirim.");
-      setForm({id:crypto.randomUUID(),awb:"",trip:"",fleet:"",plate:"",remark:""});setFiles([null,null,null,null]);
+      setForm({id:crypto.randomUUID(),awb:"",trip:"",plate:"",remark:""});setFiles([null,null,null,null]);
       setNotice("Damage Case berhasil dikirim.");void load();onSaved?.(result.item);
     }catch(e){setNotice(e instanceof Error?e.message:"Laporan belum berhasil dikirim.");}
     finally{locked.current=false;setSaving(false);}
@@ -100,21 +101,21 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
     {!admin&&<form className="mobile-card pwa-form damage-form" onSubmit={submit} aria-busy={saving}>
       <h2>Laporan bongkar muat</h2><fieldset disabled={saving}>
         <label>No. AWB<input required maxLength={80} value={form.awb} onChange={e=>setForm({...form,awb:e.target.value.toUpperCase()})}/></label>
-        <div className="mobile-grid"><label>Trip<input required maxLength={100} value={form.trip} onChange={e=>setForm({...form,trip:e.target.value})}/></label><label>Armada<input required maxLength={160} value={form.fleet} onChange={e=>setForm({...form,fleet:e.target.value})}/></label></div>
-        <label>Nopol<input required maxLength={30} value={form.plate} onChange={e=>setForm({...form,plate:e.target.value.toUpperCase()})}/></label>
+        <label>Origin Warehouse<input required maxLength={100} value={form.trip} onChange={e=>setForm({...form,trip:e.target.value})}/></label>
+        <DamageVehiclePicker key={form.id} value={form.plate} disabled={saving} onChange={plate=>setForm({...form,plate})}/>
         <label>Remark problem<textarea required rows={4} maxLength={5000} value={form.remark} onChange={e=>setForm({...form,remark:e.target.value})}/></label>
         <div className="damage-photo-grid">{files.map((file,index)=><PhotoPicker key={`${form.id}-${index}`} index={index} file={file} busy={saving||processing.includes(index)} onChange={file=>void choose(index,file)}/>)}</div>
         {processing.length>0&&<p role="status">Menyiapkan foto…</p>}
-        <button className="mobile-submit" disabled={saving||processing.length>0||files.some(f=>!f)}>{saving?"Mengirim…":"Kirim Damage Case"}</button>
+        <button className="mobile-submit" disabled={saving||processing.length>0||files.some(f=>!f)||!form.plate}>{saving?"Mengirim…":"Kirim Damage Case"}</button>
       </fieldset>
     </form>}
     {notice&&<p className="damage-notice" role="status">{notice}</p>}
     <div className="damage-toolbar"><label className="search"><Search size={16}/><input aria-label="Cari AWB Damage Case" placeholder="Cari nomor AWB…" value={q} onChange={e=>{setQ(e.target.value);setOffset(0);}}/></label><select aria-label="Filter status Damage Case" value={status} onChange={e=>{setStatus(e.target.value);setOffset(0);}}><option value="">Semua status</option>{Object.entries(DAMAGE_STATUSES).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div>
     {admin&&<div className="damage-date-filters"><label>Dari tanggal<input type="date" value={from} max={to||undefined} onChange={e=>{setFrom(e.target.value);setOffset(0);}}/></label><label>Sampai tanggal<input type="date" value={to} min={from||undefined} onChange={e=>{setTo(e.target.value);setOffset(0);}}/></label><button className="btn" onClick={()=>{setQ("");setStatus("");setFrom("");setTo("");setOffset(0);}}>Reset filter</button></div>}
-    {error?<p role="alert" className="damage-notice">{error}<button className="btn" onClick={()=>void load()}>Coba lagi</button></p>:loading?<p role="status">Memuat laporan…</p>:items.length?admin?<div className="damage-admin-table-wrap"><table className="damage-admin-table"><thead><tr>{["Nomor AWB","Trip / Armada","Nopol","Remark problem","Pengirim","Dilaporkan (WIB)","Status","Detail"].map(label=><th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{items.map(item=><tr key={item.id}><td><strong>{item.awb}</strong></td><td><strong>{item.trip}</strong><small>{item.fleet}</small></td><td>{item.plate}</td><td><span className="damage-remark" title={item.remark}>{item.remark}</span></td><td>{item.created_by}</td><td>{new Date(item.created_at).toLocaleString("id-ID",{timeZone:"Asia/Jakarta",dateStyle:"medium",timeStyle:"short"})}</td><td><span className={`damage-status ${item.status}`}>{DAMAGE_STATUSES[item.status]}</span></td><td><button className="btn" onClick={()=>open(item)} aria-label={`Lihat detail AWB ${item.awb}`}>Lihat detail<ChevronRight size={14}/></button></td></tr>)}</tbody></table></div>:<div className="damage-records">{items.map(item=><button className="damage-record" key={item.id} onClick={()=>open(item)}><Package size={20}/><span><strong>{item.awb}</strong><small>{item.trip} · {item.plate}</small><small>{new Date(item.created_at).toLocaleString("id-ID",{timeZone:"Asia/Jakarta"})} WIB</small></span><em>{DAMAGE_STATUSES[item.status]}</em><ChevronRight size={16}/></button>)}</div>:<p className="pwa-empty">Belum ada laporan Damage Case.</p>}
+    {error?<p role="alert" className="damage-notice">{error}<button className="btn" onClick={()=>void load()}>Coba lagi</button></p>:loading?<p role="status">Memuat laporan…</p>:items.length?admin?<div className="damage-admin-table-wrap"><table className="damage-admin-table"><thead><tr>{["Nomor AWB","Origin Warehouse","Nopol","Remark problem","Pengirim","Dilaporkan (WIB)","Status","Detail"].map(label=><th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{items.map(item=><tr key={item.id}><td><strong>{item.awb}</strong></td><td><strong>{item.trip}</strong></td><td>{item.plate}</td><td><span className="damage-remark" title={item.remark}>{item.remark}</span></td><td>{item.created_by}</td><td>{new Date(item.created_at).toLocaleString("id-ID",{timeZone:"Asia/Jakarta",dateStyle:"medium",timeStyle:"short"})}</td><td><span className={`damage-status ${item.status}`}>{DAMAGE_STATUSES[item.status]}</span></td><td><button className="btn" onClick={()=>open(item)} aria-label={`Lihat detail AWB ${item.awb}`}>Lihat detail<ChevronRight size={14}/></button></td></tr>)}</tbody></table></div>:<div className="damage-records">{items.map(item=><button className="damage-record" key={item.id} onClick={()=>open(item)}><Package size={20}/><span><strong>{item.awb}</strong><small>{item.trip} · {item.plate}</small><small>{new Date(item.created_at).toLocaleString("id-ID",{timeZone:"Asia/Jakarta"})} WIB</small></span><em>{DAMAGE_STATUSES[item.status]}</em><ChevronRight size={16}/></button>)}</div>:<p className="pwa-empty">Belum ada laporan Damage Case.</p>}
     <div className="damage-pagination"><button className="btn" disabled={loading||offset===0} onClick={()=>setOffset(Math.max(0,offset-25))}>Sebelumnya</button><small>{total?`${offset+1}–${Math.min(offset+25,total)} dari ${total}`:"0 laporan"}</small><button className="btn" disabled={loading||offset+25>=total} onClick={()=>setOffset(offset+25)}>Berikutnya</button></div>
     {selected&&<section className="damage-detail card"><div className="damage-detail-head"><h2>AWB {selected.awb}</h2><button className="icon-btn" disabled={saving} aria-label="Tutup detail Damage Case" onClick={()=>setSelected(null)}><X size={18}/></button></div>
-      <dl>{[["Trip",selected.trip],["Armada",selected.fleet],["Nopol",selected.plate],["Pengirim",selected.created_by],["Remark problem",selected.remark]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+      <dl>{[["Origin Warehouse",selected.trip],...(selected.fleet?[["Armada (data lama)",selected.fleet]]:[]),["Nopol",selected.plate],["Pengirim",selected.created_by],["Remark problem",selected.remark]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
       <a className="damage-evidence-link" href={selected.evidence_url} target="_blank" rel="noopener noreferrer"><ExternalLink size={16}/>Buka tautan 4 foto bukti</a><button className="btn" type="button" onClick={()=>void copyEvidence()}>Salin tautan</button><DamageGallery item={selected}/>
       {admin?<form onSubmit={saveReview}><fieldset disabled={saving}><label>Status<select value={review.status} onChange={e=>setReview({...review,status:e.target.value})}>{Object.entries(DAMAGE_STATUSES).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Tindak lanjut<textarea rows={3} maxLength={5000} required={review.status==="completed"} value={review.resolution} onChange={e=>setReview({...review,resolution:e.target.value})}/></label><button className="primary" disabled={saving}>{saving?"Menyimpan…":"Simpan tindak lanjut"}</button></fieldset></form>:<p>{DAMAGE_STATUSES[selected.status]}{selected.resolution&&` · ${selected.resolution}`}</p>}
     </section>}
@@ -123,5 +124,5 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
 export function DamageEvidencePage({ id }: { id: string }) {
   const [item,setItem]=useState<DamageCase|null>(null),[error,setError]=useState("");
   useEffect(()=>{const controller=new AbortController();fetch(`/api/damage-cases?id=${encodeURIComponent(id)}`,{cache:"no-store",signal:controller.signal}).then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error||"Bukti tidak ditemukan.");setItem(data.item);}).catch(e=>{if(!controller.signal.aborted)setError(e.message);});return()=>controller.abort();},[id]);
-  return <main className="damage-evidence-page"><h1>Bukti Damage Case</h1>{error?<p role="alert">{error}</p>:item?<><h2>AWB {item.awb}</h2><p>{item.trip} · {item.fleet} · {item.plate}</p><DamageGallery item={item}/></>:<p role="status">Memuat foto…</p>}</main>;
+  return <main className="damage-evidence-page"><h1>Bukti Damage Case</h1>{error?<p role="alert">{error}</p>:item?<><h2>AWB {item.awb}</h2><p>{item.trip} · {item.plate}</p><DamageGallery item={item}/></>:<p role="status">Memuat foto…</p>}</main>;
 }

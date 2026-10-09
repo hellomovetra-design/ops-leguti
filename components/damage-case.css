@@ -13,3 +13,4 @@
 .damage-status.in_progress{background:#eaf2ff;color:#1765b8}.damage-status.completed{background:#e9f8ef;color:#187647}
 .damage-module.admin .damage-gallery{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:900px){.damage-module.admin .damage-gallery{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.damage-vehicle-picker{display:grid;gap:12px;margin-bottom:16px}.damage-vehicle-picker>small,.damage-vehicle-picker [role=alert] small{font-size:12px;color:#71839a}.damage-vehicle-picker [role=alert]{display:grid;gap:8px}.damage-vehicle-picker [role=alert] small{color:#b42318}
