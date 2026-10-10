@@ -14,7 +14,7 @@ import { scopeHistory } from "@/lib/history-scope";
 import { employeeState, employeeStatus } from "@/lib/employee-status";
 import { employeeEditPayload } from "@/lib/employee-edit";
 
-const db = () => getSupabaseServerClient();
+const db = (actorEmail?: string) => getSupabaseServerClient(actorEmail);
 const SUPER_ADMIN_EMAIL = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
 const HELP_DESK_TO = ["ithelpdesk@jne.co.id", "helpdesk3@jne.co.id", "helpdesk2@jne.co.id", "helpdesk4@jne.co.id", "tgr.itadmin@jne.co.id", "tgr.it@jne.co.id"].join(",");
 const HELP_DESK_CC = ["adhitya.nugraha@jne.co.id", "giga.pratama@jne.co.id", "feri.achmad555@gmail.com", "tgr.adm2@jne.co.id"].join(",");
@@ -193,7 +193,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getSession(req);
   if (!session || !["super_admin", "admin", "coordinator", "spv", "jr_spv", "viewer"].includes(session.role)) return NextResponse.json({ ok: false, error: "Akses administrator diperlukan." }, { status: 403, headers: { "Cache-Control": "no-store" } });
-  const supabase = db(); if (!supabase) return NextResponse.json({ ok: false, preview: true, error: "Mode preview: Supabase belum dikonfigurasi" }, { status: 200 });
+  const supabase = db(session.email); if (!supabase) return NextResponse.json({ ok: false, preview: true, error: "Mode preview: Supabase belum dikonfigurasi" }, { status: 200 });
   const isMultipart = req.headers.get("content-type")?.includes("multipart/form-data");
   const multipart = isMultipart ? await req.formData() : null;
   const body = multipart ? Object.fromEntries(multipart.entries()) : await req.json();

@@ -4,6 +4,8 @@ import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit, deleteFromIm
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 import { BARKUR_MAX_PHOTOS, BARKUR_MAX_UPLOAD_BYTES, BARKUR_ROLES, BARKUR_STATUSES, barkurUuid, barkurTime, driveEvidence, barkurFilters, applyBarkurFilters, barkurCsv, BarkurRecord } from "@/lib/barkur";
 export const runtime = "nodejs";
+import {exportEvidenceLinks} from '@/lib/evidence-export';
+import {evidenceReportWorkbook} from '@/lib/evidence-report-workbook';
 const TABLE = "ops_barkur", BUCKET = "ops-barkur-evidence";
 const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
 const databaseError = (error: { code?: string; message?: string }) => ["42P01", "PGRST205"].includes(error.code || "") ? "Modul BARKUR belum siap. Terapkan migration 20261008_barkur.sql terlebih dahulu." : "Penyimpanan BARKUR belum dapat diakses. Silakan coba lagi.";
@@ -43,8 +45,9 @@ export async function GET(req: NextRequest) {
         if (result.error) return json({ error: databaseError(result.error) }, 503);
         rows.push(...(result.data || [])); if ((result.data || []).length < 1000) break;
       }
-      // Request host is used only for exported same-origin evidence links.
-      return new NextResponse(barkurCsv(rows, req.nextUrl.origin), { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="rekap-barkur.csv"', "Cache-Control": "private, no-store" } });
+      const links=await exportEvidenceLinks(db,'barkur',rows.filter(row=>(row.evidence||[]).some((photo:any)=>photo.path)).map(row=>row.id),ctx.session!.email,req.nextUrl.origin);
+      const csv=barkurCsv(rows,req.nextUrl.origin,links),xlsx=params.get('format')==='xlsx';
+      return new NextResponse(xlsx?evidenceReportWorkbook(csv,'BARKUR'):csv,{headers:{'Content-Type':xlsx?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'text/csv; charset=utf-8','Content-Disposition':`attachment; filename="rekap-barkur.${xlsx?'xlsx':'csv'}"`,'Cache-Control':'private, no-store'}});
     }
     const offset = Number(params.get("offset") || 0);
     if (!Number.isSafeInteger(offset) || offset < 0) return json({ error: "Halaman tidak valid." }, 400);

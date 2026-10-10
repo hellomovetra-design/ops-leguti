@@ -49,8 +49,8 @@ export function applyBarkurFilters(query: any, filters: ReturnType<typeof barkur
   if (filters.to) query = query.lte("incident_at", filters.to + "T23:59:59.999+07:00");
   return query;
 }
-export function barkurCsv(rows: BarkurRecord[], base: string) {
+export function barkurCsv(rows: BarkurRecord[], base: string,links:Map<string,string>=new Map()) {
   const time = (value: string | null) => value ? new Date(value).toLocaleString("id-ID", { timeZone: "Asia/Jakarta" }) : "";
   const cell = (value: unknown) => { let text = String(value ?? ""); if (/^\s*[=+@-]/.test(text)) text = "'" + text; return '"' + text.replace(/"/g, '""') + '"'; };
-  return "\uFEFF" + [["AWB", "NO BAG", "ORIGIN", "UNIT PENERIMA", "KEJADIAN (WIB)", "EMAIL DIKIRIM (WIB)", "SELISIH KE EMAIL", "PIC", "KETERANGAN", "STATUS", "HASIL PENELUSURAN", "BUKTI EMAIL", "DICATAT OLEH"], ...rows.map(row => [row.awb, row.bag_number, row.origin, row.destination, time(row.incident_at), time(row.email_sent_at), emailDelay(row), row.pic, row.description, BARKUR_STATUSES[row.status], row.resolution, [row.evidence_link, ...row.evidence.map((_, index) => `${base}/api/barkur?type=evidence&id=${row.id}&index=${index}`)].filter(Boolean).join("\n"), row.created_by])].map(row => row.map(cell).join(",")).join("\r\n");
+  return "\uFEFF" + [["AWB", "NO BAG", "ORIGIN", "UNIT PENERIMA", "KEJADIAN (WIB)", "EMAIL DIKIRIM (WIB)", "SELISIH KE EMAIL", "PIC", "KETERANGAN", "STATUS", "HASIL PENELUSURAN", "LINK FOTO BUKTI", "LINK GOOGLE DRIVE", "DICATAT OLEH"], ...rows.map(row => [row.awb, row.bag_number, row.origin, row.destination, time(row.incident_at), time(row.email_sent_at), emailDelay(row), row.pic, row.description, BARKUR_STATUSES[row.status], row.resolution, links.get(row.id)||"", row.evidence_link, row.created_by])].map(row => row.map(cell).join(",")).join("\r\n");
 }

@@ -55,12 +55,12 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
   const downloadReport=async()=>{
     if(exportLock.current)return;exportLock.current=true;setExporting(true);setNotice("");
     try{
-      const p=new URLSearchParams({type:"export",scope:"admin",q,status,from,to});
+      const p=new URLSearchParams({type:"export",format:"xlsx",scope:"admin",q,status,from,to});
       const response=await fetch(`/api/damage-cases?${p}`,{cache:"no-store"});
       if(!response.ok){const data=await response.json();throw new Error(data.error||"Report belum dapat diunduh.");}
       const url=URL.createObjectURL(await response.blob()),link=document.createElement("a");
-      link.href=url;link.download="report-damage-case.csv";document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
-      setNotice("Report Damage Case berhasil diunduh.");
+      link.href=url;link.download="report-damage-case.xlsx";document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+      setNotice("Report berhasil diunduh. Link foto dapat dibuka tanpa login; link yang sudah dicabut tidak disertakan.");
     }catch(e){setNotice(e instanceof Error?e.message:"Report belum dapat diunduh.");}
     finally{exportLock.current=false;setExporting(false);}
   };

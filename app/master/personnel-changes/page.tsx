@@ -1,2 +1,2 @@
-import { EmployeeAdmin } from "@/components/employee-admin";
-export default function Page() { return <EmployeeAdmin />; }
+import {PersonnelChanges} from '@/components/personnel-changes';
+export default function Page(){return <PersonnelChanges/>;}

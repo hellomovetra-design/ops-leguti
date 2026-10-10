@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
 const {NextRequest}=require('next/server');
-function load(file,mocks={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{module:m,exports:m.exports,require:n=>mocks[n]||require(n),process:{env:{}},console,URL,Date,File,Response,Uint8Array,crypto:globalThis.crypto});return m.exports;}
+function load(file,mocks={}){const m={exports:{}};mocks['@/lib/evidence-export']={exportEvidenceLinks:async(db,kind,ids,actor,origin)=>new Map(ids.map(id=>[id,origin+'/evidence/'+'a'.repeat(64)]))};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{module:m,exports:m.exports,require:n=>n==='@/lib/evidence-report-workbook'?load('lib/evidence-report-workbook.ts'):mocks[n]||require(n),process:{env:{}},console,URL,Date,File,Response,Uint8Array,crypto:globalThis.crypto});return m.exports;}
 const lib=load('lib/damage-case.ts');
 const vehicle={plate:'B 9271 CCG',vehicle_code:'TGR 132',vehicle_type:'CDD LONG'};
 for(const query of ['b9271','9271 ccg','TGR132','tgr 132','cddlong',''])assert(lib.damageVehicleMatches(vehicle,query),query);
@@ -55,7 +55,8 @@ const get=(q='')=>api.GET(new NextRequest('http://localhost/api/damage-cases'+q)
  assert.equal((await post({action:'review',status:'completed',resolution:'Sudah ditindaklanjuti',updated_at:rows[0].updated_at},0)).status,200);
  assert.equal((await(await get('?scope=admin&status=open')).json()).total,0);
  assert.equal((await(await get('?scope=admin&q=JT123')).json()).total,1);assert.equal((await get('?offset=-1')).status,400);
- const report=await get('?type=export&scope=admin');assert.equal(report.status,200);assert(report.headers.get('content-disposition').includes('report-damage-case.csv'));const csv=await report.text();assert(csv.includes('LINK FOTO BUKTI'));assert(csv.includes('http://localhost/pwa/damage-evidence/'+id));assert(csv.includes('Sudah ditindaklanjuti'));
+ const report=await get('?type=export&scope=admin');assert.equal(report.status,200);assert(report.headers.get('content-disposition').includes('report-damage-case.csv'));const csv=await report.text();assert(csv.includes('LINK FOTO BUKTI'));assert(csv.includes('http://localhost/evidence/'+'a'.repeat(64)));assert(!csv.includes('/pwa/'));assert(csv.includes('Sudah ditindaklanjuti'));
+ const excel=await get('?type=export&format=xlsx&scope=admin');assert.equal(excel.status,200);assert(excel.headers.get('content-disposition').includes('.xlsx'));const xlsx=require('xlsx'),book=xlsx.read(Buffer.from(await excel.arrayBuffer()));assert.equal(book.Sheets['Damage Case'].K2.l.Target,'http://localhost/evidence/'+'a'.repeat(64));
  assert.equal((await get('?from=2026-02-30')).status,400);assert.equal((await get('?from=2026-10-09&to=2026-10-08')).status,400);
  assert.equal((await(await get('?type=export&from=2026-10-09')).text()).includes('JT123'),false);
  assert.equal((await(await get('?type=export&from=2026-10-08&to=2026-10-08')).text()).includes('JT123'),true);

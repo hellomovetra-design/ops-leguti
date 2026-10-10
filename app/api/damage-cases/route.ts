@@ -4,6 +4,8 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 import { DAMAGE_ADMINS, DAMAGE_STATUSES, DAMAGE_UUID, damagePlateKey, damageCsv, damageImageValid, damageValues } from "@/lib/damage-case";
 import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit, deleteFromImageKit } from "@/lib/imagekit";
 export const runtime = "nodejs";
+import {exportEvidenceLinks} from '@/lib/evidence-export';
+import {evidenceReportWorkbook} from '@/lib/evidence-report-workbook';
 const TABLE = "ops_damage_cases", BUCKET = "ops-damage-photos";
 const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
 const failure = (error: { code?: string }) => ["42P01", "PGRST205"].includes(error.code || "") ? "Fitur Damage Case belum siap. Terapkan migration 20261008_damage_cases.sql." : "Data belum dapat diproses. Silakan coba lagi.";
@@ -74,7 +76,9 @@ export async function GET(req: NextRequest) {
         rows.push(...(result.data || []));
         if ((result.data || []).length < 1000) break;
       }
-      return new NextResponse(damageCsv(rows,req.nextUrl.origin), { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": 'attachment; filename="report-damage-case.csv"', "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
+      const links=await exportEvidenceLinks(db!, 'damage',rows.filter(row=>(row.photos||[]).some((photo:any)=>photo.path)).map(row=>row.id),session!.email,req.nextUrl.origin);
+      const csv=damageCsv(rows,req.nextUrl.origin,links),xlsx=p.get('format')==='xlsx';
+      return new NextResponse(xlsx?evidenceReportWorkbook(csv,'Damage Case'):csv, { headers: { "Content-Type": xlsx?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':"text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="report-damage-case.${xlsx?'xlsx':'csv'}"`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
     }
     const query = filtered();
     const result = await query.order("created_at", { ascending: false }).order("id").range(offset, offset+24);

@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
 const {NextRequest}=require('next/server');
-function load(file,mocks={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{module:m,exports:m.exports,require:n=>mocks[n]||require(n),process:{env:{}},console,URL,Date,File,Response,Uint8Array,crypto:globalThis.crypto});return m.exports;}
+function load(file,mocks={}){const m={exports:{}};mocks['@/lib/evidence-export']={exportEvidenceLinks:async(db,kind,ids,actor,origin)=>new Map(ids.map(id=>[id,origin+'/evidence/'+'a'.repeat(64)]))};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{module:m,exports:m.exports,require:n=>n==='@/lib/evidence-report-workbook'?load('lib/evidence-report-workbook.ts'):mocks[n]||require(n),process:{env:{}},console,URL,Date,File,Response,Uint8Array,crypto:globalThis.crypto});return m.exports;}
 const lib=load('lib/barkur.ts');
 assert.equal(lib.barkurTime('2026-10-08T09:00'),'2026-10-08T02:00:00.000Z');
 assert.throws(()=>lib.barkurTime('2026-02-30T09:00'));
@@ -27,7 +27,8 @@ const get=(q='')=>api.GET(new NextRequest('http://localhost/api/barkur'+q));
  result=await(await post({action:'update',updated_at:rows[0].updated_at,status:'completed',resolution:'Barang ditemukan',evidence_link:'https://drive.google.com/file/d/old/view'})).json();assert(result.ok);assert.equal(result.item.evidence.length,1);
  assert.equal((await(await get('?q=JT123')).json()).total,1);assert.equal((await(await get('?q=NOTFOUND')).json()).total,0);assert.equal((await(await get('?status=open')).json()).total,0);
  assert.equal((await get('?offset=-1')).status,400);assert.equal((await get('?from=2026-02-30')).status,400);
- const csv=await(await get('?type=export')).text();assert(csv.includes('http://localhost/api/barkur?type=evidence'));assert(csv.includes('Barang ditemukan'));assert(csv.includes('drive.google.com'));
+ const csv=await(await get('?type=export')).text();assert(csv.includes('http://localhost/evidence/'+'a'.repeat(64)));assert(!csv.includes('/api/barkur'));assert(csv.includes('Barang ditemukan'));assert(csv.includes('drive.google.com'));
+ const excel=await get('?type=export&format=xlsx');assert.equal(excel.status,200);const xlsx=require('xlsx'),book=xlsx.read(Buffer.from(await excel.arrayBuffer()));assert.equal(book.Sheets.BARKUR.L2.l.Target,'http://localhost/evidence/'+'a'.repeat(64));assert.equal(book.Sheets.BARKUR.M2.l.Target,'https://drive.google.com/file/d/old/view');
  // Append three photos to the existing screenshot, preserving its private path.
  const originalPath=rows[0].evidence[0].path;
  result=await(await post({action:'update',updated_at:rows[0].updated_at},[png,png,png])).json();
@@ -36,7 +37,7 @@ const get=(q='')=>api.GET(new NextRequest('http://localhost/api/barkur'+q));
  assert.equal((await get('?type=evidence&id='+id+'&index=4')).status,400);
  assert.equal((await post({action:'update',updated_at:rows[0].updated_at},png)).status,400);
  assert.equal(stored.size,4);assert.equal(rows[0].evidence.length,4);
- assert((await(await get('?type=export')).text()).includes('index=3'));
+ assert(!(await(await get('?type=export')).text()).includes('type=evidence'));
  const newId='22222222-2222-4222-8222-222222222222';
  assert.equal((await post({id:newId},[png,png,png,png,png])).status,400);
  assert.equal(stored.size,4);
