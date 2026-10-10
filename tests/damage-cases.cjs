@@ -5,24 +5,28 @@ const lib=load('lib/damage-case.ts');
 const vehicle={plate:'B 9271 CCG',vehicle_code:'TGR 132',vehicle_type:'CDD LONG'};
 for(const query of ['b9271','9271 ccg','TGR132','tgr 132','cddlong',''])assert(lib.damageVehicleMatches(vehicle,query),query);
 assert(!lib.damageVehicleMatches(vehicle,'9999'));
+for(const query of ['argo','argo pantes','ARGOPANTES','pantes','']) assert(lib.damageVehicleMatches({plate:'ARGO PANTES',vehicle_code:'',vehicle_type:''},query));
+const warehouseSeed=fs.readFileSync('supabase/migrations/20261010_damage_warehouse_master.sql','utf8');
+const seededNames=[...warehouseSeed.matchAll(/\('([^']+)'\)/g)].map(match=>match[1]);
+assert.equal(seededNames.length,17);assert.equal(new Set(seededNames.map(lib.damagePlateKey)).size,17);
 const picker=fs.readFileSync('components/damage-vehicle-picker.tsx','utf8');
 assert(picker.includes('role="combobox"'));assert(picker.includes('role="listbox"'));
 assert(!picker.includes('<select'));assert(picker.includes('onChange("")'));
-const values={awb:' jt123 ',trip:'TRIP1',fleet:'Truck',plate:'b 1234 aa',remark:'Kemasan rusak'};
+const values={awb:' jt123 ',trip:'MEGA HUB',fleet:'Truck',plate:'b 1234 aa',remark:'Kemasan rusak'};
 assert.equal(lib.damageValues(k=>values[k]).awb,'JT123');
-const warehouseValues={...values,trip:'WH CGK',fleet:''};
+const warehouseValues={...values,trip:'ARGO PANTES',fleet:''};
 assert.equal(lib.damageValues(k=>warehouseValues[k]).fleet,'');
-assert.equal(lib.damageValues(k=>warehouseValues[k]).trip,'WH CGK');
+assert.equal(lib.damageValues(k=>warehouseValues[k]).trip,'ARGO PANTES');
 assert.throws(()=>lib.damageValues(k=>k==='plate'?'':warehouseValues[k]));
 const panel=fs.readFileSync('components/damage-case-panel.tsx','utf8');
-assert(panel.includes('<label>Origin Warehouse'));
+assert(panel.includes('warehouse value={form.trip}'));
 assert(panel.includes('<DamageVehiclePicker'));
 assert(panel.includes('{admin&&<div className="damage-toolbar">'));
 assert(!panel.includes('<label>Armada'));
 assert(lib.damageCsv([], 'https://ops.movetra.id').includes('ORIGIN WAREHOUSE'));
 assert.throws(()=>lib.damageValues(k=>k==='remark'?'':values[k]));
 let session={email:'staff@example.test',role:'viewer'},rows=[],stored=new Map(),missing=false,failUpload=-1,uploadCount=0;
-const db={from(table){if(table==='ops_damage_vehicle_master'){let filters=[];const items=[{plate_key:'B1234AA',plate:'B 1234 AA',vehicle_code:'TGR132',vehicle_type:'CDE',active:true}];const q={select(){return q},eq(k,v){filters.push(r=>r[k]===v);return q},order(){return q},range(){return q},maybeSingle:async()=>({data:items.find(r=>filters.every(f=>f(r)))||null,error:missing?{code:'42P01'}:null}),then(resolve){return Promise.resolve({data:items.filter(r=>filters.every(f=>f(r))),error:missing?{code:'42P01'}:null}).then(resolve)}};return q;}let mode='select',payload,filters=[],bounds=[0,999];const q={select(){return q},order(){return q},eq(k,v){filters.push(r=>r[k]===v);return q},gte(k,v){filters.push(r=>Date.parse(r[k])>=Date.parse(v));return q},lte(k,v){filters.push(r=>Date.parse(r[k])<=Date.parse(v));return q},ilike(k,v){filters.push(r=>String(r[k]).toLowerCase().includes(v.slice(1,-1).toLowerCase()));return q},range(a,b){bounds=[a,b];return q},insert(p){mode='insert';payload=p;return q},update(p){mode='update';payload=p;return q},single(){return run(true)},maybeSingle(){return run(true)},then(resolve,reject){return run(false).then(resolve,reject)}};
+const db={from(table){if(table==='ops_damage_warehouse_master'){let filters=[];const items=[{name_key:'MEGAHUB',name:'MEGA HUB',active:true},{name_key:'ARGOPANTES',name:'ARGO PANTES',active:true},{name_key:'CLOSED',name:'CLOSED',active:false}];const q={select(){return q},eq(k,v){filters.push(r=>r[k]===v);return q},order(){return q},range(){return q},maybeSingle:async()=>({data:items.find(r=>filters.every(f=>f(r)))||null,error:missing?{code:'42P01'}:null}),then(resolve){return Promise.resolve({data:items.filter(r=>filters.every(f=>f(r))),error:missing?{code:'42P01'}:null}).then(resolve)}};return q;}if(table==='ops_damage_vehicle_master'){let filters=[];const items=[{plate_key:'B1234AA',plate:'B 1234 AA',vehicle_code:'TGR132',vehicle_type:'CDE',active:true}];const q={select(){return q},eq(k,v){filters.push(r=>r[k]===v);return q},order(){return q},range(){return q},maybeSingle:async()=>({data:items.find(r=>filters.every(f=>f(r)))||null,error:missing?{code:'42P01'}:null}),then(resolve){return Promise.resolve({data:items.filter(r=>filters.every(f=>f(r))),error:missing?{code:'42P01'}:null}).then(resolve)}};return q;}let mode='select',payload,filters=[],bounds=[0,999];const q={select(){return q},order(){return q},eq(k,v){filters.push(r=>r[k]===v);return q},gte(k,v){filters.push(r=>Date.parse(r[k])>=Date.parse(v));return q},lte(k,v){filters.push(r=>Date.parse(r[k])<=Date.parse(v));return q},ilike(k,v){filters.push(r=>String(r[k]).toLowerCase().includes(v.slice(1,-1).toLowerCase()));return q},range(a,b){bounds=[a,b];return q},insert(p){mode='insert';payload=p;return q},update(p){mode='update';payload=p;return q},single(){return run(true)},maybeSingle(){return run(true)},then(resolve,reject){return run(false).then(resolve,reject)}};
 async function run(single){if(missing)return{error:{code:'42P01'},data:null};if(mode==='insert'){if(rows.some(r=>r.id===payload.id))return{data:null,error:{code:'23505'}};rows.push({...payload,status:'open',resolution:'',created_at:'2026-10-08T01:00:00Z',updated_at:'2026-10-08T01:00:00Z'});}const found=rows.filter(r=>filters.every(f=>f(r)));if(mode==='update')found.forEach(r=>Object.assign(r,payload,{updated_at:'2026-10-08T02:00:00Z'}));return{data:single?found[0]||null:found.slice(bounds[0],bounds[1]+1),count:found.length,error:null};}return q},storage:{from(){return{async remove(){return{error:null}}}}}};
 const api=load('app/api/damage-cases/route.ts',{'@/lib/damage-case':lib,'@/lib/imagekit':{isImageKitConfigured:()=>true,uploadToImageKit:async(file,path)=>{const index=uploadCount++;if(index===failUpload)throw Error('Upload failure');stored.set('imagekit:'+path,file);return{path,fileId:'imagekit:'+path}},fetchFromImageKit:async(path)=>{const file=stored.get('imagekit:'+path);return new Response(file,{headers:{'content-type':file.type}})},deleteFromImageKit:async(id)=>stored.delete(id)},'@/lib/supabase':{getSupabaseServerClient:()=>db},'@/lib/auth-token':{SESSION_COOKIE:'jne_session',verifySessionToken:async()=>session}});
 const id='11111111-1111-4111-8111-111111111111';
@@ -32,13 +36,13 @@ const get=(q='')=>api.GET(new NextRequest('http://localhost/api/damage-cases'+q)
 (async()=>{
  session=null;assert.equal((await get('?type=vehicles')).status,401);assert.equal((await get()).status,401);session={email:'staff@example.test',role:'viewer'};
  assert.equal((await get('?type=vehicles')).status,200);
- assert.equal((await post({plate:'UNKNOWN'})).status,400);assert.equal(stored.size,0);
+ assert.equal((await get('?type=warehouses')).status,200);assert.equal((await(await get('?type=warehouses')).json()).items.length,2);assert.equal((await post({trip:'UNKNOWN'})).status,400);assert.equal((await post({trip:'CLOSED'})).status,400);assert.equal(stored.size,0);assert.equal((await post({plate:'UNKNOWN'})).status,400);assert.equal(stored.size,0);
  assert.equal((await get('?scope=admin')).status,403);
  assert.equal((await post({},4,false,'https://evil.test')).status,403);
  assert.equal((await post({},0)).status,400);assert.equal((await post({},5)).status,400);assert.equal((await post({},4,true)).status,400);
  assert.equal((await post({awb:''})).status,400);assert.equal(stored.size,0);
  failUpload=1;assert.equal((await post()).status,400);assert.equal(rows.length,0);assert.equal(stored.size,0,'Clean up partial uploads before insert');failUpload=-1;
- let result=await(await post({trip:'WH CGK',fleet:'',plate:'b 1234 aa'})).json();assert(result.ok);assert.equal(rows.length,1);assert.equal(stored.size,4);assert.equal(rows[0].plate,'B 1234 AA');assert.equal(rows[0].trip,'WH CGK');assert.equal(rows[0].fleet,'');
+ let result=await(await post({trip:' argo pantes ',fleet:'',plate:'b 1234 aa'})).json();assert(result.ok);assert.equal(rows.length,1);assert.equal(stored.size,4);assert.equal(rows[0].plate,'B 1234 AA');assert.equal(rows[0].trip,'ARGO PANTES');assert.equal(rows[0].fleet,'');
  assert.equal(result.item.photos.length,4);assert(!result.item.photos[0].path);assert(!JSON.stringify(result.item).includes('imagekit:'));assert.equal(result.item.evidence_url,'/pwa/damage-evidence/'+id);
  await post();assert.equal(rows.length,1);assert.equal(stored.size,4,'Retry must not upload twice');
  assert.equal((await get('?id='+id)).status,200);assert.equal((await get('?type=photo&id='+id+'&index=0')).status,200);
@@ -69,5 +73,17 @@ const get=(q='')=>api.GET(new NextRequest('http://localhost/api/damage-cases'+q)
    assert.equal((await get('?type=photo&id='+id+'&index=0')).status,200);
    assert.equal(stored.size,count);
  }
- console.log('PASS: Damage Case fields, one-to-four-photo validation, sparse slots, private ImageKit proxy, partial-upload cleanup, persistence, idempotent retry, personal PWA history, admin-only review, optimistic locking, filters and migration errors.');
+ for(const role of ['super_admin','admin','spv']) {
+   rows=[];stored.clear();missing=false;session={email:'admin@example.test',role};
+   const response=await post({},1);assert.equal(response.status,200);
+   const result=await response.json();assert(result.ok);assert.equal(result.item.created_by,session.email);
+   assert.equal((await(await get('?scope=admin')).json()).total,1);
+ }
+ const panel=fs.readFileSync('components/damage-case-panel.tsx','utf8');
+ assert.equal((panel.match(/const inputForm=/g)||[]).length,1,'Admin and PWA share one input form');
+ assert(panel.includes('{!admin&&inputForm}'));assert(panel.includes('>{inputForm}</dialog>'));
+ assert(panel.includes('Tambah laporan'));assert(panel.includes('onCancel={event=>{event.preventDefault();closeCreate();}}'));
+ assert(panel.includes('if(locked.current||processing.length)return;'));
+ assert(panel.includes('if(admin){createDialog.current?.close();setCreating(false);}'));
+ console.log('PASS: Damage Case shared admin/PWA form, admin creation/attribution, fields, one-to-four-photo validation, sparse slots, private ImageKit proxy, partial-upload cleanup, persistence, idempotent retry, personal PWA history, admin-only review, optimistic locking, filters and migration errors.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

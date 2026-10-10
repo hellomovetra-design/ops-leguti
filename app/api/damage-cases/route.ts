@@ -20,6 +20,11 @@ export async function GET(req: NextRequest) {
   const { db, session, admin } = ctx; const p = req.nextUrl.searchParams;
   try {
     const id = p.get("id"), type = p.get("type");
+    if (type === "warehouses") {
+      const result = await db!.from("ops_damage_warehouse_master").select("name").eq("active", true).order("name").range(0,999);
+      if (result.error) return json({error:"Daftar warehouse belum siap. Terapkan migration 20261010_damage_warehouse_master.sql."},503);
+      return json({items:result.data || []});
+    }
     if (type === "vehicles") {
       const result = await db!.from("ops_damage_vehicle_master").select("plate,vehicle_code,vehicle_type").eq("active", true).order("plate").range(0,999);
       if (result.error) return json({error:"Daftar Nopol belum siap. Terapkan migration 20261009_damage_vehicle_master.sql."},503);
@@ -101,6 +106,10 @@ export async function POST(req: NextRequest) {
     if (existing.error) return json({ error: failure(existing.error) }, 503);
     if (existing.data) return existing.data.created_by === session!.email.toLowerCase() ? json({ ok: true, item: decorate(existing.data) }) : json({ error: "ID laporan sudah digunakan." }, 409);
     const values = damageValues(get);
+    const warehouse = await db!.from("ops_damage_warehouse_master").select("name").eq("name_key",damagePlateKey(values.trip)).eq("active",true).maybeSingle();
+    if (warehouse.error) return json({error:"Master warehouse belum dapat diakses. Silakan coba lagi."},503);
+    if (!warehouse.data) return json({error:"Pilih Origin Warehouse yang tersedia pada daftar."},400);
+    values.trip=warehouse.data.name;
     const vehicle = await db!.from("ops_damage_vehicle_master").select("plate").eq("plate_key",damagePlateKey(values.plate)).eq("active",true).maybeSingle();
     if (vehicle.error) return json({error:"Master Nopol belum dapat diakses. Silakan coba lagi."},503);
     if (!vehicle.data) return json({error:"Pilih Nopol yang tersedia pada daftar kendaraan."},400);

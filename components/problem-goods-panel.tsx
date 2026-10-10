@@ -1,4 +1,5 @@
 "use client";
+import { EvidenceShareControls } from "./evidence-share-controls";
 import { useCallback,useEffect,useRef,useState,FormEvent } from "react";
 import { Plus,Search,X,ChevronRight,Paperclip,Camera,Trash2 } from "lucide-react";
 import { PROBLEM_CATEGORIES,PROBLEM_STATUSES,PROBLEM_NEXT } from "@/lib/problem-records";
@@ -91,7 +92,7 @@ export function ProblemGoodsPanel({initialId=""}:{initialId?:string}){
     </div>
    </fieldset>{formError&&<p className="goods-notice error" role="alert">{formError}</p>}<div className="goods-form-footer"><button type="button" disabled={busy} onClick={closeDialog}>Batal</button><button className="primary" type="submit" disabled={busy}>{busy?"Menyimpan…":"Simpan problem"}</button></div></form>:detail&&<>
     <span className={`goods-status ${detail.status}`}>{PROBLEM_STATUSES[detail.status]||detail.status}</span><dl className="goods-details">{[["Kategori",detail.category],["Divisi",detail.division],["Lokasi",detail.location],["Pelapor",detail.created_by_email],["Dibuat",`${time(detail.created_at)} WIB`],["Keterangan",detail.description],["Diverifikasi oleh",detail.verified_by],["Waktu verifikasi",detail.verified_at?`${time(detail.verified_at)} WIB`:null],["Diselesaikan oleh",detail.resolved_by],["Waktu selesai",detail.resolved_at?`${time(detail.resolved_at)} WIB`:null],["Catatan tindak lanjut",detail.status_note]].filter(([label,value])=>!!value).map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
-    <section className="goods-evidence"><h3>Foto pendukung</h3>{detail.photos?.length?<div>{detail.photos.map((photo:Record<string,any>)=><a key={photo.id} href={photo.url} target="_blank" rel="noreferrer"><img src={photo.url} alt={photo.file_name||"Foto bukti problem"} loading="lazy"/><span>Lihat foto penuh</span></a>)}</div>:<p>Belum ada foto pendukung.</p>}</section>
+    <EvidenceShareControls kind="problem" id={detail.id}/><section className="goods-evidence"><h3>Foto pendukung</h3>{detail.photos?.length?<div>{detail.photos.map((photo:Record<string,any>)=><a key={photo.id} href={photo.url} target="_blank" rel="noreferrer"><img src={photo.url} alt={photo.file_name||"Foto bukti problem"} loading="lazy"/><span>Lihat foto penuh</span></a>)}</div>:<p>Belum ada foto pendukung.</p>}</section>
     {error&&<p className="goods-notice error" role="alert">{error}</p>}<div className="goods-drawer-footer">{canManage&&PROBLEM_NEXT[detail.status]&&<button className="primary goods-drawer-action" disabled={busy||loading} onClick={()=>progress(detail)}>{busy?"Menyimpan…":PROBLEM_NEXT[detail.status].label}</button>}{canDelete&&<button className="goods-delete" disabled={busy||loading} onClick={()=>remove(detail)}><Trash2 size={16}/>{deletingId===detail.id?"Menghapus…":"Hapus laporan"}</button>}</div>
    </>}
   </div></div>}

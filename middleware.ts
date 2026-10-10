@@ -24,6 +24,12 @@ function withSecurityHeaders(response: NextResponse) {
 }
 
 export async function middleware(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith('/evidence/') || request.nextUrl.pathname.startsWith('/api/evidence/')) {
+    const response = withSecurityHeaders(NextResponse.next());
+    response.headers.set('Cache-Control', 'private, no-store, max-age=0');
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+    return response;
+  }
   const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
   const finish = async (response: NextResponse) => {
     if (session && session.exp - Math.floor(Date.now() / 1000) < SESSION_MAX_AGE - 24 * 60 * 60) {
@@ -54,5 +60,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/login", "/dashboard/:path*", "/reports/:path*", "/master/:path*", "/settings/:path*", "/public/:path*", "/pwa/:path*"],
+  matcher: ["/login", "/dashboard/:path*", "/reports/:path*", "/master/:path*", "/settings/:path*", "/public/:path*", "/pwa/:path*", "/evidence/:path*", "/api/evidence/:path*"],
 };

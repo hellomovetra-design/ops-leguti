@@ -29,6 +29,10 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ items: [], error: "Sesi tidak valid." }, { status: 401, headers: { "Cache-Control": "no-store" } });
   const p = req.nextUrl.searchParams, type = p.get("type") || "overview", q = p.get("q") || "";
   const supabase = db();
+  if (type === "employees" && p.get("view") === "export") {
+    if (!["super_admin", "admin", "spv", "jr_spv", "coordinator"].includes(session.role)) return NextResponse.json({error:"Unduh data karyawan memerlukan akses dashboard."},{status:403});
+    if (!supabase) return NextResponse.json({error:"Database belum dapat diakses. Unduhan tidak menggunakan data contoh."},{status:503});
+  }
   if (!supabase && type === "employees") {
     const source = path.join(process.cwd(), "public", "struktur update 2026_SEPT.xlsx");
     if (fs.existsSync(source)) {
@@ -124,13 +128,22 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ profile: result.data ? { ...result.data, display_name: personelName || result.data.display_name, photo_url } : { email: session.email, display_name: personelName, photo_url: "" }, error: result.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   const employeeFields = "nik,tgrid,phone,email,name,position,dept,hub,level,superior,superior_nik,active,employment,employment_type,start_date,created_at";
-  if (type === "employees" && ["structure", "summary"].includes(p.get("view") || "")) {
+  if (type === "employees" && ["structure", "summary", "export"].includes(p.get("view") || "")) {
     const employees: any[] = [];
     for (let offset = 0; ; offset += 1000) {
       const page = await supabase.from("ops_employees").select(employeeFields).order("nik").range(offset, offset + 999);
       if (page.error) return NextResponse.json({ error: "Data struktur belum dapat dimuat." }, { status: 503 });
       employees.push(...(page.data || []));
       if ((page.data || []).length < 1000) break;
+    }
+    if (p.get("view") === "export") {
+      const tgrIds = new Map<string, string>();
+      for (let offset = 0; offset < employees.length; offset += 500) {
+        const couriers = await supabase.from("ops_courier_master").select("employee_nik,tgrid").in("employee_nik", employees.slice(offset,offset+500).map(row=>row.nik));
+        if (couriers.error) return NextResponse.json({error:"TGR ID master kurir belum dapat dimuat. Unduhan dibatalkan."},{status:503});
+        for (const courier of couriers.data || []) if (courier.employee_nik && courier.tgrid) tgrIds.set(courier.employee_nik,courier.tgrid);
+      }
+      return NextResponse.json({items:employees.map(row=>({...row,tgrid:tgrIds.get(row.nik)||row.tgrid||""})),exported_at:new Date().toISOString()},{headers:{"Cache-Control":"private, no-store"}});
     }
     if (p.get("view") === "summary") return NextResponse.json({ items: employees }, { headers: { "Cache-Control": "private, no-store" } });
     const photos = new Map<string, string>();
