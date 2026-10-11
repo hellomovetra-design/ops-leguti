@@ -11,7 +11,7 @@ export function damageAssetValues(body:Record<string,unknown>):{table:string;key
   const raw=text('value'),match=raw.match(/^([A-Z]{1,3})\s*(\d{1,4})\s*([A-Z]{0,3})$/);
   if(!match)throw Error('Format Nopol harus seperti B 9271 CCG.');
   const plate=[match[1],match[2],match[3]].filter(Boolean).join(' '),vehicle_code=text('vehicle_code'),vehicle_type=text('vehicle_type');
-  if([vehicle_code,vehicle_type].some(value=>!value||value.length>100||!/^[A-Z0-9][A-Z0-9 .&()/'-]*$/.test(value)))throw Error('Isi nomor / kode armada dan jenis kendaraan, maksimal 100 karakter.');
+  if([vehicle_code,vehicle_type].some(value=>!value||value.length>100||!/^[A-Z0-9][A-Z0-9 .&()/'-]*$/.test(value)))throw Error('Isi keterangan aset dan jenis kendaraan, maksimal 100 karakter.');
   return {table:'ops_damage_vehicle_master',key:'plate_key',fields:{plate,plate_key:damagePlateKey(plate),vehicle_code,vehicle_type},kind:'vehicle' as const};
  }
  throw Error('Jenis aset tidak valid.');
