@@ -10,6 +10,11 @@ const TABLE = "ops_damage_cases", BUCKET = "ops-damage-photos";
 const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
 const failure = (error: { code?: string }) => ["42P01", "PGRST205"].includes(error.code || "") ? "Fitur Damage Case belum siap. Terapkan migration 20261008_damage_cases.sql." : "Data belum dapat diproses. Silakan coba lagi.";
 const decorate = (row: any) => ({ ...row, evidence_url: `/pwa/damage-evidence/${row.id}`, photos: row.photos.map((p: any, index: number) => ({ name: p.name, slot: p.slot ?? index, url: `/api/damage-cases?type=photo&id=${row.id}&index=${index}` })) });
+async function assetList(db:any,table:string,fields:string,order:string){
+ const data:any[]=[];
+ for(let offset=0;;offset+=1000){const result=await db.from(table).select(fields).eq('active',true).order(order).range(offset,offset+999);if(result.error)return {data:[],error:result.error};data.push(...(result.data||[]));if((result.data||[]).length<1000)break;}
+ return {data,error:null};
+}
 async function context(req: NextRequest) {
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
   if (!session) return { error: json({ error: "Silakan login kembali." }, 401) };
@@ -23,14 +28,14 @@ export async function GET(req: NextRequest) {
   try {
     const id = p.get("id"), type = p.get("type");
     if (type === "warehouses") {
-      const result = await db!.from("ops_damage_warehouse_master").select("name").eq("active", true).order("name").range(0,999);
+      const result = await assetList(db!,"ops_damage_warehouse_master","name","name");
       if (result.error) return json({error:"Daftar warehouse belum siap. Terapkan migration 20261010_damage_warehouse_master.sql."},503);
-      return json({items:result.data || []});
+      return json({items:result.data || [],can_create:admin});
     }
     if (type === "vehicles") {
-      const result = await db!.from("ops_damage_vehicle_master").select("plate,vehicle_code,vehicle_type").eq("active", true).order("plate").range(0,999);
+      const result = await assetList(db!,"ops_damage_vehicle_master","plate,vehicle_code,vehicle_type","plate");
       if (result.error) return json({error:"Daftar Nopol belum siap. Terapkan migration 20261009_damage_vehicle_master.sql."},503);
-      return json({items:result.data || []});
+      return json({items:result.data || [],can_create:admin});
     }
     if (type === "export" && !admin) return json({ error: "Unduh report khusus administrator." }, 403);
     if (id || type === "photo") {

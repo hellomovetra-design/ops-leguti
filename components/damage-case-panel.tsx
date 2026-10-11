@@ -106,12 +106,12 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
   const inputForm=<form className="mobile-card pwa-form damage-form" onSubmit={submit} aria-busy={saving}>
       <div className="damage-form-heading"><h2 id="damage-create-title">Laporan bongkar muat</h2>{admin&&<button type="button" className="icon-btn" disabled={saving||processing.length>0} onClick={closeCreate} aria-label="Tutup form Damage Case"><X size={20}/></button>}</div><fieldset disabled={saving}>
         <label>No. AWB<input required maxLength={80} value={form.awb} onChange={e=>setForm({...form,awb:e.target.value.toUpperCase()})}/></label>
-        <DamageVehiclePicker key={`warehouse-${form.id}`} warehouse value={form.trip} disabled={saving} onChange={trip=>setForm({...form,trip})}/>
-        <DamageVehiclePicker key={form.id} value={form.plate} disabled={saving} onChange={plate=>setForm({...form,plate})}/>
+        <DamageVehiclePicker key={`warehouse-${form.id}`} warehouse value={form.trip} disabled={saving} onChange={trip=>setForm(current=>({...current,trip}))}/>
+        <DamageVehiclePicker key={form.id} value={form.plate} disabled={saving} onChange={plate=>setForm(current=>({...current,plate}))}/>
         <label>Remark problem<textarea required rows={4} maxLength={5000} value={form.remark} onChange={e=>setForm({...form,remark:e.target.value})}/></label>
         <p className="damage-photo-hint">Minimal 1 foto, maksimal 4 foto.</p><div className="damage-photo-grid">{files.map((file,index)=><PhotoPicker key={`${form.id}-${index}`} index={index} file={file} busy={saving||processing.includes(index)} onChange={file=>void choose(index,file)}/>)}</div>
         {processing.length>0&&<p role="status">Menyiapkan foto…</p>}
-        {admin&&notice&&<p className="damage-notice" role="status">{notice}</p>}<div className="damage-form-actions">{admin&&<button className="btn" type="button" disabled={saving||processing.length>0} onClick={closeCreate}>Batal</button>}<button className="mobile-submit" disabled={saving||processing.length>0||!files.some(Boolean)||!form.plate}>{saving?(admin?"Menyimpan…":"Mengirim…"):(admin?"Simpan Damage Case":"Kirim Damage Case")}</button></div>
+        {admin&&notice&&<p className="damage-notice" role="status">{notice}</p>}<div className="damage-form-actions">{admin&&<button className="btn" type="button" disabled={saving||processing.length>0} onClick={closeCreate}>Batal</button>}<button className="mobile-submit" disabled={saving||processing.length>0||!files.some(Boolean)||!form.plate||!form.trip}>{saving?(admin?"Menyimpan…":"Mengirim…"):(admin?"Simpan Damage Case":"Kirim Damage Case")}</button></div>
       </fieldset>
     </form>;
   return <section className={`damage-module${admin?" admin":""}`}>
