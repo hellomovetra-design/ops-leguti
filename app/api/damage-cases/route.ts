@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
       if (status) query = query.eq("status", status);
       if (from) query = query.gte("created_at", `${from}T00:00:00+07:00`);
       if (to) query = query.lte("created_at", `${to}T23:59:59.999999+07:00`);
-      return query.order("created_at", { ascending: scope === "admin" || type === "export" }).order("id");
+      return query.order("created_at", { ascending: false }).order("id", { ascending: false });
     };
     if (type === "export") {
       const rows = [];

@@ -4,8 +4,8 @@ function load(file,mocks={}){const m={exports:{}};mocks['@/lib/damage-senders']=
 const lib=load('lib/damage-case.ts');
 assert.equal(Object.values(lib.DAMAGE_STATUSES).join(','),'Baru,Proses,Selesai');
 const routeSource=fs.readFileSync('app/api/damage-cases/route.ts','utf8');
-assert(routeSource.includes('ascending: scope === "admin" || type === "export"'));
-assert(!routeSource.includes('query.order("created_at", { ascending: false })'));
+assert(routeSource.includes('query.order("created_at", { ascending: false }).order("id", { ascending: false })'));
+assert(!routeSource.includes('ascending: scope === "admin" || type === "export"'));
 const vehicle={plate:'B 9271 CCG',vehicle_code:'TGR 132',vehicle_type:'CDD LONG'};
 for(const query of ['b9271','9271 ccg','TGR132','tgr 132','cddlong',''])assert(lib.damageVehicleMatches(vehicle,query),query);
 assert(!lib.damageVehicleMatches(vehicle,'9999'));
