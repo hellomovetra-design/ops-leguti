@@ -37,6 +37,8 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
   const exportLock=useRef(false);
   const [creating,setCreating]=useState(false);
   const createDialog=useRef<HTMLDialogElement>(null);
+  const detailDialog=useRef<HTMLDialogElement>(null);
+  const detailHeading=useRef<HTMLHeadingElement>(null);
   const [form,setForm]=useState(()=>({id:crypto.randomUUID(),awb:"",trip:"",plate:"",remark:""}));
   const [files,setFiles]=useState<(File|null)[]>([null,null,null,null]),[processing,setProcessing]=useState<number[]>([]),[saving,setSaving]=useState(false),[notice,setNotice]=useState("");
   const [review,setReview]=useState({status:"open",resolution:""});
@@ -82,6 +84,18 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
     createDialog.current?.close();setCreating(false);
   };
   useEffect(()=>{if(creating&&!createDialog.current?.open)createDialog.current?.showModal();},[creating]);
+  useEffect(()=>{
+    if(!selected?.id)return;
+    const dialog=detailDialog.current;
+    if(!dialog)return;
+    const previousOverflow=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    if(!dialog.open)dialog.showModal();
+    detailHeading.current?.focus({preventScroll:true});
+    dialog.scrollTop=0;
+    return()=>{document.body.style.overflow=previousOverflow;};
+  },[selected?.id]);
+  const closeDetail=()=>{if(locked.current)return;detailDialog.current?.close();setSelected(null);};
   const submit=async(event:React.FormEvent)=>{
     event.preventDefault();if(locked.current||processing.length)return;
     if(!files.some(Boolean)){setNotice("Tambahkan minimal 1 foto.");return;}
@@ -98,7 +112,7 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
   };
   const saveReview=async(event:React.FormEvent)=>{
     event.preventDefault();if(locked.current||!selected)return;locked.current=true;setSaving(true);setNotice("");
-    try{const data=new FormData();Object.entries({action:"review",id:selected.id,updated_at:selected.updated_at,...review}).forEach(([k,v])=>data.append(k,v));const response=await fetch("/api/damage-cases",{method:"POST",body:data}),result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||"Perubahan belum tersimpan.");setSelected(result.item);setNotice("Status Damage Case berhasil diperbarui.");void load();}
+    try{const data=new FormData();Object.entries({action:"review",id:selected.id,updated_at:selected.updated_at,...review}).forEach(([k,v])=>data.append(k,v));const response=await fetch("/api/damage-cases",{method:"POST",body:data}),result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||"Perubahan belum tersimpan.");setSelected({...result.item,sender_name:selected.sender_name,sender_nik:selected.sender_nik});setNotice("Status Damage Case berhasil diperbarui.");void load();}
     catch(e){setNotice(e instanceof Error?e.message:"Perubahan belum tersimpan.");}
     finally{locked.current=false;setSaving(false);}
   };
@@ -118,16 +132,17 @@ export function DamageCasePanel({ admin = false, onSaved }: { admin?: boolean; o
     {admin?<div className="section-head"><div><div className="eyebrow">OPERASIONAL · GUDANG</div><h1 className="headline">Damage Case</h1><p className="subtitle">Laporan kerusakan barang saat bongkar muat.</p></div><div className="actions"><button className="primary" disabled={saving} onClick={()=>{setSelected(null);setNotice("");setCreating(true);}}><Plus size={16}/>Tambah laporan</button><button className="btn" disabled={loading} onClick={()=>void load()}>Muat ulang</button><button className="primary" disabled={exporting||loading||!!error||total===0} onClick={()=>void downloadReport()}><Download size={16}/>{exporting?"Menyiapkan report…":"Unduh report"}</button></div></div>:<div className="pwa-page-title">Damage Case</div>}
     {!admin&&inputForm}
     {admin&&creating&&<dialog ref={createDialog} className="damage-create-dialog" aria-labelledby="damage-create-title" onCancel={event=>{event.preventDefault();closeCreate();}}>{inputForm}</dialog>}
-    {notice&&!creating&&<p className="damage-notice" role="status">{notice}</p>}
+    {notice&&!creating&&!selected&&<p className="damage-notice" role="status">{notice}</p>}
     {admin&&<div className="damage-toolbar"><label className="search"><Search size={16}/><input aria-label="Cari AWB Damage Case" placeholder="Cari nomor AWB…" value={q} onChange={e=>{setQ(e.target.value);setOffset(0);}}/></label><select aria-label="Filter status Damage Case" value={status} onChange={e=>{setStatus(e.target.value);setOffset(0);}}><option value="">Semua status</option>{Object.entries(DAMAGE_STATUSES).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></div>}
     {admin&&<div className="damage-date-filters"><label>Dari tanggal<input type="date" value={from} max={to||undefined} onChange={e=>{setFrom(e.target.value);setOffset(0);}}/></label><label>Sampai tanggal<input type="date" value={to} min={from||undefined} onChange={e=>{setTo(e.target.value);setOffset(0);}}/></label><button className="btn" onClick={()=>{setQ("");setStatus("");setFrom("");setTo("");setOffset(0);}}>Reset filter</button></div>}
-    {error?<p role="alert" className="damage-notice">{error}<button className="btn" onClick={()=>void load()}>Coba lagi</button></p>:loading?<p role="status">Memuat laporan…</p>:items.length?admin?<div className="damage-admin-table-wrap"><table className="damage-admin-table"><thead><tr>{["Nomor AWB","Origin Warehouse","Nopol","Remark problem","Pengirim","Dilaporkan (WIB)","Status","Detail"].map(label=><th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{items.map(item=><tr key={item.id}><td><strong>{item.awb}</strong></td><td><strong>{item.trip}</strong></td><td>{item.plate}</td><td><span className="damage-remark" title={item.remark}>{item.remark}</span></td><td>{item.created_by}</td><td>{new Date(item.created_at).toLocaleString("id-ID",{timeZone:"Asia/Jakarta",dateStyle:"medium",timeStyle:"short"})}</td><td><span className={`damage-status ${item.status}`}>{DAMAGE_STATUSES[item.status]}</span></td><td><button className="btn" onClick={()=>open(item)} aria-label={`Lihat detail AWB ${item.awb}`}>Lihat detail<ChevronRight size={14}/></button></td></tr>)}</tbody></table></div>:<div className="damage-records">{items.map(item=><button className="damage-record" key={item.id} onClick={()=>open(item)}><Package size={20}/><span><strong>{item.awb}</strong><small>{item.trip} · {item.plate}</small><small>{new Date(item.created_at).toLocaleString("id-ID",{timeZone:"Asia/Jakarta"})} WIB</small></span><em>{DAMAGE_STATUSES[item.status]}</em><ChevronRight size={16}/></button>)}</div>:<p className="pwa-empty">Belum ada laporan Damage Case.</p>}
+    {error?<p role="alert" className="damage-notice">{error}<button className="btn" onClick={()=>void load()}>Coba lagi</button></p>:loading?<p role="status">Memuat laporan…</p>:items.length?admin?<div className="damage-admin-table-wrap"><table className="damage-admin-table"><thead><tr>{["Nomor AWB","Origin Warehouse","Nopol","Remark problem","Pengirim","Dilaporkan (WIB)","Status","Detail"].map(label=><th key={label} scope="col">{label}</th>)}</tr></thead><tbody>{items.map(item=><tr key={item.id}><td><strong>{item.awb}</strong></td><td><strong>{item.trip}</strong></td><td>{item.plate}</td><td><span className="damage-remark" title={item.remark}>{item.remark}</span></td><td>{item.sender_name||"Akun belum terhubung ke karyawan"}</td><td>{new Date(item.created_at).toLocaleString("id-ID",{timeZone:"Asia/Jakarta",dateStyle:"medium",timeStyle:"short"})}</td><td><select className={`damage-status-select ${item.status}`} aria-label={`Ubah status AWB ${item.awb}`} value={item.status} disabled={saving} onChange={e=>{open(item);setReview({status:e.target.value,resolution:item.resolution});}}>{Object.entries(DAMAGE_STATUSES).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></td><td><button className="btn" onClick={()=>open(item)} aria-label={`Lihat detail AWB ${item.awb}`}>Lihat detail<ChevronRight size={14}/></button></td></tr>)}</tbody></table></div>:<div className="damage-records">{items.map(item=><button className="damage-record" key={item.id} onClick={()=>open(item)}><Package size={20}/><span><strong>{item.awb}</strong><small>{item.trip} · {item.plate}</small><small>{new Date(item.created_at).toLocaleString("id-ID",{timeZone:"Asia/Jakarta"})} WIB</small></span><em>{DAMAGE_STATUSES[item.status]}</em><ChevronRight size={16}/></button>)}</div>:<p className="pwa-empty">Belum ada laporan Damage Case.</p>}
     <div className="damage-pagination"><button className="btn" disabled={loading||offset===0} onClick={()=>setOffset(Math.max(0,offset-25))}>Sebelumnya</button><small>{total?`${offset+1}–${Math.min(offset+25,total)} dari ${total}`:"0 laporan"}</small><button className="btn" disabled={loading||offset+25>=total} onClick={()=>setOffset(offset+25)}>Berikutnya</button></div>
-    {selected&&<section className="damage-detail card"><div className="damage-detail-head"><h2>AWB {selected.awb}</h2><button className="icon-btn" disabled={saving} aria-label="Tutup detail Damage Case" onClick={()=>setSelected(null)}><X size={18}/></button></div>
-      <dl>{[["Origin Warehouse",selected.trip],...(selected.fleet?[["Armada (data lama)",selected.fleet]]:[]),["Nopol",selected.plate],["Pengirim",selected.created_by],["Remark problem",selected.remark]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+    {selected&&<dialog ref={detailDialog} className="damage-detail card damage-detail-dialog" aria-labelledby="damage-detail-title" onCancel={event=>{event.preventDefault();closeDetail();}}><div className="damage-detail-head"><h2 id="damage-detail-title" ref={detailHeading} tabIndex={-1}>AWB {selected.awb}</h2><button className="icon-btn" disabled={saving} aria-label="Tutup detail Damage Case" onClick={closeDetail}><X size={18}/></button></div>
+      {notice&&<p className="damage-notice" role="status">{notice}</p>}
+      <dl>{[["Origin Warehouse",selected.trip],...(selected.fleet?[["Armada (data lama)",selected.fleet]]:[]),["Nopol",selected.plate],["Pengirim",selected.sender_name||"Akun belum terhubung ke karyawan"],["Remark problem",selected.remark]].map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
       <a className="damage-evidence-link" href={selected.evidence_url} target="_blank" rel="noopener noreferrer"><ExternalLink size={16}/>Lihat galeri internal</a><EvidenceShareControls kind="damage" id={selected.id}/><DamageGallery item={selected}/>
       {admin?<form onSubmit={saveReview}><fieldset disabled={saving}><label>Status<select value={review.status} onChange={e=>setReview({...review,status:e.target.value})}>{Object.entries(DAMAGE_STATUSES).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><label>Tindak lanjut<textarea rows={3} maxLength={5000} required={review.status==="completed"} value={review.resolution} onChange={e=>setReview({...review,resolution:e.target.value})}/></label><button className="primary" disabled={saving}>{saving?"Menyimpan…":"Simpan tindak lanjut"}</button></fieldset></form>:<p>{DAMAGE_STATUSES[selected.status]}{selected.resolution&&` · ${selected.resolution}`}</p>}
-    </section>}
+    </dialog>}
   </section>;
 }
 export function DamageEvidencePage({ id }: { id: string }) {

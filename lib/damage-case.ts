@@ -5,7 +5,7 @@ export function damageVehicleMatches(item: DamageVehicle, query: string) {
   return !key || [item.plate,item.vehicle_code,item.vehicle_type].some(text=>damagePlateKey(text).includes(key));
 }
 export const DAMAGE_ADMINS = ["super_admin", "admin", "spv"];
-export const DAMAGE_STATUSES = { open: "Baru", in_progress: "Diproses", completed: "Selesai" } as const;
+export const DAMAGE_STATUSES = { open: "Baru", in_progress: "Proses", completed: "Selesai" } as const;
 export const DAMAGE_PHOTO_LABELS = ["Foto AWB", "Bukti 1", "Bukti 2", "Bukti 3"] as const;
 export const DAMAGE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function damageCsv(rows: DamageCase[], origin: string,links:Map<string,string>=new Map()) {
@@ -15,10 +15,10 @@ export function damageCsv(rows: DamageCase[], origin: string,links:Map<string,st
     if (/^\s*[=+@-]/.test(text)) text = "'" + text;
     return '"' + text.replace(/"/g, '""') + '"';
   };
-  const data = [["NO", "WAKTU LAPORAN (WIB)", "NO AWB", "ORIGIN WAREHOUSE", "ARMADA (DATA LAMA)", "NOPOL", "REMARK PROBLEM", "STATUS", "TINDAK LANJUT", "PENGIRIM", "LINK FOTO BUKTI", "DIPERBARUI (WIB)"], ...rows.map((row,index) => [index+1, time(row.created_at), row.awb, row.trip, row.fleet, row.plate, row.remark, DAMAGE_STATUSES[row.status], row.resolution, row.created_by, links.get(row.id)||"", time(row.updated_at)])];
+  const data = [["NO", "WAKTU LAPORAN (WIB)", "NO AWB", "ORIGIN WAREHOUSE", "ARMADA (DATA LAMA)", "NOPOL", "REMARK PROBLEM", "STATUS", "TINDAK LANJUT", "PENGIRIM", "LINK FOTO BUKTI", "DIPERBARUI (WIB)"], ...rows.map((row,index) => [index+1, time(row.created_at), row.awb, row.trip, row.fleet, row.plate, row.remark, DAMAGE_STATUSES[row.status], row.resolution, row.sender_name||"Akun belum terhubung ke karyawan", links.get(row.id)||"", time(row.updated_at)])];
   return "\uFEFF" + data.map(row => row.map(cell).join(",")).join("\r\n");
 }
-export type DamageCase = { id: string; awb: string; trip: string; fleet: string; plate: string; remark: string; status: keyof typeof DAMAGE_STATUSES; resolution: string; created_by: string; created_at: string; updated_at: string; evidence_url: string; photos: { name: string; url: string; slot?: number }[] };
+export type DamageCase = { id: string; awb: string; trip: string; fleet: string; plate: string; remark: string; status: keyof typeof DAMAGE_STATUSES; resolution: string; created_by: string; sender_name?: string; sender_nik?: string|null; created_at: string; updated_at: string; evidence_url: string; photos: { name: string; url: string; slot?: number }[] };
 export function damageValues(get: (key: string) => string) {
   const values = { awb: get("awb").trim().toUpperCase(), trip: get("trip").trim(), fleet: (get("fleet") || "").trim(), plate: get("plate").trim().toUpperCase(), remark: get("remark").trim() };
   for (const [key, limit] of [["awb", 80], ["trip", 100], ["plate", 30], ["remark", 5000]] as const) {

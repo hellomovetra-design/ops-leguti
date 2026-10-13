@@ -1,7 +1,11 @@
 const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
 const {NextRequest}=require('next/server');
-function load(file,mocks={}){const m={exports:{}};mocks['@/lib/evidence-export']={exportEvidenceLinks:async(db,kind,ids,actor,origin)=>new Map(ids.map(id=>[id,origin+'/evidence/'+'a'.repeat(64)]))};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{module:m,exports:m.exports,require:n=>n==='@/lib/evidence-report-workbook'?load('lib/evidence-report-workbook.ts'):mocks[n]||require(n),process:{env:{}},console,URL,Date,File,Response,Uint8Array,crypto:globalThis.crypto});return m.exports;}
+function load(file,mocks={}){const m={exports:{}};mocks['@/lib/damage-senders']={damageSenders:async(db,rows)=>rows.map(row=>({...row,sender_name:'Nama karyawan',sender_nik:'001'}))};mocks['@/lib/evidence-export']={exportEvidenceLinks:async(db,kind,ids,actor,origin)=>new Map(ids.map(id=>[id,origin+'/evidence/'+'a'.repeat(64)]))};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{module:m,exports:m.exports,require:n=>n==='@/lib/evidence-report-workbook'?load('lib/evidence-report-workbook.ts'):mocks[n]||require(n),process:{env:{}},console,URL,Date,File,Response,Uint8Array,crypto:globalThis.crypto});return m.exports;}
 const lib=load('lib/damage-case.ts');
+assert.equal(Object.values(lib.DAMAGE_STATUSES).join(','),'Baru,Proses,Selesai');
+const routeSource=fs.readFileSync('app/api/damage-cases/route.ts','utf8');
+assert(routeSource.includes('ascending: scope === "admin" || type === "export"'));
+assert(!routeSource.includes('query.order("created_at", { ascending: false })'));
 const vehicle={plate:'B 9271 CCG',vehicle_code:'TGR 132',vehicle_type:'CDD LONG'};
 for(const query of ['b9271','9271 ccg','TGR132','tgr 132','cddlong',''])assert(lib.damageVehicleMatches(vehicle,query),query);
 assert(!lib.damageVehicleMatches(vehicle,'9999'));
@@ -19,8 +23,18 @@ assert.equal(lib.damageValues(k=>warehouseValues[k]).fleet,'');
 assert.equal(lib.damageValues(k=>warehouseValues[k]).trip,'ARGO PANTES');
 assert.throws(()=>lib.damageValues(k=>k==='plate'?'':warehouseValues[k]));
 const panel=fs.readFileSync('components/damage-case-panel.tsx','utf8');
+assert(panel.includes('<dialog ref={detailDialog}'));
+assert(panel.includes('aria-labelledby="damage-detail-title"'));
+assert(panel.includes('detailHeading.current?.focus({preventScroll:true})'));
+assert(panel.includes('dialog.scrollTop=0'));
+assert(panel.includes('event.preventDefault();closeDetail();'));
+assert(!panel.includes('<section className="damage-detail card">'));
+const damageStyles=fs.readFileSync('components/damage-case.css','utf8');
+assert(damageStyles.includes('.damage-detail-dialog{position:fixed;inset:24px 0 auto;'));
+assert(damageStyles.includes('.damage-detail-dialog::backdrop'));
 assert(panel.includes('warehouse value={form.trip}'));
 assert(panel.includes('<DamageVehiclePicker'));
+assert(panel.includes('Ubah status AWB'));assert(panel.includes('setReview({status:e.target.value,resolution:item.resolution})'));
 assert(panel.includes('{admin&&<div className="damage-toolbar">'));
 assert(!panel.includes('<label>Armada'));
 assert(lib.damageCsv([], 'https://ops.movetra.id').includes('ORIGIN WAREHOUSE'));
@@ -54,6 +68,8 @@ const get=(q='')=>api.GET(new NextRequest('http://localhost/api/damage-cases'+q)
  assert.equal((await post({action:'review',status:'in_progress',resolution:'Diperiksa',updated_at:'2026-10-07T01:00:00Z'},0)).status,409);
  assert.equal((await post({action:'review',status:'completed',resolution:'Sudah ditindaklanjuti',updated_at:rows[0].updated_at},0)).status,200);
  assert.equal((await(await get('?scope=admin&status=open')).json()).total,0);
+ const named=await(await get('?scope=admin')).json();assert.equal(named.items[0].sender_name,'Nama karyawan');assert.equal(named.items[0].sender_nik,'001');assert.equal(named.items[0].created_by,'staff@example.test');
+ const namedReport=await(await get('?type=export&scope=admin')).text();assert(namedReport.includes('Nama karyawan'));assert(!namedReport.includes('staff@example.test'));
  assert.equal((await(await get('?scope=admin&q=JT123')).json()).total,1);assert.equal((await get('?offset=-1')).status,400);
  const report=await get('?type=export&scope=admin');assert.equal(report.status,200);assert(report.headers.get('content-disposition').includes('report-damage-case.csv'));const csv=await report.text();assert(csv.includes('LINK FOTO BUKTI'));assert(csv.includes('http://localhost/evidence/'+'a'.repeat(64)));assert(!csv.includes('/pwa/'));assert(csv.includes('Sudah ditindaklanjuti'));
  const excel=await get('?type=export&format=xlsx&scope=admin');assert.equal(excel.status,200);assert(excel.headers.get('content-disposition').includes('.xlsx'));const xlsx=require('xlsx'),book=xlsx.read(Buffer.from(await excel.arrayBuffer()));assert.equal(book.Sheets['Damage Case'].K2.l.Target,'http://localhost/evidence/'+'a'.repeat(64));

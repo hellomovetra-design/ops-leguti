@@ -6,6 +6,7 @@ import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit, deleteFromIm
 export const runtime = "nodejs";
 import {exportEvidenceLinks} from '@/lib/evidence-export';
 import {evidenceReportWorkbook} from '@/lib/evidence-report-workbook';
+import {damageSenders} from '@/lib/damage-senders';
 const TABLE = "ops_damage_cases", BUCKET = "ops-damage-photos";
 const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
 const failure = (error: { code?: string }) => ["42P01", "PGRST205"].includes(error.code || "") ? "Fitur Damage Case belum siap. Terapkan migration 20261008_damage_cases.sql." : "Data belum dapat diproses. Silakan coba lagi.";
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
       const row = await query.maybeSingle();
       if (row.error) return json({ error: failure(row.error) }, 503);
       if (!row.data) return json({ error: "Catatan tidak ditemukan." }, 404);
-      if (type !== "photo") return json({ item: decorate(row.data) });
+      if (type !== "photo") return json({ item: decorate((await damageSenders(db!,[row.data]))[0]) });
       const index = Number(p.get("index"));
       if (p.get("index") === null || !Number.isInteger(index) || index < 0 || index > 3) return json({ error: "Foto tidak valid." }, 400);
       const path = row.data.photos[index]?.path;
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
       if (status) query = query.eq("status", status);
       if (from) query = query.gte("created_at", `${from}T00:00:00+07:00`);
       if (to) query = query.lte("created_at", `${to}T23:59:59.999999+07:00`);
-      return query.order("created_at", { ascending: false }).order("id");
+      return query.order("created_at", { ascending: scope === "admin" || type === "export" }).order("id");
     };
     if (type === "export") {
       const rows = [];
@@ -82,13 +83,13 @@ export async function GET(req: NextRequest) {
         if ((result.data || []).length < 1000) break;
       }
       const links=await exportEvidenceLinks(db!, 'damage',rows.filter(row=>(row.photos||[]).some((photo:any)=>photo.path)).map(row=>row.id),session!.email,req.nextUrl.origin);
-      const csv=damageCsv(rows,req.nextUrl.origin,links),xlsx=p.get('format')==='xlsx';
+      const csv=damageCsv(await damageSenders(db!,rows),req.nextUrl.origin,links),xlsx=p.get('format')==='xlsx';
       return new NextResponse(xlsx?evidenceReportWorkbook(csv,'Damage Case'):csv, { headers: { "Content-Type": xlsx?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':"text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="report-damage-case.${xlsx?'xlsx':'csv'}"`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
     }
     const query = filtered();
-    const result = await query.order("created_at", { ascending: false }).order("id").range(offset, offset+24);
+    const result = await query.range(offset, offset+24);
     if (result.error) return json({ error: failure(result.error) }, 503);
-    return json({ items: (result.data || []).map(decorate), total: result.count || 0 });
+    return json({ items: (await damageSenders(db!,result.data||[])).map(decorate), total: result.count || 0 });
   } catch { return json({ error: "Data belum dapat dimuat. Silakan coba lagi." }, 503); }
 }
 export async function POST(req: NextRequest) {
