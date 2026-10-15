@@ -23,7 +23,7 @@ export function PwaPushSettings({ audience = "user" }: { audience?: "user" | "ad
         const worker = await navigator.serviceWorker.register("/ops-sw.js", { scope: "/", updateViaCache: "none" });
         const sub = await worker.pushManager.getSubscription();
         const registered = sub ? await save("status", sub) : { active: false };
-        if (alive) { setKey(data.publicKey || ""); setActive(registered.active && Notification.permission === "granted"); setReady(true); setMessage(data.configured ? audience === "admin" ? "Terima request baru saat dashboard berada di belakang atau ditutup." : "Terima pembaruan admin meskipun aplikasi ditutup." : "Notifikasi perangkat sedang disiapkan oleh pengelola."); }
+        if (alive) { setKey(data.configured ? data.publicKey || "" : ""); setActive(registered.active && Notification.permission === "granted"); setReady(true); setMessage(data.configured ? audience === "admin" ? "Terima laporan dan request baru saat dashboard berada di belakang atau ditutup." : "Terima pembaruan admin meskipun aplikasi ditutup." : "Notifikasi perangkat sedang disiapkan oleh pengelola."); }
       } catch (e) { if (alive) setMessage(e instanceof Error ? e.message : "Periksa koneksi perangkat."); }
     })();
     return () => { alive = false; };
@@ -45,7 +45,7 @@ export function PwaPushSettings({ audience = "user" }: { audience?: "user" | "ad
         const bytes = Uint8Array.from(atob(key.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
         sub = await worker.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: bytes });
         await save("subscribe", sub);
-        setActive(true); setMessage(audience === "admin" ? "Notifikasi request baru aktif di PC ini." : "Notifikasi perangkat aktif. Pembaruan admin akan dikirim ke perangkat ini.");
+        setActive(true); setMessage(audience === "admin" ? "Notifikasi laporan dan request baru aktif di PC ini." : "Notifikasi perangkat aktif. Pembaruan admin akan dikirim ke perangkat ini.");
       }
     } catch (e) { setMessage(e instanceof Error ? e.message : "Belum berhasil. Silakan coba lagi."); }
     finally { lock.current = false; setBusy(false); }

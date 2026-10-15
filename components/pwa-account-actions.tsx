@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { Loader2, LogOut } from "lucide-react";
+import {clearReportDrafts} from "./use-report-draft";
 
 export function PwaAccountActions({ disabled, hasDraft }: { disabled: boolean; hasDraft: boolean }) {
   const lock = useRef(false);
@@ -28,6 +29,7 @@ export function PwaAccountActions({ disabled, hasDraft }: { disabled: boolean; h
       const result = await response.json();
       if (!response.ok || !result.ok) throw new Error("Belum berhasil keluar akun. Silakan coba lagi.");
       // Full navigation clears this page's account data and requires a fresh session.
+      await clearReportDrafts().catch(()=>{});
       window.location.replace("/login?next=%2Fpwa");
     } catch {
       setError("Belum berhasil keluar akun. Periksa koneksi dan coba lagi.");

@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { dispatchPush } from "@/lib/web-push";
+import { DUPLICATE_AWB,reportDuplicate } from "@/lib/report-workflow";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 import { DAMAGE_ADMINS, DAMAGE_STATUSES, DAMAGE_UUID, damagePlateKey, damageCsv, damageImageValid, damageValues } from "@/lib/damage-case";
@@ -19,7 +21,7 @@ async function assetList(db:any,table:string,fields:string,order:string){
 async function context(req: NextRequest) {
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
   if (!session) return { error: json({ error: "Silakan login kembali." }, 401) };
-  const db = getSupabaseServerClient();
+  const db = getSupabaseServerClient(session.email);
   if (!db) return { error: json({ error: "Penyimpanan belum siap." }, 503) };
   return { session, db, admin: DAMAGE_ADMINS.includes(session.role) };
 }
@@ -110,12 +112,14 @@ export async function POST(req: NextRequest) {
       const result = await db!.from(TABLE).update({ status, resolution, updated_by: session!.email.toLowerCase() }).eq("id", id).eq("updated_at", version).select().maybeSingle();
       if (result.error) return json({ error: failure(result.error) }, 503);
       if (!result.data) return json({ error: "Data telah berubah. Muat ulang dan coba kembali." }, 409);
+      after(()=>dispatchPush().catch(()=>console.error("Damage push dispatch failed")));
       return json({ ok: true, item: decorate(result.data) });
     }
     const existing = await db!.from(TABLE).select("*").eq("id", id).maybeSingle();
     if (existing.error) return json({ error: failure(existing.error) }, 503);
     if (existing.data) return existing.data.created_by === session!.email.toLowerCase() ? json({ ok: true, item: decorate(existing.data) }) : json({ error: "ID laporan sudah digunakan." }, 409);
     const values = damageValues(get);
+    if(await reportDuplicate(db!,"damage",values.awb,id))return json({error:DUPLICATE_AWB},409);
     const warehouse = await db!.from("ops_damage_warehouse_master").select("name").eq("name_key",damagePlateKey(values.trip)).eq("active",true).maybeSingle();
     if (warehouse.error) return json({error:"Master warehouse belum dapat diakses. Silakan coba lagi."},503);
     if (!warehouse.data) return json({error:"Pilih Origin Warehouse yang tersedia pada daftar."},400);
@@ -145,11 +149,13 @@ export async function POST(req: NextRequest) {
     insertAttempted = true;
     const result = await db!.from(TABLE).insert({ ...values, id, photos: uploaded.map(({path,name,slot})=>({path,name,slot})), created_by: session!.email.toLowerCase(), updated_by: session!.email.toLowerCase() }).select().single();
     if (result.error) {
+      if(result.error.code==="23505" && result.error.message?.includes("AWB_DUPLICATE")){insertAttempted=false;return json({error:DUPLICATE_AWB},409);}
       // A lost response can happen after commit. Keep photos; retry the stable ID safely.
       const check = await db!.from(TABLE).select("*").eq("id", id).maybeSingle();
       if (check.data?.created_by === session!.email.toLowerCase()) return json({ ok: true, item: decorate(check.data) });
       return json({ error: "Penyimpanan belum terkonfirmasi. Tekan kirim lagi untuk memeriksa laporan yang sama." }, 503);
     }
+    after(()=>dispatchPush().catch(()=>console.error("Damage push dispatch failed")));
     return json({ ok: true, item: decorate(result.data) });
   } catch (error) { return json({ error: error instanceof Error ? error.message : "Laporan belum berhasil disimpan." }, 400); }
   finally {

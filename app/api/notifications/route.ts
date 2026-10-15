@@ -17,11 +17,33 @@ export async function GET(req: NextRequest) {
     const notice = await db.from("ops_notifications").select("*").eq("id", id).eq("recipient_email", email).maybeSingle();
     if (notice.error) return unavailable();
     if (!notice.data) return json({ error: "Notifikasi tidak ditemukan." }, 404);
+    const fullAdmin=["super_admin","admin","spv"].includes(session.role);
+    const reportRoutes:Record<string,{table:string;path:string}>={damage:{table:"ops_damage_cases",path:"damage-cases"},problem:{table:"ops_problems",path:"problems"},barkur:{table:"ops_barkur",path:"ots"}};
+    const report=reportRoutes[notice.data.entity_type];
+    if(fullAdmin&&notice.data.kind==="report_new"&&report){
+      const row=await db.from(report.table).select("id").eq("id",notice.data.entity_id).maybeSingle();
+      if(row.error)return unavailable();
+      if(!row.data)return json({error:"Laporan sudah tidak tersedia."},404);
+      return json({item:{k:"admin_report",url:`/dashboard/ops-desk/${report.path}?id=${row.data.id}`}});
+    }
     if (notice.data.thread_id) {
+      if(fullAdmin&&notice.data.kind==="inbox_request"){
+        const thread=await db.from("ops_inbox_threads").select("id").eq("id",notice.data.thread_id).maybeSingle();
+        if(thread.error)return unavailable();
+        if(!thread.data)return json({error:"Percakapan tidak ditemukan."},404);
+        return json({item:{k:"admin_report",url:`/dashboard/ops-desk/inbox?thread=${thread.data.id}`}});
+      }
       const thread = await db.from("ops_inbox_threads").select("id,owner_email").eq("id", notice.data.thread_id).eq("owner_email", email).maybeSingle();
       if (thread.error) return unavailable();
       if (!thread.data) return json({ error: "Percakapan tidak ditemukan." }, 404);
       return json({ item: { k: "inbox", thread_id: thread.data.id } });
+    }
+    if(notice.data.entity_type==="damage"){
+      const record=await db.from("ops_damage_cases").select("*").eq("id",notice.data.entity_id).eq("created_by",email).maybeSingle();
+      if(record.error)return unavailable();
+      if(!record.data)return json({error:"Laporan tidak ditemukan."},404);
+      const row=record.data;
+      return json({item:{...row,k:"damage",t:"Damage Case",evidence_url:`/pwa/damage-evidence/${row.id}`,photos:(row.photos||[]).map((photo:any,index:number)=>({name:photo.name,url:`/api/damage-cases?type=photo&id=${row.id}&index=${index}`}))}});
     }
     const isProblem = notice.data.entity_type === "problem";
     if (!isProblem && notice.data.entity_type !== "request") return json({ error: "Detail belum tersedia." }, 404);
@@ -33,7 +55,7 @@ export async function GET(req: NextRequest) {
   const offset = Number(req.nextUrl.searchParams.get("offset") || 0);
   if (!Number.isInteger(offset) || offset < 0 || offset > 10000) return json({ error: "Halaman tidak valid." }, 400);
   const [rows, unread] = await Promise.all([
-    db.from("ops_notifications").select("id,kind,entity_type,entity_id,title,body,status,created_at,read_at").eq("recipient_email", email).order("created_at", { ascending: false }).order("id", { ascending: false }).range(offset, offset + 30),
+    db.from("ops_notifications").select("id,kind,entity_type,entity_id,title,body,status,created_at,read_at,destination").eq("recipient_email", email).order("created_at", { ascending: false }).order("id", { ascending: false }).range(offset, offset + 30),
     db.from("ops_notifications").select("id", { count: "exact", head: true }).eq("recipient_email", email).is("read_at", null),
   ]);
   if (rows.error || unread.error) return unavailable();

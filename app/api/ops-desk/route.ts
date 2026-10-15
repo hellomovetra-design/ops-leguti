@@ -13,6 +13,7 @@ import { dispatchPush } from "@/lib/web-push";
 import { scopeHistory } from "@/lib/history-scope";
 import { employeeState, employeeStatus } from "@/lib/employee-status";
 import { employeeEditPayload } from "@/lib/employee-edit";
+import {createProblemReport} from "@/lib/create-problem-report";
 
 const db = (actorEmail?: string) => getSupabaseServerClient(actorEmail);
 const SUPER_ADMIN_EMAIL = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
@@ -201,9 +202,11 @@ export async function POST(req: NextRequest) {
   if (session.role === "viewer" && !pwaWriteActions.includes(String(body.action))) return NextResponse.json({ ok: false, error: "Akun ini hanya dapat melakukan transaksi melalui PWA." }, { status: 403 });
   // PWA uses `reason`; the admin form uses `description`. Store both in one field.
   if(body.action==="problem"){
+    if(req.headers.get("origin")!==req.nextUrl.origin)return NextResponse.json({error:"Permintaan tidak valid."},{status:403});
     body.description=String(body.description||body.reason||"").trim();
     body.awb=String(body.awb||"").trim();body.division=String(body.division||"").trim();
     if(!body.awb||!body.division)return NextResponse.json({ok:false,error:"Nomor AWB dan divisi wajib diisi."},{status:400});
+    return createProblemReport(supabase,session,body,multipart);
   }
   if (body.action === "employeePhoto") {
     const nik = String(body.nik || body.name || "").trim();
@@ -298,8 +301,12 @@ export async function POST(req: NextRequest) {
     const patch: Record<string, any> = { status: nextStatus, status_note: String(body.note || ""), updated_at: new Date().toISOString() };
     if (nextStatus === "verified") { patch.verified_by = session.email; patch.verified_at = new Date().toISOString(); }
     if (nextStatus === "resolved" || nextStatus === "closed") { patch.resolved_by = session.email; patch.resolved_at = new Date().toISOString(); }
-    const updated = await supabase.from("ops_problems").update(patch).eq("id", id).select().single();
+    if(patch.status_note.length>10000)return NextResponse.json({ok:false,error:"Catatan maksimal 10.000 karakter."},{status:400});
+    let updateQuery=supabase.from("ops_problems").update(patch).eq("id",id);
+    if(body.updated_at)updateQuery=updateQuery.eq("updated_at",body.updated_at);
+    const updated=await updateQuery.select().maybeSingle();
     if (updated.error) return NextResponse.json({ ok: false, error: updated.error.message }, { status: 400 });
+    if(!updated.data)return NextResponse.json({ok:false,error:"Laporan telah berubah. Muat ulang sebelum melanjutkan."},{status:409});
     await audit(supabase, session, nextStatus, "problem", id, { note: patch.status_note || null });
     after(() => dispatchPush().catch(() => console.error("Push dispatch failed")));
     return NextResponse.json({ ok: true, problem: updated.data });

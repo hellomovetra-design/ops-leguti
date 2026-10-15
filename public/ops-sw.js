@@ -14,7 +14,7 @@ self.addEventListener("push", event => {
 self.addEventListener("notificationclick", event => {
   event.notification.close();
   let target = new URL("/pwa", self.location.origin);
-  try { const u = new URL(event.notification.data?.url || "/pwa", self.location.origin); if (u.origin === self.location.origin && ["/pwa", "/dashboard/ops-desk/inbox"].includes(u.pathname)) target = u; } catch {}
+  try { const u = new URL(event.notification.data?.url || "/pwa", self.location.origin); if (u.origin === self.location.origin && ["/pwa", "/dashboard/ops-desk/inbox", "/dashboard/ops-desk/damage-cases", "/dashboard/ops-desk/problems", "/dashboard/ops-desk/ots"].includes(u.pathname)) target = u; } catch {}
   event.waitUntil((async () => {
     const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
     const app = windows.find(client => { const pathname = new URL(client.url).pathname; return target.pathname === "/pwa" ? pathname === "/pwa" : pathname.startsWith("/dashboard"); });

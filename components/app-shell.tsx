@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import "./admin-header.css";
 import "./inbox.css";
 import { useInboxIndicator } from "./use-inbox-indicator";
+import { AdminReportNotifications } from "./admin-report-notifications";
 
 const navGroups = [
   {
@@ -103,7 +104,8 @@ export function AppShell({ title, children }: { title: string; children: React.R
             <button className="icon-btn" aria-label="Refresh" onClick={() => toast("OPS Desk siap diperbarui")}>
               <RefreshCw size={15} />
             </button>
-            <Link className="icon-btn inbox-admin-shortcut" href="/dashboard/ops-desk/inbox" aria-label={`Inbox${inbox.unread ? `, ${inbox.unread} pesan belum dibaca` : ""}`}><Bell size={15}/>{inbox.unread > 0 && <span className="inbox-unread">{inbox.unread > 99 ? "99+" : inbox.unread}</span>}</Link>
+            <Link className="icon-btn inbox-admin-shortcut" href="/dashboard/ops-desk/inbox" aria-label={`Inbox${inbox.unread ? `, ${inbox.unread} pesan belum dibaca` : ""}`}><MessageCircle size={15}/>{inbox.unread > 0 && <span className="inbox-unread">{inbox.unread > 99 ? "99+" : inbox.unread}</span>}</Link>
+            <AdminReportNotifications/>
           </div>
         </header>
         <div className="content">{children}</div>

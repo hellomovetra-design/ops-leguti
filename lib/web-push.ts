@@ -15,6 +15,7 @@ export function pushConfigured() {
   return !!(process.env.WEB_PUSH_PUBLIC_KEY && process.env.WEB_PUSH_PRIVATE_KEY && process.env.WEB_PUSH_SUBJECT && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 export function inboxPushDestination(value: unknown, notificationId: string) {
+  if(typeof value==="string" && (/^\/dashboard\/ops-desk\/(?:damage-cases|problems|ots)\?id=[0-9a-f-]{36}$/i.test(value)||/^\/pwa\?damage=[0-9a-f-]{36}$/i.test(value)))return value;
   if (typeof value === "string" && /^\/(?:pwa\?inbox=|dashboard\/ops-desk\/inbox\?thread=)[0-9a-f-]{36}$/i.test(value)) return value;
   return `/pwa?notification=${encodeURIComponent(notificationId)}`;
 }

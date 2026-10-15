@@ -1,4 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { dispatchPush } from "@/lib/web-push";
+import { DUPLICATE_AWB,reportDuplicate,awbKey } from "@/lib/report-workflow";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { fetchFromImageKit, isImageKitConfigured, uploadToImageKit, deleteFromImageKit } from "@/lib/imagekit";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
@@ -14,7 +16,7 @@ async function context(req: NextRequest) {
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
   if (!session) return { error: json({ error: "Silakan login kembali." }, 401) };
   if (!BARKUR_ROLES.includes(session.role)) return { error: json({ error: "Akses dashboard diperlukan." }, 403) };
-  const db = getSupabaseServerClient();
+  const db = getSupabaseServerClient(session.email);
   if (!db) return { error: json({ error: "Penyimpanan belum dikonfigurasi." }, 503) };
   return { session, db };
 }
@@ -37,6 +39,13 @@ export async function GET(req: NextRequest) {
       if (file.error || !file.data) return json({ error: "Bukti belum dapat dibuka." }, 404);
       return new NextResponse(file.data, { headers: { "Content-Type": file.data.type || "image/png", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
     }
+    if(params.get("id")){
+      const id=params.get("id")!;if(!barkurUuid.test(id))return json({error:"Catatan tidak valid."},400);
+      const result=await db.from(TABLE).select("*").eq("id",id).maybeSingle();
+      if(result.error)return json({error:databaseError(result.error)},503);
+      if(!result.data)return json({error:"Catatan tidak ditemukan."},404);
+      return json({item:decorate(result.data)});
+    }
     const filters = barkurFilters(params);
     if (params.get("type") === "export") {
       const rows: BarkurRecord[] = [];
@@ -57,11 +66,13 @@ export async function GET(req: NextRequest) {
   } catch (error) { return json({ error: error instanceof Error ? error.message : "Data belum dapat dimuat." }, 400); }
 }
 export async function POST(req: NextRequest) {
+  if(req.headers.get("origin")!==req.nextUrl.origin)return json({error:"Permintaan tidak valid."},403);
   const ctx = await context(req); if (ctx.error) return ctx.error;
   const db = ctx.db!, session = ctx.session!;
   const uploaded: string[] = [];
   const imagekitIds: string[] = [];
   let committed = false;
+  let mutationAttempted=false;
   try {
     const form = await req.formData(), get = (key: string) => String(form.get(key) || "").trim();
     const id = get("id"), action = get("action");
@@ -75,6 +86,7 @@ export async function POST(req: NextRequest) {
     if (!values.awb || values.awb.length > 80 || !values.bag_number || values.bag_number.length > 100 || [values.origin, values.destination, values.pic].some(v => !v || v.length > 160) || values.description.length > 10000 || values.resolution.length > 10000 || values.evidence_link.length > 2048 || !Object.hasOwn(BARKUR_STATUSES, values.status)) return json({ error: "Lengkapi AWB, nomor bag, origin, unit penerima, PIC, dan status yang valid." }, 400);
     if (values.email_sent_at && values.email_sent_at < values.incident_at) return json({ error: "Waktu email tidak boleh sebelum kejadian." }, 400);
     if (values.status === "completed" && !values.resolution) return json({ error: "Isi hasil penelusuran sebelum menyelesaikan catatan." }, 400);
+    if((!existing.data||awbKey(existing.data.awb)!==awbKey(values.awb))&&await reportDuplicate(db,"barkur",values.awb,id))return json({error:DUPLICATE_AWB},409);
     const files = form.getAll("evidence").filter((file): file is File => file instanceof File && file.size > 0);
     const evidence = [...(existing.data?.evidence || [])];
     if (files.length + evidence.length > BARKUR_MAX_PHOTOS || files.reduce((n,f) => n+f.size, 0) > BARKUR_MAX_UPLOAD_BYTES || files.some(f => !["image/png", "image/jpeg", "image/webp"].includes(f.type))) return json({ error: "Maksimal 4 foto bukti JPG/PNG/WebP, total unggahan maksimal 3 MB." }, 400);
@@ -93,16 +105,23 @@ export async function POST(req: NextRequest) {
       if (result.error) throw new Error("Upload bukti gagal. Pastikan bucket migration tersedia, lalu coba lagi.");
       uploaded.push(path); evidence.push({ path, name: file.name.slice(0,200) });
     }
+    mutationAttempted=true;
     const result = existing.data
       ? await db.from(TABLE).update({ ...values, evidence }).eq("id", id).eq("updated_at", get("updated_at")).select().maybeSingle()
       : await db.from(TABLE).insert({ ...values, id, evidence, created_by: session.email.toLowerCase() }).select().single();
-    if (result.error) return json({ error: databaseError(result.error) }, 503);
-    if (!result.data) return json({ error: "Data berubah saat disimpan. Muat ulang dan coba lagi." }, 409);
+    if (result.error){
+      if(result.error.code==="23505"||result.error.code==="23514"){mutationAttempted=false;return json({error:result.error.message?.includes("AWB_DUPLICATE")?DUPLICATE_AWB:databaseError(result.error)},409);}
+      const check=await db.from(TABLE).select("*").eq("id",id).maybeSingle();
+      if(!existing.data&&check.data?.created_by===session.email.toLowerCase()){committed=true;return json({ok:true,item:decorate(check.data)});}
+      return json({error:"Penyimpanan belum terkonfirmasi. Coba lagi untuk memeriksa catatan yang sama."},503);
+    }
+    if (!result.data){mutationAttempted=false;return json({ error: "Data berubah saat disimpan. Muat ulang dan coba lagi." }, 409);}
     committed = true;
+    after(()=>dispatchPush().catch(()=>console.error("BARKUR push dispatch failed")));
     return json({ ok: true, item: decorate(result.data) });
   } catch (error) { return json({ error: error instanceof Error ? error.message : "Data belum berhasil disimpan." }, 400); }
   finally {
-    if (!committed && uploaded.length) await db.storage.from(BUCKET).remove(uploaded).catch(() => {});
-    if (!committed) await Promise.all(imagekitIds.map(id => deleteFromImageKit(id).catch(() => {})));
+    if (!committed && !mutationAttempted && uploaded.length) await db.storage.from(BUCKET).remove(uploaded).catch(() => {});
+    if (!committed && !mutationAttempted) await Promise.all(imagekitIds.map(id => deleteFromImageKit(id).catch(() => {})));
   }
 }
