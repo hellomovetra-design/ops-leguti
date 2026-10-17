@@ -6,6 +6,11 @@ const base={nik:"13030319",name:"Nama Kurir",position:"Kurir Motor Staff",active
 let p=employeeEditPayload({...base,tgrid:" tgrfl123 ",_originalNik:"wrong",photo_url:"ignored"});
 assert.equal(p.nik,"13030319");assert.equal(p.tgrid,"TGRFL123");assert(!("_originalNik" in p));assert(!("photo_url" in p));
 assert.equal(p.original_nik,"wrong");
+assert.equal(employeeEditPayload({...base,superior_nik:'LEADER-1',superior:'wrong spelling'}).superior_nik,'LEADER-1');
+assert.equal(employeeEditPayload({...base,superior_nik:''}).superior_nik,null);
+assert(!('superior_nik' in employeeEditPayload(base)),'Legacy clients do not clear stable supervisor link');
+assert.throws(()=>employeeEditPayload({...base,superior_nik:base.nik}));
+assert.throws(()=>employeeEditPayload({...base,_originalNik:'OLD',superior_nik:'OLD'}));
 const contact=employeeEditPayload({...base,_originalNik:"old",phone:"0812 3456 7890",email:" NAME@EXAMPLE.COM "});
 assert.equal(contact.original_nik,"old");assert.equal(contact.phone,"081234567890");assert.equal(contact.email,"name@example.com");
 assert(!("phone" in employeeEditPayload(base)));assert(!("email" in employeeEditPayload(base)));

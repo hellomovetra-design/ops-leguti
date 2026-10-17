@@ -15,6 +15,10 @@ export function employeeEditPayload(body: Record<string, any>) {
     if (result.original_nik.length > 80) throw new Error("NIK asal tidak valid.");
   }
   if (Object.hasOwn(body, "phone")) result.phone = contactPhone(body.phone);
+  if (Object.hasOwn(body,"superior_nik")) {
+    result.superior_nik=text(body.superior_nik)||null;
+    if(result.superior_nik&&(result.superior_nik.length>80||result.superior_nik===nik||result.superior_nik===result.original_nik))throw new Error("Pilih atasan yang valid, bukan diri sendiri.");
+  }
   if (Object.hasOwn(body, "email")) result.email = contactEmail(body.email);
   for (const field of ["position", "dept", "hub", "level", "superior"]) {
     result[field] = text(body[field]);

@@ -1,11 +1,12 @@
 const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
 const {NextRequest}=require('next/server');
-function load(file,overrides={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{module:m,exports:m.exports,require:n=>overrides[n]??require(n),TextDecoder,TextEncoder,Uint8Array,Buffer,File,console,process:{env:{}}});return m.exports;}
+function load(file,overrides={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,{module:m,exports:m.exports,require:n=>overrides[n]??require(n),TextDecoder,TextEncoder,Uint8Array,Buffer,File,console,process:{env:{},cwd:()=>process.cwd()}});return m.exports;}
 const core=load('lib/courier-master.ts');
+let exportedRows=[];
 let session={email:'admin@test.example',role:'admin'},revision=1,failure=false,rpcCalls=0;
 const rows=[{id:'one',tgrid:'TGR159',name:'Nama A',employee_nik:'1',active:true,...Object.fromEntries(core.MASTER_FIELDS.slice(2).map(k=>[k,core.REQUIRED_MASTER_FIELDS.includes(k)?'Test':'']))}];
 const db={from(table){let range=[0,999];const q={select(){return q},eq(){return q},single(){return q},order(){return q},range(a,b){range=[a,b];return q},then(resolve,reject){return Promise.resolve(failure?{error:{message:'offline'}}:{data:table==='ops_courier_master_revision'?{revision}:table==='ops_courier_master'?rows.slice(range[0],range[1]+1):[],error:null}).then(resolve,reject)}};return q;},async rpc(name,args){assert.equal(name,'ops_sync_courier_master');assert.equal(args.p_actor,session.email);assert.equal(args.p_revision,revision);rpcCalls++;return {data:{changed:args.p_operations.length}};}};
-const api=load('app/api/courier-master/route.ts',{'@/lib/supabase':{getSupabaseServerClient:()=>db},'@/lib/auth-token':{SESSION_COOKIE:'jne_session',verifySessionToken:async()=>session},'@/lib/courier-master':core,'@/lib/courier-master-export':{}});
+const api=load('app/api/courier-master/route.ts',{'node:fs/promises':{readFile:async()=>Buffer.from('test-template')},'@/lib/supabase':{getSupabaseServerClient:()=>db},'@/lib/auth-token':{SESSION_COOKIE:'jne_session',verifySessionToken:async()=>session},'@/lib/courier-master':core,'@/lib/courier-master-export':{masterCourierXlsx:(_template,items)=>{exportedRows=items;return new Uint8Array([1,2,3]);}}});
 const post=(body,origin='https://ops.movetra.id')=>api.POST(new NextRequest('https://ops.movetra.id/api/courier-master',{method:'POST',headers:{'content-type':'application/json',origin},body:JSON.stringify(body)}));
 (async()=>{
  const body={action:'preview',month:'2026-10',rows:[{tgrid:'TGR159',name:'Nama A',area:'D',row:'test'}]};
@@ -16,5 +17,13 @@ const post=(body,origin='https://ops.movetra.id')=>api.POST(new NextRequest('htt
  session.role='viewer';assert.equal((await post(body)).status,403);assert.equal((await api.GET(new NextRequest('https://ops.movetra.id/api/courier-master'))).status,200);
  session=null;assert.equal((await post(body)).status,401);assert.equal((await api.GET(new NextRequest('https://ops.movetra.id/api/courier-master'))).status,401);
  session={email:'admin@test.example',role:'admin'};failure=true;assert.equal((await api.GET(new NextRequest('https://ops.movetra.id/api/courier-master'))).status,503);
+ failure=false;
+ const download=()=>api.GET(new NextRequest('https://ops.movetra.id/api/courier-master?download=1&month=2026-10'));
+ rows[0].name='Nama terkini';assert.equal((await download()).status,200);assert.equal(exportedRows[0].name,'Nama terkini');
+ rows[0].active=false;assert.equal((await download()).status,409,'Inactive employees are excluded');
+ rows.push({...rows[0],id:'two',employee_nik:'2',tgrid:'TGR888',name:'Kurir baru',active:true});
+ assert.equal((await download()).status,200);assert.equal(exportedRows.length,1);assert.equal(exportedRows[0].tgrid,'TGR888');
+ rows.push({...rows[1],id:'three',employee_nik:'3',tgrid:'TGR777',area:''});
+ const incomplete=await download();assert.equal(incomplete.status,200);assert.equal(exportedRows.length,2);assert.equal(exportedRows.find(row=>row.tgrid==='TGR777').area,'','Incomplete active couriers are exported with blank fields');assert(exportedRows.every(row=>row.active),'Inactive couriers stay excluded');
  console.log('PASS: auth, role-based writes/read access, origin checks, preview without writes, confirmed commit, stale-preview rejection, explicit missing migration/database errors.');
 })().catch(e=>{console.error(e);process.exitCode=1});

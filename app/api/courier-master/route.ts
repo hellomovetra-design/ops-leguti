@@ -32,9 +32,9 @@ export async function GET(req:NextRequest){
     if(req.nextUrl.searchParams.get("download")==="1"){
       const month=req.nextUrl.searchParams.get("month")??"";if(!validMonth(month))return json({error:"Periode unduh tidak valid."},400);
       const template=await readFile(path.join(process.cwd(),"assets","templates","courier-master.xlsx"));
-      const complete=s.records.filter(x=>x.active&&!missingMasterFields(x).length);
-      if(!complete.length)return json({error:"Belum ada master lengkap yang dapat diunduh. Lengkapi tujuh kolom operasional wajib terlebih dahulu."},409);
-      const output=masterCourierXlsx(template,complete,month);
+      const active=s.records.filter(x=>x.active);
+      if(!active.length)return json({error:"Belum ada personel aktif yang dapat diunduh."},409);
+      const output=masterCourierXlsx(template,active,month);
       return new NextResponse(Buffer.from(output),{headers:{...headers,"Content-Type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","Content-Disposition":`attachment; filename="UPDATE_KURIR_${month}.xlsx"`}});
     }
     return json({items:s.records,revision:s.revision,incomplete:s.records.filter(x=>x.active&&missingMasterFields(x).length).length,can_manage:["admin","super_admin","spv"].includes(session.role)});
