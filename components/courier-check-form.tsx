@@ -2,6 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import { CHECK_COLUMNS, Courier, CourierCheck, DELIVERY_AREAS, deliveryArea } from "@/lib/courier-checks";
 import { jakartaNow } from "@/lib/problem-solving-daily";
+import { prepareCourierPhoto } from "@/lib/courier-photo";
+import { idleUpload, uploadReport } from "@/lib/report-upload";
+import { ReportUploadStatus } from "./report-upload-status";
 
 type Props = { record: CourierCheck | null; onSaved: (item: CourierCheck) => void };
 export function CourierCheckForm({ record, onSaved }: Props) {
@@ -16,7 +19,11 @@ export function CourierCheckForm({ record, onSaved }: Props) {
   const [profileError, setProfileError] = useState("");
   const [lookupError, setLookupError] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [processing, setProcessing] = useState(false);
+  const photoLock = useRef(false);
   const [saving, setSaving] = useState(false);
+  const [upload, setUpload] = useState(idleUpload);
+  const [photoNotice, setPhotoNotice] = useState("");
   const [error, setError] = useState("");
   const lock = useRef(false);
   const editable = !record || record.can_edit;
@@ -44,9 +51,29 @@ export function CourierCheckForm({ record, onSaved }: Props) {
     setPickerOpen(false); setSearch("");
   };
   const matches = couriers.filter(c => form.delivery_area && deliveryArea(c.hub || "") === form.delivery_area && (c.name + " " + c.nik).toLowerCase().includes(search.toLowerCase().trim()));
+  async function addPhotos(input: HTMLInputElement) {
+    const selected = Array.from(input.files || []);
+    input.value = "";
+    if (!selected.length || photoLock.current || lock.current || !editable) return;
+    if (selected.length + files.length + (record?.photos.length || 0) > 3) {
+      setError("Maksimal 3 foto termasuk foto yang sudah tersimpan. Pilih foto lebih sedikit."); return;
+    }
+    photoLock.current = true; setProcessing(true); setError(""); setPhotoNotice(""); setUpload(idleUpload);
+    const prepared: File[] = [];
+    const errors: string[] = [];
+    try {
+      for (const file of selected) {
+        try { prepared.push(await prepareCourierPhoto(file)); }
+        catch (e) { errors.push(`${file.name}: ${e instanceof Error ? e.message : "Foto belum dapat diproses."}`); }
+      }
+      setFiles(current => [...current, ...prepared]);
+      if (prepared.length) setPhotoNotice(`${prepared.length} foto siap dikirim. Foto belum tersimpan sampai Anda menekan Simpan pemeriksaan.`);
+      setError(errors.join(" "));
+    } finally { photoLock.current = false; setProcessing(false); }
+  }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (lock.current || !editable) return;
+    if (lock.current || photoLock.current || !editable) return;
     if (!form.courier_id) { setError("Pilih kurir dari pencarian nama atau ID."); setPickerOpen(true); return; }
     lock.current = true; setSaving(true); setError("");
     try {
@@ -54,11 +81,14 @@ export function CourierCheckForm({ record, onSaved }: Props) {
       data.append("action", record ? "update" : "create");
       for (const key of ["id", "updated_at", ...CHECK_COLUMNS.map(c => c[0])]) data.append(key, String(form[key as keyof typeof form] ?? ""));
       files.forEach(file => data.append("photos", file));
-      const response = await fetch("/api/courier-checks", { method: "POST", body: data });
-      const result = await response.json();
-      if (!response.ok || !result.ok || !result.item) throw new Error(result.error || "Pemeriksaan belum berhasil disimpan.");
+      const result = await uploadReport("/api/courier-checks", data, setUpload);
+      if (!result.item) throw new Error("Konfirmasi pemeriksaan belum lengkap. Coba simpan lagi untuk memeriksa catatan yang sama.");
       onSaved(result.item);
-    } catch (e) { setError(e instanceof Error ? e.message : "Gagal menyimpan pemeriksaan."); }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Gagal menyimpan pemeriksaan.";
+      setError(message);
+      setUpload({ stage: "error", percent: 0, message });
+    }
     finally { lock.current = false; setSaving(false); }
   }
   return <form className="mobile-card pwa-form courier-check-form" onSubmit={submit}>
@@ -66,7 +96,7 @@ export function CourierCheckForm({ record, onSaved }: Props) {
     <p className="courier-form-intro">Isi satu pemeriksaan per kurir. Kolom bertanda * wajib diisi.</p>
     {lookupError && <p role="alert">{lookupError}</p>}
     {profileError && <p role="alert">{profileError}</p>}
-    <fieldset disabled={saving || !editable}>
+    <fieldset disabled={saving || processing || !editable}>
       <label>{label("inspection_date")} *<input type="date" required value={form.inspection_date} onChange={e => update("inspection_date", e.target.value)} /></label>
       <label>{label("delivery_area")} *<select required value={form.delivery_area} onChange={e => { setForm(f => ({ ...f, delivery_area: e.target.value, courier_id: "", courier_name: "", position: "", employment: "" })); setSearch(""); setPickerOpen(false); }}><option value="">Pilih area delivery</option>{DELIVERY_AREAS.map(u => <option key={u}>{u}</option>)}</select></label>
       <label>{label("inspector_name")} *<input required readOnly value={form.inspector_name} placeholder="Mengikuti akun login" /></label>
@@ -82,17 +112,21 @@ export function CourierCheckForm({ record, onSaved }: Props) {
       <label>{label("result")} *<select required value={form.result} onChange={e => update("result", e.target.value)}><option value="">Pilih hasil pemeriksaan</option><option>Sesuai</option><option>Tidak Sesuai</option></select></label>
       <label>{label("documentation_url")}<input readOnly value={form.documentation_url} placeholder={files.length ? "Link publik dibuat setelah foto disimpan" : "Otomatis dari foto dokumentasi"} /></label>
       {form.documentation_url && <a href={form.documentation_url} target="_blank" rel="noreferrer">Buka dokumentasi publik</a>}
-      <label>Foto dokumentasi<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" multiple onChange={e => {
-        const selected = Array.from(e.target.files || []);
-        if (selected.length + (record?.photos.length || 0) > 3 || selected.reduce((sum, f) => sum + f.size, 0) > 3 * 1024 * 1024 || selected.some(f => !["image/jpeg","image/png","image/webp"].includes(f.type))) { setError("Maksimal 3 foto JPG/PNG/WebP, total unggahan 3 MB."); setFiles([]); e.target.value = ""; return; }
-        setFiles(selected); setError("");
-      }} /><small>{files.length} foto dipilih · Setelah disimpan, siapa pun yang memiliki link dapat melihat foto tanpa login. Hindari informasi sensitif yang tidak diperlukan.</small></label>
+      <div><strong>Foto dokumentasi</strong>
+        <label>Ambil dari kamera<input type="file" accept="image/*" capture="environment" disabled={files.length + (record?.photos.length || 0) >= 3} onChange={e => void addPhotos(e.currentTarget)} /></label>
+        <label>Pilih dari galeri<input type="file" accept="image/*" multiple disabled={files.length + (record?.photos.length || 0) >= 3} onChange={e => void addPhotos(e.currentTarget)} /></label>
+        <small>{files.length + (record?.photos.length || 0)} / 3 foto · Foto otomatis diperkecil sebelum dikirim. Setelah disimpan, siapa pun yang memiliki link dapat melihat foto tanpa login.</small>
+        {files.map((file, index) => <div key={index}>{file.name} · {Math.ceil(file.size / 1024)} KB <button type="button" onClick={() => setFiles(current => current.filter((_, i) => i !== index))}>Hapus foto {index + 1}</button></div>)}
+      </div>
       <label>{label("inspection_location")} *<input required maxLength={160} value={form.inspection_location} onChange={e => update("inspection_location", e.target.value)} placeholder="Nama cabang / lokasi pemeriksaan" /></label>
       <label>{label("inspection_time")} *<input type="time" required value={form.inspection_time} onChange={e => update("inspection_time", e.target.value)} /><small>WIB · Tanggal dan jam dapat diubah sesuai kejadian.</small></label>
       <label>{label("notes")}<textarea rows={3} maxLength={10000} value={form.notes} onChange={e => update("notes", e.target.value)} /></label>
     </fieldset>
     {record?.photos.map((p,i) => <a key={i} href={p.url} target="_blank" rel="noreferrer"><img className="pwa-daily-photo" src={p.url} alt={p.name || "Dokumentasi pemeriksaan"} /></a>)}
-    {editable && <button className="mobile-submit" disabled={saving || (!record && !couriers.length)}>{saving ? "Menyimpan…" : record ? "Simpan perubahan" : "Simpan pemeriksaan"}</button>}
+    {processing && <p role="status" aria-live="polite">Memproses foto… Mohon tunggu sebelum menyimpan.</p>}
+    {photoNotice && !saving && <p role="status" aria-live="polite">{photoNotice}</p>}
+    <ReportUploadStatus value={upload} />
+    {editable && <button className="mobile-submit" disabled={saving || processing || (!record && !couriers.length)}>{processing ? "Memproses foto…" : saving ? "Menyimpan…" : record ? "Simpan perubahan" : "Simpan pemeriksaan"}</button>}
     {error && <p className="pwa-profile-notice error" role="alert">{error}</p>}
   </form>;
 }
