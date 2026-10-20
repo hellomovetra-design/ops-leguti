@@ -28,7 +28,7 @@ export function EmployeeDashboard(){
    if(exportLock.current)return;
    exportLock.current=true;setExporting(true);setExportNotice('');
    try{
-     const [response,templateResponse,{employeeHrWorkbook}]=await Promise.all([fetch('/api/ops-desk?type=employees&view=export',{cache:'no-store'}),fetch('/struktur%20update%202026_SEPT.xlsx'),import('@/lib/employee-hr-workbook')]);
+     const [response,templateResponse,{employeeHrWorkbook}]=await Promise.all([fetch('/api/ops-desk?type=employees&view=export',{cache:'no-store'}),fetch('/api/ops-desk?type=employees&view=template',{cache:'no-store'}),import('@/lib/employee-hr-workbook')]);
      const data=await response.json();
      if(!response.ok||data.error||data.preview||!Array.isArray(data.items))throw new Error(data.error||'Database belum dapat diakses.');
      if(!templateResponse.ok)throw new Error('Template laporan HR belum dapat dimuat.');

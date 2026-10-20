@@ -29,13 +29,21 @@ export async function GET(req: NextRequest) {
   const session = await getSession(req);
   if (!session) return NextResponse.json({ items: [], error: "Sesi tidak valid." }, { status: 401, headers: { "Cache-Control": "no-store" } });
   const p = req.nextUrl.searchParams, type = p.get("type") || "overview", q = p.get("q") || "";
+  const desktop = ["super_admin", "admin", "spv", "jr_spv", "coordinator"].includes(session.role);
+  const permitted = ["employees", "overview", "cases", "requests", "requests-export", "users", "profile", "problems", "problem-photo", "employee-photo"];
+  if (!permitted.includes(type)) return NextResponse.json({ error: "Jenis data tidak valid." }, { status: 400, headers: { "Cache-Control": "no-store" } });
+  if (!desktop && ["employees", "overview"].includes(type)) return NextResponse.json({ error: "Akses dashboard diperlukan." }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  if (type === "employees" && p.get("view") === "template") {
+    const template = fs.readFileSync(path.join(process.cwd(), "assets", "templates", "employee-structure.xlsx"));
+    return new NextResponse(template, { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
+  }
   const supabase = db();
   if (type === "employees" && p.get("view") === "export") {
     if (!["super_admin", "admin", "spv", "jr_spv", "coordinator"].includes(session.role)) return NextResponse.json({error:"Unduh data karyawan memerlukan akses dashboard."},{status:403});
     if (!supabase) return NextResponse.json({error:"Database belum dapat diakses. Unduhan tidak menggunakan data contoh."},{status:503});
   }
   if (!supabase && type === "employees") {
-    const source = path.join(process.cwd(), "public", "struktur update 2026_SEPT.xlsx");
+    const source = path.join(process.cwd(), "assets", "templates", "employee-structure.xlsx");
     if (fs.existsSync(source)) {
       const workbook = XLSX.readFile(source), sheet = workbook.Sheets["LEGUTI MALOKO"] || workbook.Sheets[workbook.SheetNames[0]];
       const raw = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: "" });
@@ -47,6 +55,12 @@ export async function GET(req: NextRequest) {
   if (type === "problem-photo") {
     const storagePath = p.get("path");
     if (!storagePath) return NextResponse.json({ error: "Path foto tidak ditemukan." }, { status: 400 });
+    const reference = await supabase.from("ops_problem_photos").select("problem_id").eq("storage_path", storagePath).limit(1).maybeSingle();
+    if (reference.error || !reference.data) return NextResponse.json({ error: "Foto tidak ditemukan." }, { status: 404 });
+    if (!desktop) {
+      const owner = await supabase.from("ops_problems").select("created_by_email").eq("id", reference.data.problem_id).maybeSingle();
+      if (owner.error || owner.data?.created_by_email?.toLowerCase() !== session.email.toLowerCase()) return NextResponse.json({ error: "Foto tidak ditemukan." }, { status: 404 });
+    }
     if (storagePath.startsWith("imagekit:")) {
       try {
         const file = await fetchFromImageKit(storagePath.slice("imagekit:".length));
@@ -60,6 +74,10 @@ export async function GET(req: NextRequest) {
   if (type === "employee-photo") {
     const storagePath = p.get("path");
     if (!storagePath) return NextResponse.json({ error: "Path foto tidak ditemukan." }, { status: 400 });
+    if (!desktop) {
+      const own = await supabase.from("ops_user_profiles").select("photo_path").eq("email", session.email.toLowerCase()).maybeSingle();
+      if (own.error || own.data?.photo_path !== storagePath) return NextResponse.json({ error: "Foto tidak ditemukan." }, { status: 404 });
+    }
     if (storagePath.startsWith("imagekit:")) {
       try {
         const file = await fetchFromImageKit(storagePath.slice("imagekit:".length));

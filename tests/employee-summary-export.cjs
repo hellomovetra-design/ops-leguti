@@ -21,7 +21,7 @@ assert.equal(resigned[1][10],'Resign / Belum Diganti');
 const panel=fs.readFileSync('components/employee-dashboard.tsx','utf8');
 assert(panel.includes('templateResponse.arrayBuffer()'));assert(panel.includes("view=export',{cache:'no-store'}"));assert(panel.includes('exportLock.current'));assert(panel.includes('employee-download'));
 const {employeeHrWorkbook}=load('lib/employee-hr-workbook.ts',{'./employee-summary-export':{employeeSummaryExportRows}});
-const template=fs.readFileSync('public/struktur update 2026_SEPT.xlsx');
+const template=fs.readFileSync('assets/templates/employee-structure.xlsx');
 const result=employeeHrWorkbook(template,[{nik:'14010441',name:'Nama Revisi',tgrid:'TGR001',employment_type:'permanent',start_date:'2026-10-10',active:true},...rows],new Date('2026-12-31T18:00:00Z'));
 if(process.env.HR_EXPORT_QA){fs.mkdirSync('.tmp',{recursive:true});fs.writeFileSync('.tmp/hr-export-check.xlsx',result);}
 const hr=XLSX.read(result,{type:'array',cellStyles:true});
