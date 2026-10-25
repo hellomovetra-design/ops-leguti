@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, CheckCheck, ChevronRight, Headphones, Loader2, Package, RefreshCw, Trash2 } from "lucide-react";
+import { visiblePoll } from "@/lib/visible-poll";
 import { PwaPushSettings } from "./pwa-push-settings";
 
 type Notice = { id: string; title: string; body: string; entity_type: string; created_at: string; read_at: string | null };
@@ -21,11 +22,8 @@ export function usePwaNotifications() {
     finally { if (ticket === sequence.current) setLoading(false); }
   }, []);
   useEffect(() => {
-    void refresh();
-    const resume = () => { if (document.visibilityState === "visible" && !lock.current) void refresh(); };
-    const timer = window.setInterval(resume, 15000);
-    window.addEventListener("focus", resume); document.addEventListener("visibilitychange", resume);
-    return () => { sequence.current++; clearInterval(timer); window.removeEventListener("focus", resume); document.removeEventListener("visibilitychange", resume); };
+    const stop = visiblePoll(async () => { if (!lock.current) await refresh(); }, 120000);
+    return () => { sequence.current++; stop(); };
   }, [refresh]);
   async function markRead(id?: string) {
     const response = await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "read", ...(id ? { id } : {}) }) });

@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { visiblePoll } from "@/lib/visible-poll";
 import { RefreshCw, X } from "lucide-react";
 import { DAILY_CATEGORIES, DAILY_STATUSES, DailyRecord } from "@/lib/problem-solving-daily";
 import { PageHeader } from "./app-shell";
@@ -25,11 +26,9 @@ export function AdminDailyPanel() {
     finally { if (ticket === sequence.current) setLoading(false); }
   }, [page, search, status, category, unit, from, to]);
   useEffect(() => {
-    void load();
-    const refresh = () => { if (document.visibilityState === "visible" && !lock.current) void load(); };
-    const timer = setInterval(refresh, 15000);
-    window.addEventListener("focus", refresh);
-    return () => { sequence.current++; clearInterval(timer); window.removeEventListener("focus", refresh); };
+    const refresh = async () => { if (!lock.current) await load(); };
+    const stop = visiblePoll(refresh);
+    return () => { sequence.current++; stop(); };
   }, [load]);
   useEffect(() => {
     const controller = new AbortController();

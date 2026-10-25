@@ -26,7 +26,7 @@ export function ProblemGoodsPanel({initialId=""}:{initialId?:string}){
   catch(e){if(ticket===sequence.current)setError(e instanceof Error?e.message:"Laporan belum dapat dimuat.")}
   finally{if(ticket===sequence.current)setLoading(false)}
  },[params,offset]);
- useEffect(()=>{const start=setTimeout(load,250),timer=setInterval(()=>{if(!lock.current)load()},60000);const focus=()=>{if(!lock.current)load()};window.addEventListener("focus",focus);return()=>{clearTimeout(start);clearInterval(timer);window.removeEventListener("focus",focus);sequence.current++}},[load]);
+ useEffect(()=>{const start=setTimeout(load,250),timer=setInterval(()=>{if(document.visibilityState==="visible"&&!lock.current)load()},300000);const focus=()=>{if(!lock.current)load()};window.addEventListener("focus",focus);return()=>{clearTimeout(start);clearInterval(timer);window.removeEventListener("focus",focus);sequence.current++}},[load]);
  useEffect(()=>{const urls=photos.map(file=>URL.createObjectURL(file));setPreviews(urls);return()=>urls.forEach(url=>URL.revokeObjectURL(url))},[photos]);
  const closeDialog=useCallback(()=>{if(lock.current)return;if(creating&&(photos.length||form.awb||form.division||form.location||form.description)&&!window.confirm("Tutup form dan buang isian yang belum disimpan?"))return;reportId.current=crypto.randomUUID();setCreating(false);setDetailId(null);setForm(emptyForm);setPhotos([]);setFormError("")},[creating,form,photos]);
  const closeRef=useRef(closeDialog);closeRef.current=closeDialog;

@@ -16,10 +16,10 @@ export function useInboxIndicator(admin = false) {
       } catch { if (alive) setAvailable(false); }
       finally { busy = false; }
     };
-    void refresh(); const timer = window.setInterval(refresh, 20000);
-    const unsubscribe = subscribeInboxRealtime(admin, () => { void refresh(); });
-    window.addEventListener("focus", refresh); window.addEventListener("ops-inbox-read", refresh); document.addEventListener("visibilitychange", refresh);
-    return () => { unsubscribe(); alive = false; clearInterval(timer); window.removeEventListener("focus", refresh); window.removeEventListener("ops-inbox-read", refresh); document.removeEventListener("visibilitychange", refresh); };
+    void refresh();
+    const unsubscribe = subscribeInboxRealtime(admin, refresh);
+    window.addEventListener("ops-inbox-read", refresh);
+    return () => { unsubscribe(); alive = false; window.removeEventListener("ops-inbox-read", refresh); };
   }, [admin]);
   return { unread, available };
 }

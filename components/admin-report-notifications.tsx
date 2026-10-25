@@ -1,12 +1,13 @@
 "use client";
 import {useEffect,useRef,useState} from "react";
+import {visiblePoll} from "@/lib/visible-poll";
 import {Bell,X} from "lucide-react";
 import {PwaPushSettings} from "./pwa-push-settings";
 import "./report-workflow.css";
 export function AdminReportNotifications(){
  const [items,setItems]=useState<any[]>([]),[unread,setUnread]=useState(0),[error,setError]=useState(""),[offset,setOffset]=useState(0),[more,setMore]=useState(false),[busy,setBusy]=useState(false);
  const dialog=useRef<HTMLDialogElement>(null);
- useEffect(()=>{let alive=true;const load=async()=>{try{const r=await fetch(`/api/notifications?offset=${offset}`,{cache:"no-store"}),d=await r.json();if(!r.ok)throw Error(d.error);if(alive){setItems(d.items||[]);setUnread(d.unread||0);setMore(!!d.has_more);setError("");}}catch{if(alive)setError("Notifikasi belum dapat dimuat.");}};void load();const timer=setInterval(()=>{if(document.visibilityState==="visible")void load();},15000);window.addEventListener("focus",load);return()=>{alive=false;clearInterval(timer);window.removeEventListener("focus",load);};},[offset]);
+ useEffect(()=>{let alive=true;const load=async()=>{try{const r=await fetch(`/api/notifications?offset=${offset}`,{cache:"no-store"}),d=await r.json();if(!r.ok)throw Error(d.error);if(alive){setItems(d.items||[]);setUnread(d.unread||0);setMore(!!d.has_more);setError("");}}catch{if(alive)setError("Notifikasi belum dapat dimuat.");}};const stop=visiblePoll(load,120000);return()=>{alive=false;stop();};},[offset]);
  async function open(item:any){
   if(busy)return;setBusy(true);
   try{const r=await fetch("/api/notifications",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"read",id:item.id})});if(!r.ok)throw Error();

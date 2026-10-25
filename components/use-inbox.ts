@@ -80,11 +80,9 @@ export function useInbox({ admin = false, demo = false, threadId = null }: { adm
       return () => { window.removeEventListener(DEMO_EVENT, changed); window.removeEventListener("storage", changed); };
     }
     void refresh();
-    const resume = () => { if (document.visibilityState === "visible") void refresh(); };
-    const timer = window.setInterval(resume, 20000);
+    const resume = () => { if (document.visibilityState === "visible") return refresh(); };
     const unsubscribe = subscribeInboxRealtime(admin, resume);
-    window.addEventListener("focus", resume); document.addEventListener("visibilitychange", resume);
-    return () => { unsubscribe(); sequence.current++; clearInterval(timer); window.removeEventListener("focus", resume); document.removeEventListener("visibilitychange", resume); };
+    return () => { unsubscribe(); sequence.current++;  };
   }, [demo, admin, applyDemo, refresh]);
 
   const markRead = useCallback(async (seq: number) => {

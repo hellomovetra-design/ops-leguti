@@ -1,4 +1,5 @@
 "use client";
+import { visiblePoll } from "@/lib/visible-poll";
 import { fetchData } from "@/lib/fetch-data";
 import { EvidenceShareControls } from "./evidence-share-controls";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -37,7 +38,7 @@ export function MobileRequestApp(){
  const [dailyItems,setDailyItems]=useState<DailyRecord[]>([]),[dailyError,setDailyError]=useState(""),[dailyEditing,setDailyEditing]=useState<DailyRecord|null>(null),[dailyKey,setDailyKey]=useState(0);
  const [damageItems,setDamageItems]=useState<DamageCase[]>([]);
  const loadDamage=async()=>{try{const response=await fetch("/api/damage-cases?scope=mine",{cache:"no-store"});if(response.ok){const data=await response.json();setDamageItems(data.items||[]);}}catch{/* The dedicated module displays loading errors. */}};
- useEffect(()=>{void loadDamage();const timer=window.setInterval(()=>void loadDamage(),60000);return()=>clearInterval(timer);},[]);
+ useEffect(()=>{if(!["home","damage","activity"].includes(view))return;return visiblePoll(loadDamage);},[view]);
  const damageSaved=(item:DamageCase)=>{setDamageItems(items=>[item,...items.filter(x=>x.id!==item.id)]);finish("Damage Case berhasil dikirim.");};
  const [sending,setSending]=useState(false),[toast,setToast]=useState("");
  const submitLock=useRef(false),loadSequence=useRef(0);
@@ -46,7 +47,7 @@ export function MobileRequestApp(){
  const problemDraft=useReportDraft("problem",view==="problem",problemDraftValue,!!(form.awb||photos.length||form.reason),saved=>{setProblemId(saved.id);setForm(saved.form);setPhotos(saved.photos);});
  const chooseProblemPhotos=async(files:File[])=>{if(files.length>3){setMsg("Pilih maksimal 3 foto.");return;}setPreparing(true);setMsg("");try{setPhotos(await Promise.all(files.map(compactPhoto)));}catch(e){setMsg(e instanceof Error?e.message:"Foto belum dapat disiapkan.");}finally{setPreparing(false);}};
  const finish=(message:string)=>{setSelected(null);setForm(initial);setPhotos([]);setMsg("");setView("home");setToast(message);window.scrollTo({top:0,behavior:"instant"})};
- const carry=useCourierChecks("mine");
+ const carry=useCourierChecks("mine", view==="home"||view==="carry"||view==="activity");
  const notifications=usePwaNotifications();
  const [carryEditing,setCarryEditing]=useState<CourierCheck|null>(null),[carryKey,setCarryKey]=useState(0);
  usePwaNavigation(
@@ -58,7 +59,7 @@ export function MobileRequestApp(){
  const openCarry=(item:CourierCheck|null=null)=>{setCarryEditing(item);setCarryKey(k=>k+1);nav("carry")};
  const carrySaved=(item:CourierCheck)=>{carry.saved(item);setCarryEditing(null);setCarryKey(k=>k+1);finish("Pemeriksaan connote berhasil disimpan.");};
  const loadDaily=async()=>{try{const r=await fetch("/api/problem-solving-daily?scope=mine",{cache:"no-store"});const data=await r.json();if(!r.ok||data.error)throw new Error(data.error||"Catatan harian belum dapat dimuat.");setDailyItems(data.items||[]);setDailyError("");}catch(e){setDailyError(e instanceof Error?e.message:"Catatan harian belum dapat dimuat.");}};
- useEffect(()=>{loadDaily();const timer=window.setInterval(loadDaily,60000);return()=>clearInterval(timer)},[]);
+ useEffect(()=>{if(!["home","daily","activity"].includes(view))return;return visiblePoll(loadDaily);},[view]);
  const openDaily=(record:DailyRecord|null=null)=>{setDailyEditing(record);setDailyKey(k=>k+1);nav("daily")};
  const dailySaved=(item:DailyRecord)=>{setDailyItems(items=>[item,...items.filter(x=>x.id!==item.id)].sort((a,b)=>+new Date(b.created_at)-+new Date(a.created_at)));setDailyError("");setDailyEditing(null);setDailyKey(k=>k+1);finish("Catatan Problem Solving Daily berhasil disimpan.");};
  const nav=(v:View)=>{if(submitLock.current)return;setToast("");setSelected(null);setInboxThread(null);setView(v);setQ("");setMsg("");window.scrollTo({top:0,behavior:"smooth"})}; const update=(k:string,v:string)=>setForm(x=>({...x,[k]:v}));
@@ -67,17 +68,17 @@ export function MobileRequestApp(){
   const ticket=++loadSequence.current;
   const current=()=>ticket===loadSequence.current;
   const extras=Promise.allSettled([
-   fetchData("/api/ops-desk?type=cases").then(data=>{if(current())setOts(data.items||[])}),
-   fetchData("/api/ops-desk?type=profile").then(data=>{if(!current())return;setEmail(data.profile?.email||"");setDisplayName(data.profile?.display_name||"");setPhoto(data.profile?.photo_url||"")})
+   (["ots","activity"].includes(view)?fetchData("/api/ops-desk?type=cases"):Promise.resolve(null)).then(data=>{if(data&&current())setOts(data.items||[])})
   ]);
   const activity=await Promise.allSettled([
-   fetchData("/api/ops-desk?type=problems&scope=mine").then(data=>{if(current())setProblems(data.items||[])}),
-   fetchData("/api/ops-desk?type=requests&scope=mine").then(data=>{if(current())setRequests(data.items||[])})
+   (["home","problem","activity"].includes(view)?fetchData("/api/ops-desk?type=problems&scope=mine"):Promise.resolve(null)).then(data=>{if(data&&current())setProblems(data.items||[])}),
+   (["home","helpdesk","activity"].includes(view)?fetchData("/api/ops-desk?type=requests&scope=mine"):Promise.resolve(null)).then(data=>{if(data&&current())setRequests(data.items||[])})
   ]);
   if(current()){setLoadError(activity.some(result=>result.status==="rejected")?"Sebagian data aktivitas belum dapat dimuat. Akan dicoba kembali otomatis.":"");setLoading(false)}
   await extras;
  };
- useEffect(()=>{let active=true,pending=false;const refresh=async()=>{if(!active||pending)return;pending=true;try{await load()}finally{pending=false}};void refresh();const t=window.setInterval(()=>void refresh(),60000);return()=>{active=false;loadSequence.current++;clearInterval(t)}},[]);
+ useEffect(()=>{if(!["home","problem","helpdesk","activity","ots"].includes(view))return;let active=true,pending=false;const refresh=async()=>{if(!active||pending)return;pending=true;try{await load()}finally{pending=false}};const stop=visiblePoll(refresh);return()=>{active=false;loadSequence.current++;stop()}},[view]);
+ useEffect(()=>{let alive=true;const stop=visiblePoll(async()=>{const data=await fetchData("/api/ops-desk?type=profile");if(alive){setEmail(data.profile?.email||"");setDisplayName(data.profile?.display_name||"");setPhoto(data.profile?.photo_url||"")}},900000);return()=>{alive=false;stop()}},[]);
  useEffect(()=>{if(!profileFile){setProfilePreview("");return}const url=URL.createObjectURL(profileFile);setProfilePreview(url);return()=>URL.revokeObjectURL(url)},[profileFile]);
  const chooseProfilePhoto=(file:File|undefined)=>{if(!file)return;setProfileNotice("");setProfileFailed(false);if(!file.type.startsWith("image/")||file.size>5*1024*1024){setProfileFailed(true);setProfileNotice("Pilih gambar maksimal 5 MB.");return}setProfileFile(file)};
  const saveProfilePhoto=async()=>{if(!profileFile||profileSaving)return;setProfileSaving(true);setProfileNotice("");setProfileFailed(false);try{const data=new FormData();data.append("action","profile");data.append("displayName",displayName||email.split("@")[0]||"Pengguna");data.append("photo",profileFile);const r=await fetch("/api/ops-desk",{method:"POST",body:data});const result=await r.json();if(!r.ok||!result.ok||result.preview)throw new Error(result.error||"Foto belum berhasil tersimpan.");const photoUrl=result.profile?.photo_url;if(!photoUrl)throw new Error("Foto tersimpan, tetapi URL foto belum tersedia.");const check=await fetch(photoUrl,{cache:"no-store"});if(!check.ok||!check.headers.get("content-type")?.startsWith("image/"))throw new Error("Foto tersimpan, tetapi belum dapat ditampilkan. Silakan coba lagi.");setPhoto(photoUrl);setProfileFile(null);setProfileNotice("Foto profil berhasil disimpan dan ditampilkan.");}catch(error){setProfileFailed(true);setProfileNotice(error instanceof Error?error.message:"Gagal menyimpan foto. Silakan coba lagi.");}finally{setProfileSaving(false)}};

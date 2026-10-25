@@ -1,4 +1,5 @@
 "use client";
+import {visiblePoll} from "@/lib/visible-poll";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchData } from "@/lib/fetch-data";
 import { Building2, Download, Search, Truck, Users, UserRound } from "lucide-react";
@@ -15,7 +16,7 @@ export function EmployeeDashboard(){
  const exportLock=useRef(false);
  const[employmentFilter,setEmploymentFilter]=useState<EmploymentType|"all">("all"),[visibleCount,setVisibleCount]=useState(25);
  const[rows,setRows]=useState<Employee[]>([]),[q,setQ]=useState(""),[statusFilter,setStatusFilter]=useState<"current"|"active"|"inactive"|"resigned">("active"),[selected,setSelected]=useState<Segment|null>(null),[selectedHub,setSelectedHub]=useState<string|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState("");
- useEffect(()=>{const controller=new AbortController();let pending=false;const load=async()=>{if(pending||controller.signal.aborted)return;pending=true;try{const data=await fetchData("/api/ops-desk?type=employees&view=summary",controller.signal);if(!controller.signal.aborted){setRows(data.items||[]);setError("");}}catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:"Data karyawan belum dapat dimuat.");}finally{pending=false;if(!controller.signal.aborted)setLoading(false);}};void load();const t=window.setInterval(()=>void load(),60000);return()=>{controller.abort();window.clearInterval(t)}},[]);
+ useEffect(()=>{const controller=new AbortController();let pending=false;const load=async()=>{if(pending||controller.signal.aborted)return;pending=true;try{const data=await fetchData("/api/ops-desk?type=employees&view=summary",controller.signal);if(!controller.signal.aborted){setRows(data.items||[]);setError("");}}catch(e){if(!controller.signal.aborted)setError(e instanceof Error?e.message:"Data karyawan belum dapat dimuat.");}finally{pending=false;if(!controller.signal.aborted)setLoading(false);}};const stop=visiblePoll(load);return()=>{controller.abort();stop()}},[]);
  const summary=employeeSummary(rows),filters={status:statusFilter,employment:employmentFilter,segment:selected,hub:selectedHub,query:q},filtered=filterEmployees(rows,filters),scoped=filterEmployees(rows,filters,"segment"),employmentCounts=filterEmployees(rows,filters,"employment"),statusCounts=employeeSummary(filterEmployees(rows,filters,"status")),activeRows=statusCounts.active,inactiveRows=statusCounts.inactive,resignedRows=statusCounts.resigned,hubRows=filterEmployees(rows,filters,"hub");
  const hubs=useMemo(()=>Object.entries(hubRows.reduce((a:Record<string,number>,x)=>{const h=String(x.hub||"Tidak diketahui").toUpperCase();a[h]=(a[h]||0)+1;return a},{})).sort((a,b)=>b[1]-a[1]),[hubRows]);
  const chartHubs=Object.entries(filtered.reduce((a:Record<string,number>,x)=>{const h=String(x.hub||"Tidak diketahui").toUpperCase();a[h]=(a[h]||0)+1;return a},{})).sort((a,b)=>b[1]-a[1]);

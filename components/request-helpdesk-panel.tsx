@@ -32,7 +32,7 @@ export function RequestHelpdeskPanel({ initialId = "" }: { initialId?: string })
     }catch(e){if(ticket===sequence.current)setError(e instanceof Error?e.message:"Request belum dapat dimuat.")}
     finally{if(ticket===sequence.current)setLoading(false)}
   },[params,offset]);
-  useEffect(()=>{setSelected([]);const start=setTimeout(load,250);const timer=setInterval(load,60000);const focus=()=>{if(!lock.current)load()};window.addEventListener("focus",focus);return()=>{clearTimeout(start);clearInterval(timer);window.removeEventListener("focus",focus);sequence.current++}},[load]);
+  useEffect(()=>{setSelected([]);const start=setTimeout(load,250);const timer=setInterval(()=>{if(document.visibilityState==="visible"&&!lock.current)load()},300000);const focus=()=>{if(!lock.current)load()};window.addEventListener("focus",focus);return()=>{clearTimeout(start);clearInterval(timer);window.removeEventListener("focus",focus);sequence.current++}},[load]);
   const filter=(setter:(value:string)=>void,value:string)=>{setter(value);setSourceId("");setOffset(0);setMessage("");setMenuId(null);setDetailId(null)};
   async function mutate(body:Record<string,any>, success:string, mail=false){
     if(lock.current)return;lock.current=true;setBusy(true);setError("");setMessage("");

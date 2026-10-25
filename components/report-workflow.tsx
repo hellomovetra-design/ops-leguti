@@ -1,4 +1,5 @@
 "use client";
+import {visiblePoll} from "@/lib/visible-poll";
 import {useEffect,useState} from "react";
 import {REPORTS,ReportKind,reportAge} from "@/lib/report-workflow";
 import {DAMAGE_STATUSES} from "@/lib/damage-case";
@@ -13,7 +14,7 @@ export function ReportAge({created,status}:{created:string;status:string}){
 }
 export function ReportQueue({kind,revision}:{kind:ReportKind;revision?:unknown}){
  const [group,setGroup]=useState<any>(null),[error,setError]=useState("");
- useEffect(()=>{let alive=true;const load=async()=>{try{const r=await fetch("/api/report-activity?type=queue",{cache:"no-store"}),data=await r.json();if(!r.ok)throw Error(data.error);if(alive){setGroup(data.groups?.find((g:any)=>g.kind===kind));setError("");}}catch{if(alive)setError("Antrean belum dapat dimuat.");}};void load();const t=setInterval(load,60000);return()=>{alive=false;clearInterval(t);};},[kind,revision]);
+ useEffect(()=>{let alive=true;const load=async()=>{try{const r=await fetch("/api/report-activity?type=queue",{cache:"no-store"}),data=await r.json();if(!r.ok)throw Error(data.error);if(alive){setGroup(data.groups?.find((g:any)=>g.kind===kind));setError("");}}catch{if(alive)setError("Antrean belum dapat dimuat.");}};const stop=visiblePoll(load);return()=>{alive=false;stop();};},[kind,revision]);
  return <aside className="report-queue"><strong>Perlu tindak lanjut{group?` · ${group.total} laporan`:""}</strong><small>Antrean terlama di bawah ini tetap terlihat meskipun daftar utama menampilkan laporan terbaru. Peringatan 3 jam dan 24 jam bersifat pengingat, bukan SLA resmi.</small>{error?<p role="alert">{error}</p>:!group?<p>Memuat antrean…</p>:group.items.length?<div>{group.items.map((row:any)=><a key={row.id} href={row.url}><b>{row.awb}</b><ReportAge created={row.created_at} status={row.status}/></a>)}</div>:<p>Tidak ada laporan tertunda.</p>}</aside>;
 }
 export function ReportHistory({kind,id,revision}:{kind:ReportKind;id:string;revision?:unknown}){
