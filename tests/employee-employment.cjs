@@ -30,8 +30,10 @@ assert.ok(strip.indexOf('openHub("SPC LEGUTI")')<strip.indexOf('openHub("SP MALO
 assert.ok(strip.indexOf('statusButton("active"')<strip.indexOf('statusButton("inactive"'));
 assert.ok(strip.indexOf('statusButton("inactive"')<strip.indexOf('statusButton("resigned"'));
 assert.ok(strip.indexOf('statusButton("resigned"')<strip.indexOf('className="employment-summary-filters"'));
-assert.ok(strip.includes('["contract","permanent","outsource","unknown"]'));
+assert.ok(strip.includes('["contract","permanent","outsource"]'));
+assert.ok(!strip.includes('["contract","permanent","outsource","unknown"]'));
 const styles=fs.readFileSync('components/employee-status.css','utf8');
+assert.ok(styles.includes('grid-column:span 3;grid-template-columns:repeat(3,minmax(0,1fr))'));
 assert.ok(styles.includes('.employee-summary-strip.employee-overview-strip button[aria-pressed=true]{background:linear-gradient(135deg,#0759b7,#1686d9);color:#fff;'));
 assert.ok(styles.includes('button[aria-pressed=true] .status-dot{color:#fff}'));
 const statusButtonSource=source.split('\n').find(line=>line.includes('const statusButton='));
