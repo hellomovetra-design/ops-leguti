@@ -9,7 +9,10 @@ assert(!inAdministrator('/master/structure'));assert(!inAdministrator('/master/e
 const shell=fs.readFileSync('components/app-shell.tsx','utf8'),groups=shell.split('export function AppShell')[0];
 assert(!groups.includes('href: "/master/employees"'));assert(!groups.includes('href: "/master/couriers"'));assert(!groups.includes('href: "/master/personnel-changes"'));
 assert(shell.includes('ADMIN_MENUS.map'));assert(!shell.includes('ibadnarpatih@gmail.com'));
-assert(fs.readFileSync('app/settings/ops-access/page.tsx','utf8').includes('AdministratorHome'));
+const entry=fs.readFileSync('app/settings/ops-access/page.tsx','utf8');
+assert(entry.includes('redirect(ADMIN_MENUS[0].href)'));
+assert(!entry.includes('AdministratorHome'));
+assert.equal(ADMIN_MENUS[0].href,'/master/employees');
 assert(fs.readFileSync('app/settings/ops-access/users/page.tsx','utf8').includes('AdminRoleManager'));
 assert(fs.readFileSync('app/api/ops-desk/route.ts','utf8').includes('role: session.role'));
-console.log('PASS: administration grouped in hub, nested navigation state, operations unchanged and role label follows server role.');
+console.log('PASS: Administrator opens Data Karyawan directly, nested navigation remains available and role label follows server role.');
