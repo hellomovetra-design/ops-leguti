@@ -1,0 +1,13 @@
+const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
+const React=require('react'),{renderToStaticMarkup}=require('react-dom/server');
+const model={SANCTION_KINDS:{coaching:'Coaching',st:'Surat Teguran (ST)',sp1:'SP 1',sp2:'SP 2',sp3:'SP 3',hc_ga:'Tindak lanjut HC/GA'}};
+const m={exports:{}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('components/employee-sanctions-panel.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText,{module:m,exports:m.exports,require:n=>n.endsWith('.css')?{}:n==='./person-picker'?{PersonPicker:()=>React.createElement('label',null,'Nama karyawan')}:n==='@/lib/visible-poll'?{}:n==='@/lib/employee-sanctions'?model:require(n),crypto:globalThis.crypto,Intl,Date,URLSearchParams});
+const pwa=renderToStaticMarkup(React.createElement(m.exports.EmployeeSanctionsPanel));
+assert(pwa.includes('Catat pembinaan karyawan'));assert(pwa.includes('Hasil coaching'));assert(pwa.includes('Simpan catatan'));
+for(const unwanted of ['sanctions-list','Riwayat catatan saya','Rekap Sanksi','Sebelumnya','Berikutnya','Cari nama<input'])assert(!pwa.includes(unwanted),unwanted+' must not appear in PWA');
+const admin=renderToStaticMarkup(React.createElement(m.exports.EmployeeSanctionsPanel,{admin:true}));
+assert(admin.includes('Rekap Sanksi'));assert(admin.includes('sanctions-list'));assert(admin.includes('Berikutnya'));
+const source=fs.readFileSync('components/employee-sanctions-panel.tsx','utf8');
+assert(source.includes('if (!admin) return;'));assert(source.includes('if(!admin)return;const stop=visiblePoll'));
+console.log('PASS: rendered PWA contains form only, no history/search/pagination; dashboard recap remains and PWA list polling is disabled.');
