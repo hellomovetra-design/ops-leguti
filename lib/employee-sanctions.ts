@@ -3,7 +3,7 @@ export const SANCTION_KINDS = { coaching: "Coaching", st: "Surat Teguran (ST)", 
 export type SanctionKind = keyof typeof SANCTION_KINDS;
 export const SANCTION_ADMINS = ["super_admin", "admin", "spv"];
 export type SanctionEmployee = { nik: string; name: string; position: string; hub: string; superior: string; superior_nik?: string | null; active: boolean; employment?: string };
-export type EmployeeSanction = { id: string; employee_nik: string; employee_name: string; position: string; superior_name: string; superior_nik: string | null; hub: string; kind: SanctionKind; incident_date: string; description: string; coaching_result: string; created_by: string; created_at: string; updated_at: string; updated_by: string; can_edit?: boolean };
+export type EmployeeSanction = { id: string; employee_nik: string; employee_name: string; position: string; superior_name: string; superior_nik: string | null; hub: string; kind: SanctionKind; incident_date: string; description: string; coaching_result: string; created_by: string; created_at: string; updated_at: string; updated_by: string; recorder_name?: string; can_edit?: boolean };
 export function sanctionRecorder(person: { position?: string; active?: boolean; employment?: unknown } | null | undefined) {
   return !!person && employeeStatus(person) === "active" && /\bleader\b|\bcoordinator\b|\bkoordinator\b|\bsupervisor\b|\bspv\b/i.test(person.position || "");
 }

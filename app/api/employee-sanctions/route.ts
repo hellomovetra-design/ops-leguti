@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     const p = req.nextUrl.searchParams, admin = p.get("scope") === "admin";
     if (!await access(db, session, admin)) return json({ error: admin ? "Akses pengelola diperlukan." : "Pencatatan PWA hanya untuk Superadmin atau karyawan aktif dengan jabatan leader, koordinator, SPV/JR SPV." }, 403);
     const type = p.get("type") || "list";
-    if (type === "employees") return json({ items: await employees(db, session, admin) });
+    if (type === "employees") return json({ items: await employees(db, session, admin), recorder_name: (await linkedEmployee(db, session.email))?.name || session.email });
     if (type !== "list") return json({ error: "Permintaan tidak valid." }, 400);
     const offset = Number(p.get("offset") || 0), kind = p.get("kind") || "", search = (p.get("q") || "").trim();
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000 || search.length > 160 || (kind && !Object.hasOwn(SANCTION_KINDS, kind))) return json({ error: "Filter tidak valid." }, 400);
@@ -47,7 +47,21 @@ export async function GET(req: NextRequest) {
     if (search) query = query.ilike("employee_name", `%${search.replace(/[\\%_]/g, "\\$&")}%`);
     const result = await query.range(offset, offset + 50);
     if (result.error) return json({ error: dbMessage(result.error) }, 503);
-    return json({ items: (result.data || []).slice(0,50).map(row => ({ ...row, can_edit: admin })), has_more: (result.data || []).length > 50 });
+    const rows = (result.data || []).slice(0,50);
+    const names = new Map<string,string>();
+    const emails = [...new Set(rows.map(row => String(row.created_by).toLowerCase()))];
+    if (emails.length) {
+      const links = await db.from("ops_user_employee_links").select("email,employee_nik").in("email", emails);
+      if (links.error) throw Error("Nama pemberi belum dapat dimuat.");
+      const niks = [...new Set((links.data || []).map(link => link.employee_nik))];
+      if (niks.length) {
+        const people = await db.from("ops_employees").select("nik,name").in("nik", niks);
+        if (people.error) throw Error("Nama pemberi belum dapat dimuat.");
+        const byNik = new Map((people.data || []).map(person => [person.nik, person.name]));
+        for (const link of links.data || []) names.set(link.email.toLowerCase(), byNik.get(link.employee_nik) || link.email);
+      }
+    }
+    return json({ items: rows.map(row => ({ ...row, recorder_name: names.get(String(row.created_by).toLowerCase()) || row.created_by, can_edit: admin })), has_more: (result.data || []).length > 50 });
   } catch { return json({ error: "Akses atau data belum dapat diperiksa. Coba lagi." }, 503); }
 }
 export async function POST(req: NextRequest) {

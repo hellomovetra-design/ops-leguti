@@ -12,8 +12,8 @@ for(const position of ['Kurir Motor','Staff Operational','Admin SPC LEGUTI'])ass
 assert.equal(model.sanctionRecorder({position:'SPV',active:false}),false);
 assert.equal(model.sanctionTeam([...people,{...people[1],nik:'L2'},{nik:'LEGACY',name:'Legacy',position:'Staff',superior:'Leader A',active:true}],'L').some(p=>p.nik==='LEGACY'),false);
 let session={email:'leader@test.invalid',role:'viewer'},owner=people[1],records=[],fail=false;
-const db={from(table){let filters=[],body,mode='select',bounds=[0,999];const q={select(){return q},order(){return q},range(a,b){bounds=[a,b];return q},eq(k,v){filters.push(r=>r[k]===v);return q},ilike(){return q},insert(v){body=v;mode='insert';return q},update(v){body=v;mode='update';return q},maybeSingle(){return exec(true)},single(){return exec(true)},then(resolve,reject){return exec(false).then(resolve,reject)}};
-async function exec(single){if(fail)return{error:{code:'42P01'}};const source=table==='ops_employees'?people:records;let rows=source.filter(r=>filters.every(f=>f(r)));if(mode==='insert'){if(records.some(r=>r.id===body.id))return{error:{code:'23505'}};const row={...body,created_at:'2026-10-27T00:00:00Z',updated_at:'2026-10-27T00:00:00Z'};records.push(row);return{data:row};}if(mode==='update')rows.forEach(r=>Object.assign(r,body,{updated_at:'2026-10-27T01:00:00Z'}));return{data:single?rows[0]||null:rows.slice(bounds[0],bounds[1]+1)}}return q}};
+const db={from(table){let filters=[],body,mode='select',bounds=[0,999];const q={select(){return q},order(){return q},range(a,b){bounds=[a,b];return q},in(k,vs){filters.push(r=>vs.includes(r[k]));return q},eq(k,v){filters.push(r=>r[k]===v);return q},ilike(){return q},insert(v){body=v;mode='insert';return q},update(v){body=v;mode='update';return q},maybeSingle(){return exec(true)},single(){return exec(true)},then(resolve,reject){return exec(false).then(resolve,reject)}};
+async function exec(single){if(fail)return{error:{code:'42P01'}};const source=table==='ops_employees'?people:table==='ops_user_employee_links'?[{email:'leader@test.invalid',employee_nik:'L'}]:records;let rows=source.filter(r=>filters.every(f=>f(r)));if(mode==='insert'){if(records.some(r=>r.id===body.id))return{error:{code:'23505'}};const row={...body,created_at:'2026-10-27T00:00:00Z',updated_at:'2026-10-27T00:00:00Z'};records.push(row);return{data:row};}if(mode==='update')rows.forEach(r=>Object.assign(r,body,{updated_at:'2026-10-27T01:00:00Z'}));return{data:single?rows[0]||null:rows.slice(bounds[0],bounds[1]+1)}}return q}};
 const api=load('app/api/employee-sanctions/route.ts',{'@/lib/auth-token':{SESSION_COOKIE:'session',verifySessionToken:async()=>session},'@/lib/supabase':{getSupabaseServerClient:()=>db},'@/lib/employee-access':{linkedEmployee:async()=>owner},'@/lib/employee-sanctions':model,'@/lib/employee-status':status});
 const id='11111111-1111-4111-8111-111111111111';
 const get=q=>api.GET(new NextRequest('https://ops.test/api/employee-sanctions'+(q||'')));
@@ -29,7 +29,7 @@ const post=(extra={},origin='https://ops.test')=>api.POST(new NextRequest('https
  assert.equal((await post()).status,200);assert.equal(records.length,1,'stable ID prevents duplicates');
  assert.equal((await post({action:'update',updated_at:records[0].updated_at})).status,403);
  records.push({...records[0],id:'22222222-2222-4222-8222-222222222222',created_by:'other@test.invalid'});
- assert.equal((await(await get()).json()).items.length,1,'PWA own records only');
+ const own=(await(await get()).json());assert.equal(own.items.length,1,'PWA own records only');assert.equal(own.items[0].recorder_name,'Leader A');assert.equal((await(await get('?type=employees')).json()).recorder_name,'Leader A');
  session={email:'admin@test.invalid',role:'admin'};owner=null;
  assert.equal((await get()).status,403,'Admin without leadership uses dashboard scope');
  assert.equal((await(await get('?scope=admin')).json()).items.length,2);
