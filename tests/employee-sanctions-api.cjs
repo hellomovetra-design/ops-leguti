@@ -32,7 +32,7 @@ const post=(extra={},origin='https://ops.test')=>api.POST(new NextRequest('https
  const own=(await(await get()).json());assert.equal(own.items.length,1,'PWA own records only');assert.equal(own.items[0].recorder_name,'Leader A');assert.equal((await(await get('?type=employees')).json()).recorder_name,'Leader A');
  session={email:'admin@test.invalid',role:'admin'};owner=null;
  assert.equal((await get()).status,403,'Admin without leadership uses dashboard scope');
- assert.equal((await(await get('?scope=admin')).json()).items.length,2);
+ const all=(await(await get('?scope=admin')).json());assert.equal(all.items.length,2);assert.equal(all.items.find(r=>r.created_by==='other@test.invalid').recorder_name,'','Unlinked recorder must not fall back to email');assert.equal((await(await get('?scope=admin&type=employees')).json()).recorder_name,'');
  assert.equal((await post({scope:'admin',action:'update',updated_at:'2020-01-01'})).status,409);
  result=await(await post({scope:'admin',action:'update',employee_nik:'X',updated_at:records[0].updated_at,kind:'st',coaching_result:''})).json();assert.equal(result.item.employee_nik,'K','Identity snapshot immutable');assert.equal(result.item.kind,'st');
  session.role='super_admin';assert.equal((await get()).status,200);assert.equal((await(await get('?type=employees')).json()).items.length,people.filter(p=>p.active).length);
