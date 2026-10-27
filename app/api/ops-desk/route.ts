@@ -136,15 +136,16 @@ export async function GET(req: NextRequest) {
   }
   if (type === "profile") {
     let personelName = "";
+    let canRecordSanctions = false;
     if (session.employee_nik) {
-      try { personelName = (await linkedEmployee(supabase, session.email))?.name || ""; }
+      try { const person = await linkedEmployee(supabase, session.email); personelName = person?.name || ""; canRecordSanctions = !!person?.active && employeeStatus(person) === "active" && /\bleader\b|\bcoordinator\b|\bkoordinator\b/i.test(person.position || ""); }
       catch { return NextResponse.json({ error: "Data personel akun belum dapat dimuat." }, { status: 503 }); }
     }
     const result = await supabase.from("ops_user_profiles").select("email,display_name,photo_path,updated_at").eq("email", session.email.toLowerCase()).maybeSingle();
     const photoPath = result.data?.photo_path || "";
     const version = result.data?.updated_at ? `&v=${encodeURIComponent(result.data.updated_at)}` : "";
     const photo_url = photoPath ? `/api/ops-desk?type=employee-photo&path=${encodeURIComponent(photoPath)}${version}` : "";
-    return NextResponse.json({ profile: result.data ? { ...result.data, role: session.role, display_name: personelName || result.data.display_name, photo_url } : { email: session.email, role: session.role, display_name: personelName, photo_url: "" }, error: result.error?.message }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ profile: result.data ? { ...result.data, role: session.role, can_record_sanctions: canRecordSanctions, display_name: personelName || result.data.display_name, photo_url } : { email: session.email, role: session.role, can_record_sanctions: canRecordSanctions, display_name: personelName, photo_url: "" }, error: result.error?.message }, { headers: { "Cache-Control": "no-store" } });
   }
   const employeeFields = "nik,tgrid,phone,email,name,position,dept,hub,level,superior,superior_nik,active,employment,employment_type,start_date,created_at";
   if (type === "employees" && ["structure", "summary", "export"].includes(p.get("view") || "")) {

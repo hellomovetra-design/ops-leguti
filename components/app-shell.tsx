@@ -24,6 +24,7 @@ const navGroups = [
       { href: "/dashboard/ops-desk/problems", label: "Problem Barang", icon: Boxes },
       { href: "/dashboard/ops-desk/damage-cases", label: "Damage Case", icon: PackageSearch },
       { href: "/dashboard/ops-desk/problem-solving-daily", label: "Problem Solving Daily", icon: ClipboardList },
+      { href: "/dashboard/ops-desk/employee-sanctions", label: "Sanksi & Coaching", icon: ClipboardList },
       { href: "/dashboard/ops-desk/requests", label: "Request Helpdesk", icon: Headphones },
       { href: "/dashboard/ops-desk/inbox", label: "Inbox", icon: MessageCircle },
     ],

@@ -37,11 +37,16 @@
 .legut-pwa .pwa-section h2{font-size:20px;line-height:28px;font-weight:750;letter-spacing:-.4px;margin:0}
 .legut-pwa .pwa-section>p{font-size:13px;line-height:20px;color:#71809a;margin:2px 0 0}
 .legut-pwa .pwa-service-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px;align-items:stretch}
+.legut-pwa .pwa-service-grid.pwa-service-grid-four{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.legut-pwa .pwa-service-grid.pwa-service-grid-four .pwa-service{min-height:118px;padding:10px 4px}
+.legut-pwa .pwa-service-grid.pwa-service-grid-four .service-illustration{width:42px;height:42px}
+.legut-pwa .pwa-service-grid-four .service-card-title{font-size:11px;line-height:1.35;overflow-wrap:anywhere}
 .legut-pwa .pwa-service{display:flex;flex-direction:column;align-items:flex-start;border-radius:18px;padding:14px;box-shadow:none;text-align:left;color:#111c35;min-width:0}
 .legut-pwa .pwa-service-grid .pwa-service{min-height:136px;padding:12px 8px;align-items:center;justify-content:flex-start;text-align:center}
 .legut-pwa .pwa-service-grid .service-illustration{width:52px;height:52px;object-fit:contain;align-self:center}
 .legut-pwa .service-card-title{display:flex;flex-direction:column;margin-top:10px;font-size:12px;line-height:17px;font-weight:700;text-align:center}
 .legut-pwa .pwa-service.daily{background:#f0f4ff;border:1px solid #dde5f4}
+.legut-pwa .pwa-service.sanctions{background:#fff9e9;border:1px solid #f1e2b4}
 .legut-pwa .pwa-daily fieldset{display:grid;gap:14px;border:0;padding:0;margin:0;min-width:0}
 .legut-pwa .pwa-daily input,.legut-pwa .pwa-daily select,.legut-pwa .pwa-daily textarea{width:100%;min-width:0;max-width:100%}
 .legut-pwa .pwa-daily .mobile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
