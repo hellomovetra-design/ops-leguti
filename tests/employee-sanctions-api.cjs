@@ -7,6 +7,9 @@ assert.deepEqual(Array.from(model.sanctionTeam(people,'L'),p=>p.nik),['K']);
 assert.deepEqual(Array.from(model.sanctionTeam(people,'C'),p=>p.nik),['L','K']);
 assert.equal(model.sanctionTeam(people,'K').length,0);
 assert.equal(model.sanctionRecorder({...people[1],employment:'Resign'}),false);
+for(const position of ['Operational Inbound Jr. Supervisor','Operational Inbound Leguti Supervisor','JR SPV','SPV','Inbound Delivery Leader','Inbound Koordinator'])assert.equal(model.sanctionRecorder({position,active:true}),true);
+for(const position of ['Kurir Motor','Staff Operational','Admin SPC LEGUTI'])assert.equal(model.sanctionRecorder({position,active:true}),false);
+assert.equal(model.sanctionRecorder({position:'SPV',active:false}),false);
 assert.equal(model.sanctionTeam([...people,{...people[1],nik:'L2'},{nik:'LEGACY',name:'Legacy',position:'Staff',superior:'Leader A',active:true}],'L').some(p=>p.nik==='LEGACY'),false);
 let session={email:'leader@test.invalid',role:'viewer'},owner=people[1],records=[],fail=false;
 const db={from(table){let filters=[],body,mode='select',bounds=[0,999];const q={select(){return q},order(){return q},range(a,b){bounds=[a,b];return q},eq(k,v){filters.push(r=>r[k]===v);return q},ilike(){return q},insert(v){body=v;mode='insert';return q},update(v){body=v;mode='update';return q},maybeSingle(){return exec(true)},single(){return exec(true)},then(resolve,reject){return exec(false).then(resolve,reject)}};
@@ -32,7 +35,10 @@ const post=(extra={},origin='https://ops.test')=>api.POST(new NextRequest('https
  assert.equal((await(await get('?scope=admin')).json()).items.length,2);
  assert.equal((await post({scope:'admin',action:'update',updated_at:'2020-01-01'})).status,409);
  result=await(await post({scope:'admin',action:'update',employee_nik:'X',updated_at:records[0].updated_at,kind:'st',coaching_result:''})).json();assert.equal(result.item.employee_nik,'K','Identity snapshot immutable');assert.equal(result.item.kind,'st');
+ session.role='super_admin';assert.equal((await get()).status,200);assert.equal((await(await get('?type=employees')).json()).items.length,people.filter(p=>p.active).length);
  for(const role of ['super_admin','spv']){session.role=role;assert.equal((await get('?scope=admin')).status,200)}
+ for(const role of ['spv','jr_spv','admin']){session.role=role;owner=people[2];assert.equal((await get()).status,403,'Role alone must not grant PWA access');owner={...people[0],position:'Operational Inbound Jr. Supervisor'};assert.equal((await get()).status,200,'PWA authorization follows active employee position, not account role');assert.equal((await(await get('?type=employees')).json()).items.length,2,'Authorized supervisor remains limited to structural descendants');}
+ owner=null;
  for(const role of ['jr_spv','coordinator','viewer']){session.role=role;assert.equal((await get('?scope=admin')).status,403)}
  session.role='admin';fail=true;assert.equal((await get('?scope=admin')).status,503);
  const source=fs.readFileSync('components/mobile-request-app.tsx','utf8');assert(source.includes('canRecordSanctions?'));assert(source.includes('pwa-service-grid-four'));assert(source.includes('/pwa-sanctions.png'));

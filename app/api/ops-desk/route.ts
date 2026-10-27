@@ -136,9 +136,9 @@ export async function GET(req: NextRequest) {
   }
   if (type === "profile") {
     let personelName = "";
-    let canRecordSanctions = false;
+    let canRecordSanctions = session.role === "super_admin";
     if (session.employee_nik) {
-      try { const person = await linkedEmployee(supabase, session.email); personelName = person?.name || ""; canRecordSanctions = !!person?.active && employeeStatus(person) === "active" && /\bleader\b|\bcoordinator\b|\bkoordinator\b/i.test(person.position || ""); }
+      try { const person = await linkedEmployee(supabase, session.email); personelName = person?.name || ""; canRecordSanctions = canRecordSanctions || (!!person?.active && employeeStatus(person) === "active" && /\bleader\b|\bcoordinator\b|\bkoordinator\b|\bsupervisor\b|\bspv\b/i.test(person.position || "")); }
       catch { return NextResponse.json({ error: "Data personel akun belum dapat dimuat." }, { status: 503 }); }
     }
     const result = await supabase.from("ops_user_profiles").select("email,display_name,photo_path,updated_at").eq("email", session.email.toLowerCase()).maybeSingle();

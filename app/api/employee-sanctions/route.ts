@@ -11,6 +11,7 @@ const json = (data: unknown, status = 200) => NextResponse.json(data, { status, 
 type DB = NonNullable<ReturnType<typeof getSupabaseServerClient>>;
 async function access(db: DB, session: SessionPayload, admin: boolean) {
   if (admin) return SANCTION_ADMINS.includes(session.role);
+  if (session.role === "super_admin") return true;
   return sanctionRecorder(await linkedEmployee(db, session.email));
 }
 async function employees(db: DB, session: SessionPayload, admin: boolean) {
@@ -21,8 +22,9 @@ async function employees(db: DB, session: SessionPayload, admin: boolean) {
     rows.push(...(result.data || []));
     if ((result.data || []).length < 1000) break;
   }
-  const owner = admin ? null : await linkedEmployee(db, session.email);
-  return (admin ? rows.filter(row => employeeStatus(row) === "active") : sanctionTeam(rows, owner?.nik || "")).sort((a,b) => a.name.localeCompare(b.name));
+  const unrestricted = admin || session.role === "super_admin";
+  const owner = unrestricted ? null : await linkedEmployee(db, session.email);
+  return (unrestricted ? rows.filter(row => employeeStatus(row) === "active") : sanctionTeam(rows, owner?.nik || "")).sort((a,b) => a.name.localeCompare(b.name));
 }
 const dbMessage = (error: { code?: string }) => ["42P01", "PGRST205"].includes(error.code || "") ? "Modul Sanksi belum siap. Administrator perlu menjalankan migration 20261027_employee_sanctions.sql." : "Catatan belum dapat diproses. Coba lagi.";
 export async function GET(req: NextRequest) {
@@ -32,7 +34,7 @@ export async function GET(req: NextRequest) {
   if (!db) return json({ error: "Penyimpanan belum siap." }, 503);
   try {
     const p = req.nextUrl.searchParams, admin = p.get("scope") === "admin";
-    if (!await access(db, session, admin)) return json({ error: admin ? "Akses pengelola diperlukan." : "Pencatatan PWA hanya untuk leader dan koordinator aktif." }, 403);
+    if (!await access(db, session, admin)) return json({ error: admin ? "Akses pengelola diperlukan." : "Pencatatan PWA hanya untuk Superadmin atau karyawan aktif dengan jabatan leader, koordinator, SPV/JR SPV." }, 403);
     const type = p.get("type") || "list";
     if (type === "employees") return json({ items: await employees(db, session, admin) });
     if (type !== "list") return json({ error: "Permintaan tidak valid." }, 400);

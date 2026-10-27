@@ -6,8 +6,8 @@ Run `supabase/migrations/20261027_employee_sanctions.sql` in the existing projec
 
 ## Access
 
-- PWA recording requires a linked, active employee whose position is Leader, Coordinator or Koordinator. This is checked on the server on every request, not inferred from a user-supplied role/NIK.
-- The employee selector follows descendants in the employee hierarchy using `superior_nik`; legacy name relationships work only when the parent name is unique. Inactive employees and self-selection are excluded. PWA history is limited to records created by the logged-in account; no global history or employee-facing notifications are exposed.
+- PWA recording allows Super Admin without an employee link. All other users require a linked, active employee whose database position is Leader, Coordinator/Koordinator, Supervisor/SPV or Jr. Supervisor/JR SPV. Merely having an admin/SPV/JR SPV account role is insufficient. This is checked on the server on every request, not inferred from a user-supplied role/NIK. SPC is a hub name and does not grant access.
+- The employee selector follows descendants in the employee hierarchy using `superior_nik`; legacy name relationships work only when the parent name is unique. Inactive employees and self-selection are excluded for structural users; Super Admin can choose all active employees. PWA history is limited to records created by the logged-in account, including Super Admin; no global history or employee-facing notifications are exposed.
 - Dashboard recording, global recap and corrections require Super Admin, Admin Pengelola or SPV. Corrections preserve the original identity/superior snapshot and require the current record version. Direct API access by other roles is denied.
 - There is no public evidence/share endpoint, export, automatic escalation, password change or deletion for this sensitive module. Decisions and wording remain manual responsibilities of authorized staff.
 
