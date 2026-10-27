@@ -28,8 +28,8 @@ import { useInboxIndicator } from "./use-inbox-indicator";
 const initial={type:"activation_user",userId:"",name:"",nik:"",department:"Inbound",location:"SPC LEGUTI",reason:"",shipmentNumbers:"",awb:"",category:"INVALID"};
 type View="sanctions"|"damage"|"inbox"|"carry"|"daily"|"ots"|"services"|"home"|"activity"|"problem"|"helpdesk"|"notifications"|"profile";
 const greeting=()=>{const h=new Date().getHours();return h<11?"Selamat pagi":h<15?"Selamat siang":h<18?"Selamat sore":"Selamat malam"};
-export function MobileRequestApp(){
- const [canRecordSanctions,setCanRecordSanctions]=useState(false);
+export function MobileRequestApp({initialCanRecordSanctions=false}:{initialCanRecordSanctions?:boolean}){
+ const [canRecordSanctions,setCanRecordSanctions]=useState(initialCanRecordSanctions);
  const [localGreeting,setLocalGreeting]=useState("Selamat datang");
  const [inboxThread,setInboxThread]=useState<string|null>(null);
  const inbox=useInboxIndicator();
