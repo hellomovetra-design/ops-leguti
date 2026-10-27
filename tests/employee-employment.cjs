@@ -19,7 +19,7 @@ assert.ok(source.includes('employmentCounts=filterEmployees(rows,filters,"employ
 assert.ok(source.includes('filtered.slice(0,visibleCount)'));
 assert.ok(source.includes('<th>Kepegawaian</th>'));
 const topCards = source.slice(source.indexOf('<div className="employee-kpis'), source.indexOf('<div className="employee-summary-strip'));
-assert.equal((topCards.match(/<button /g)||[]).length,6, 'Top row includes formation, motor, mobil, staff, leader and coordinator');
+assert.equal((topCards.match(/<button /g)||[]).length,8, 'Top row includes formation, motor, mobil, staff, leader, coordinator, JR SPV and SPV');
 assert.ok(topCards.includes('onClick={()=>open("leader")}'));
 assert.ok(topCards.includes('onClick={()=>open("coordinator")}'));
 assert.ok(source.includes('className="employment-summary-filters"'));

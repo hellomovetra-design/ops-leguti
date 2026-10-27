@@ -1,0 +1,22 @@
+const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
+function load(file,mocks={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{module:m,exports:m.exports,require:n=>mocks[n]||require(n)});return m.exports;}
+const status=load('lib/employee-status.ts'),employment=load('lib/employee-employment.ts');
+const filters=load('lib/employee-dashboard-filters.ts',{'./employee-status':status,'./employee-employment':employment});
+const rows=Array.from({length:305},(_,i)=>({hub:i<239?'SPC LEGUTI':'SP MALOKO',active:true,employment:'Aktif',position:'Staff'}));
+assert.equal(Object.values(status.HUB_FORMATION).reduce((a,b)=>a+b,0),305);
+assert.equal(status.employeeFormation(rows).active,305);
+rows[0].employment='Resign';rows[0].active=false;
+let summary=status.employeeFormation(rows);assert.equal(summary.active,304);assert.equal(summary.formation,305);assert.equal(summary.shortage,1);
+summary=status.employeeFormation(rows,'SPC LEGUTI');assert.equal(summary.active,238);assert.equal(summary.formation,239);assert.equal(summary.shortage,1);
+summary=status.employeeFormation(rows,'SP MALOKO');assert.equal(summary.active,66);assert.equal(summary.formation,66);assert.equal(summary.shortage,0);
+rows[239].active=false;rows[239].employment='Nonaktif';summary=status.employeeFormation(rows,'sp maloko');assert.equal(summary.active,65);assert.equal(summary.formation,66);
+assert.equal(status.employeeFormation(rows,' SP LEGUTI ').formation,239);
+const people=[{position:'Operational Inbound Jr. Supervisor'},{position:'Operational Inbound Leguti Supervisor'},{position:'Staff',level:'JR SPV'},{position:'Staff',level:'SPV'},{position:'Staff Operational'},{position:'Inbound Delivery Leader'},{position:'Koordinator'}];
+assert.equal(people.filter(row=>filters.inSegment(row,'jr_spv')).length,2);
+assert.equal(people.filter(row=>filters.inSegment(row,'spv')).length,2);
+assert.equal(people.filter(row=>filters.inSegment(row,'staff')).length,1);
+for(const person of people)assert.equal(['motor','mobil','staff','leader','coordinator','jr_spv','spv'].filter(s=>filters.inSegment(person,s)).length,1,'Each person counts in one job group');
+const source=fs.readFileSync('components/employee-dashboard.tsx','utf8');
+assert(source.includes('employeeFormation(rows,selectedHub)'));assert(source.includes('`${formation.active}/${formation.formation}`'));
+assert(source.includes('open("jr_spv")'));assert(source.includes('open("spv")'));
+console.log('PASS: 305 capacity, active/formation ratio, fixed hub quotas after resignation/inactivation and distinct JR/SPV job counts.');

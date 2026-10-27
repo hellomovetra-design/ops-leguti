@@ -21,5 +21,5 @@ assert.equal(filterEmployees(rows,filters,'employment').length,2);
 filters.status='inactive';assert.equal(filterEmployees(rows,filters)[0].nik,'6');
 filters.status='active';filters.query='not found';assert.equal(filterEmployees(rows,filters).length,0);
 filters.query='A';assert.equal(filterEmployees(rows,filters).length,1);
-assert.equal(status.employeeSummary(rows).formation,304);
+assert.equal(status.employeeSummary(rows).formation,305);
 console.log('PASS: linked job/hub/employment/status/search filters, contextual facet counts, inactive selection and fixed formation.');

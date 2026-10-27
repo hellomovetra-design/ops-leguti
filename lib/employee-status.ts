@@ -1,5 +1,15 @@
 // Approved operational capacity, not a count of employee records.
-export const EMPLOYEE_FORMATION = 304;
+export const EMPLOYEE_FORMATION = 305;
+// Requested total distributed using active hub data on 27 October 2026.
+// Fixed quotas must not shrink when a person resigns or becomes inactive.
+export const HUB_FORMATION: Record<string, number> = { "SPC LEGUTI": 239, "SP MALOKO": 66 };
+export function employeeFormation<T extends StatusRecord & { hub?: unknown }>(rows: T[], hub: string | null = null) {
+  const normalize = (value: unknown) => String(value || "").trim().replace(/\s+/g, " ").toUpperCase().replace(/^SP LEGUTI$/, "SPC LEGUTI");
+  const scoped = hub ? rows.filter(row => normalize(row.hub) === normalize(hub)) : rows;
+  const active = scoped.filter(row => employeeStatus(row) === "active").length;
+  const formation = hub ? HUB_FORMATION[normalize(hub)] ?? 0 : EMPLOYEE_FORMATION;
+  return { active, formation, shortage: Math.max(0, formation - active), surplus: Math.max(0, active - formation) };
+}
 export type EmployeeStatus = "active" | "inactive" | "resigned";
 type StatusRecord = { active?: boolean; employment?: unknown };
 export const EMPLOYEE_STATUS_LABELS: Record<EmployeeStatus, string> = {
