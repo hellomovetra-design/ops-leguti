@@ -10,16 +10,15 @@ import "./admin-header.css";
 import "./inbox.css";
 import { useInboxIndicator } from "./use-inbox-indicator";
 import { AdminReportNotifications } from "./admin-report-notifications";
+import { ADMIN_MENUS, inAdministrator } from "@/lib/admin-navigation";
+import "./administrator.css";
 
 const navGroups = [
   {
     label: "MODUL OPERASIONAL",
     items: [
       { href: "/dashboard/ops-desk", label: "Ringkasan", icon: LayoutDashboard },
-      { href: "/master/employees", label: "Karyawan", icon: UserRound },
-      { href: "/master/couriers", label: "Master Kurir", icon: Boxes },
       { href: "/master/structure", label: "Struktur Tim", icon: Network },
-      { href: "/master/personnel-changes", label: "Perubahan Personel", icon: ArrowLeftRight },
       { href: "/dashboard/ops-desk/ots", label: "Monitoring OTS", icon: PackageSearch },
       { href: "/dashboard/ops-desk/courier-carry", label: "Bawaan Kurir", icon: Boxes },
       { href: "/dashboard/ops-desk/problems", label: "Problem Barang", icon: Boxes },
@@ -36,13 +35,13 @@ export function AppShell({ title, children }: { title: string; children: React.R
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [profile, setProfile] = useState<{ email?: string; display_name?: string }>({});
+  const [profile, setProfile] = useState<{ email?: string; display_name?: string; role?: string }>({});
   const { toast } = useApp();
   const inbox = useInboxIndicator(true);
   const displayTitle = title;
   useEffect(() => { fetch("/api/ops-desk?type=profile").then(r => r.json()).then(x => setProfile(x.profile || {})).catch(() => {}); }, []);
   const accountName = profile.display_name || profile.email?.split("@")[0] || "Pengguna";
-  const accountRole = profile.email?.toLowerCase() === "ibadnarpatih@gmail.com" ? "Super Admin" : "Internal";
+  const accountRole = ({super_admin:"Super Admin",admin:"Admin Pengelola",spv:"SPV",jr_spv:"Jr SPV",coordinator:"Koordinator",viewer:"Staf"} as Record<string,string>)[profile.role || ""] || "Internal";
 
   const logout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -68,12 +67,12 @@ export function AppShell({ title, children }: { title: string; children: React.R
             <div key={group.label}>
               <div className="nav-label">{group.label}</div>
               {group.items.map((item) => {
-                const active = item.href === "/dashboard/ops-desk" ? pathname === item.href : pathname.startsWith(item.href);
+                const active = item.href === "/settings/ops-access" ? inAdministrator(pathname) : item.href === "/dashboard/ops-desk" ? pathname === item.href : pathname.startsWith(item.href);
                 return (
-                  <Link className={cn("nav-item", active && "active")} href={item.href} key={item.href} onClick={() => setOpen(false)}>
+                  <div key={item.href}><Link className={cn("nav-item", active && "active")} href={item.href} onClick={() => setOpen(false)}>
                     <item.icon size={16} strokeWidth={active ? 2.4 : 1.8} />
                     <span>{item.label}</span>
-                  </Link>
+                  </Link>{item.href === "/settings/ops-access" && active && <div className="administrator-subnav">{ADMIN_MENUS.map(menu=><Link key={menu.href} href={menu.href} onClick={()=>setOpen(false)} className={cn("nav-item",pathname===menu.href&&"active")}>{menu.label}</Link>)}</div>}</div>
                 );
               })}
             </div>

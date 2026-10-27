@@ -1,0 +1,15 @@
+const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
+const m={exports:{}};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/admin-navigation.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{module:m,exports:m.exports});
+const {ADMIN_MENUS,inAdministrator}=m.exports;
+assert.equal(ADMIN_MENUS.length,4);
+for(const item of ADMIN_MENUS)assert(inAdministrator(item.href));
+assert(inAdministrator('/settings/ops-access'));assert(inAdministrator('/settings/ops-access/users'));
+assert(!inAdministrator('/master/structure'));assert(!inAdministrator('/master/employees-other'));assert(!inAdministrator('/dashboard/ops-desk'));
+const shell=fs.readFileSync('components/app-shell.tsx','utf8'),groups=shell.split('export function AppShell')[0];
+assert(!groups.includes('href: "/master/employees"'));assert(!groups.includes('href: "/master/couriers"'));assert(!groups.includes('href: "/master/personnel-changes"'));
+assert(shell.includes('ADMIN_MENUS.map'));assert(!shell.includes('ibadnarpatih@gmail.com'));
+assert(fs.readFileSync('app/settings/ops-access/page.tsx','utf8').includes('AdministratorHome'));
+assert(fs.readFileSync('app/settings/ops-access/users/page.tsx','utf8').includes('AdminRoleManager'));
+assert(fs.readFileSync('app/api/ops-desk/route.ts','utf8').includes('role: session.role'));
+console.log('PASS: administration grouped in hub, nested navigation state, operations unchanged and role label follows server role.');

@@ -1,2 +1,2 @@
-import { AdminRoleManager } from "@/components/admin-role-manager";
-export default function Page() { return <AdminRoleManager />; }
+import { AdministratorHome } from "@/components/administrator-home";
+export default function Page() { return <AdministratorHome />; }
