@@ -24,7 +24,7 @@ export function courierReportXlsx(template: ArrayBuffer, items: CourierCheck[], 
   const guidance=(sheet.match(/<row r="(?:19|2\d|3[0-3])"[\s\S]*?<\/row>/g)||[]).join("").replace(/r="([A-N]?)(\d+)"/g,(_,col,n)=>`r="${col}${Number(n)+shift}"`);
   const rows=Array.from({length:end-1},(_,i)=>{
     const record=items[i],r=i+2;
-    const values=CHECK_COLUMNS.map(([key])=>!record?"":key==="documentation_url"?documentationLinks(record,origin).join("\n"):key==="inspection_time"?record.inspection_time.slice(0,5):key==="delivery_area"?deliveryArea(record.delivery_area):record[key]);
+    const values=CHECK_COLUMNS.map(([key])=>!record?"":key==="courier_id"?record.courier_tgrid||"":key==="documentation_url"?documentationLinks(record,origin).join("\n"):key==="inspection_time"?record.inspection_time.slice(0,5):key==="delivery_area"?deliveryArea(record.delivery_area):record[key]);
     const lines=Math.max(1,...values.map((value,index)=>String(value??"").split("\n").reduce((total,line)=>total+Math.max(1,Math.ceil(line.length/(cols[index]-2))),0)));
     const height=Math.min(409,Math.max(42,lines*12+10));
     const cells=values.map((value,index)=>{

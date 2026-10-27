@@ -16,6 +16,15 @@ const photoUrl = (record: any, p: any, index: number) => p.public_token
   ? `/api/courier-checks?type=publicPhoto&id=${record.id}&index=${index}&token=${p.public_token}`
   : `/api/courier-checks?type=photo&id=${record.id}&index=${index}&v=${encodeURIComponent(record.updated_at)}`;
 const decorate = (session: SessionPayload, record: any) => ({ ...record, can_edit: canEdit(session, record), photos: (record.photos || []).map((p: any, index: number) => ({ name: p.name, url: photoUrl(record, p, index) })) });
+// Keep NIK as the stable internal relation; show the current employee TGR ID.
+async function withCourierIds(db: NonNullable<ReturnType<typeof getSupabaseServerClient>>, rows: any[]) {
+  if (!rows.length) return rows;
+  const ids = [...new Set(rows.map(row => row.courier_id))];
+  const result = await db.from("ops_employees").select("nik,tgrid").in("nik", ids);
+  if (result.error) throw new Error("TGR ID kurir belum dapat dimuat. Coba lagi.");
+  const mapping = new Map((result.data || []).map(row => [row.nik, String(row.tgrid || "").trim().toUpperCase()]));
+  return rows.map(row => ({ ...row, courier_tgrid: mapping.get(row.courier_id) || "" }));
+}
 async function inspectorName(db: NonNullable<ReturnType<typeof getSupabaseServerClient>>, session: SessionPayload) {
   if (session.employee_nik) {
     const employee = await linkedEmployee(db, session.email);
@@ -68,7 +77,7 @@ export async function GET(req: NextRequest) {
     if (!Number.isInteger(offset) || offset < 0) return json({ error: "Halaman tidak valid." }, 400);
     const result = await query.range(offset, offset + 199);
     if (result.error) return json({ error: databaseError(result.error) }, 503);
-    return json({ items: (result.data || []).map(row => decorate(session!, row)), has_more: result.data?.length === 200 });
+    return json({ items: (await withCourierIds(db, result.data || [])).map(row => decorate(session!, row)), has_more: result.data?.length === 200 });
   } catch (error) { return json({ error: error instanceof Error ? error.message : "Catatan belum dapat dimuat." }, 503); }
 }
 export async function POST(req: NextRequest) {
@@ -86,7 +95,7 @@ export async function POST(req: NextRequest) {
     if (existing.data && !canEdit(session, existing.data)) return json({ ok: false, error: "Anda tidak memiliki akses untuk mengubah catatan ini." }, 403);
     if (editing && !existing.data) return json({ ok: false, error: "Catatan tidak ditemukan." }, 404);
     // Stable client id makes retries after a lost response safe.
-    if (!editing && existing.data) return json({ ok: true, item: decorate(session, existing.data) });
+    if (!editing && existing.data) return json({ ok: true, item: decorate(session, (await withCourierIds(db, [existing.data]))[0]) });
     const values = {
       inspection_date: get("inspection_date"), inspection_time: get("inspection_time"),
       delivery_area: deliveryArea(get("delivery_area")), inspector_name: existing.data?.inspector_name || await inspectorName(db, session),
@@ -141,6 +150,6 @@ export async function POST(req: NextRequest) {
       : await db.from(TABLE).insert({ ...values, id, photos, created_by: session.email.toLowerCase() }).select().single();
     if (result.error) return json({ ok: false, error: databaseError(result.error) }, 503);
     if (!result.data) return json({ ok: false, error: "Catatan telah diperbarui pengguna lain. Buka ulang catatan sebelum menyimpan." }, 409);
-    return json({ ok: true, item: decorate(session, result.data) });
+    return json({ ok: true, item: decorate(session, (await withCourierIds(db, [result.data]))[0]) });
   } catch (error) { return json({ ok: false, error: error instanceof Error ? error.message : "Gagal menyimpan catatan." }, 503); }
 }

@@ -39,7 +39,7 @@ export async function linkedEmployee(db: NonNullable<ReturnType<typeof getSupaba
 export async function scopedCouriers(db: NonNullable<ReturnType<typeof getSupabaseServerClient>>, session: SessionPayload) {
   const rows: TeamEmployee[] = [];
   for (let offset = 0; ; offset += 1000) {
-    const result = await db.from("ops_employees").select("nik,name,position,employment,hub,superior,superior_nik,active").order("nik").range(offset, offset + 999);
+    const result = await db.from("ops_employees").select("nik,tgrid,name,position,employment,hub,superior,superior_nik,active").order("nik").range(offset, offset + 999);
     if (result.error) throw new Error("Data kurir belum dapat dimuat.");
     rows.push(...(result.data as TeamEmployee[] || []));
     if ((result.data || []).length < 1000) break;

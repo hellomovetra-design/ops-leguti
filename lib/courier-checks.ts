@@ -12,10 +12,10 @@ export function deliveryArea(value: string) {
   if (area === "SPC LEGUTI" || area === "SP LEGUTI") return "SPC LEGUTI";
   return area === "SP MALOKO" ? "SP MALOKO" : "";
 }
-export type Courier = { nik: string; name: string; position: string; employment: string; hub: string };
+export type Courier = { nik: string; tgrid?: string; name: string; position: string; employment: string; hub: string };
 export type CourierCheck = {
   id: string; inspection_date: string; inspection_time: string; delivery_area: string;
-  inspector_name: string; courier_id: string; courier_name: string; position: string; employment: string;
+  inspector_name: string; courier_id: string; courier_tgrid?: string; courier_name: string; position: string; employment: string;
   runsheet_count: number; physical_count: number; result: "Sesuai" | "Tidak Sesuai";
   documentation_url: string; inspection_location: string; notes: string;
   photos: { name: string; url: string }[]; created_by: string; created_at: string; updated_at: string; can_edit: boolean;
@@ -26,5 +26,6 @@ export function courierRole(position: string) {
   return "";
 }
 export function checkCell(record: CourierCheck, key: typeof CHECK_COLUMNS[number][0]) {
+  if (key === "courier_id") return record.courier_tgrid || "";
   return key === "inspection_time" ? record[key].slice(0, 5) + " WIB" : String(record[key] ?? "");
 }
