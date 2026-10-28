@@ -4,6 +4,8 @@ import { getSupabaseServerClient } from "@/lib/supabase";
 import { linkedEmployee } from "@/lib/employee-access";
 import { SANCTION_ADMINS, SANCTION_KINDS, sanctionRecorder, sanctionTeam, sanctionValues, SanctionEmployee } from "@/lib/employee-sanctions";
 import { employeeStatus } from "@/lib/employee-status";
+import { fetchFromImageKit } from "@/lib/imagekit";
+import { validateSanctionPhotos, uploadSanctionPhotos, discardSanctionPhotos, sanctionPhotoView, SanctionPhoto } from "@/lib/sanction-photos";
 export const runtime = "nodejs";
 const TABLE = "ops_employee_sanctions";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,7 +28,7 @@ async function employees(db: DB, session: SessionPayload, admin: boolean) {
   const owner = unrestricted ? null : await linkedEmployee(db, session.email);
   return (unrestricted ? rows.filter(row => employeeStatus(row) === "active") : sanctionTeam(rows, owner?.nik || "")).sort((a,b) => a.name.localeCompare(b.name));
 }
-const dbMessage = (error: { code?: string }) => ["42P01", "PGRST205"].includes(error.code || "") ? "Modul Sanksi belum siap. Administrator perlu menjalankan migration 20261027_employee_sanctions.sql." : "Catatan belum dapat diproses. Coba lagi.";
+const dbMessage = (error: { code?: string }) => ["42703", "PGRST204"].includes(error.code || "") ? "Bukti coaching belum siap. Jalankan migration 20261028_sanction_photos.sql." : ["42P01", "PGRST205"].includes(error.code || "") ? "Modul Sanksi belum siap. Administrator perlu menjalankan migration 20261027_employee_sanctions.sql." : "Catatan belum dapat diproses. Coba lagi.";
 export async function GET(req: NextRequest) {
   const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
   if (!session) return json({ error: "Silakan login kembali." }, 401);
@@ -36,6 +38,18 @@ export async function GET(req: NextRequest) {
     const p = req.nextUrl.searchParams, admin = p.get("scope") === "admin";
     if (!await access(db, session, admin)) return json({ error: admin ? "Akses pengelola diperlukan." : "Pencatatan PWA hanya untuk Superadmin atau karyawan aktif dengan jabatan leader, koordinator, SPV/JR SPV." }, 403);
     const type = p.get("type") || "list";
+    if (type === "photo") {
+      const id=p.get("id")||"", index=Number(p.get("index"));
+      if(!uuid.test(id)||!p.has("index")||!Number.isInteger(index)||index<0||index>2)return json({error:"Foto tidak valid."},400);
+      let query=db.from(TABLE).select("created_by,photos").eq("id",id);
+      if(!admin)query=query.eq("created_by",session.email.toLowerCase());
+      const record=await query.maybeSingle();
+      if(record.error)return json({error:dbMessage(record.error)},503);
+      const photo=record.data?.photos?.[index];
+      if(!photo?.path)return json({error:"Foto tidak ditemukan."},404);
+      const file=await fetchFromImageKit(photo.path);
+      return new NextResponse(file.body,{headers:{"Content-Type":photo.content_type||"image/jpeg","Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
+    }
     if (type === "employees") return json({ items: await employees(db, session, admin), recorder_name: (await linkedEmployee(db, session.email))?.name || "" });
     if (type !== "list") return json({ error: "Permintaan tidak valid." }, 400);
     const offset = Number(p.get("offset") || 0), kind = p.get("kind") || "", search = (p.get("q") || "").trim();
@@ -61,7 +75,7 @@ export async function GET(req: NextRequest) {
         for (const link of links.data || []) names.set(link.email.toLowerCase(), byNik.get(link.employee_nik) || "");
       }
     }
-    return json({ items: rows.map(row => ({ ...row, recorder_name: names.get(String(row.created_by).toLowerCase()) || "", can_edit: admin })), has_more: (result.data || []).length > 50 });
+    return json({ items: rows.map(row => ({ ...row, photos:sanctionPhotoView(row,admin?"admin":"mine"), recorder_name: names.get(String(row.created_by).toLowerCase()) || "", can_edit: admin })), has_more: (result.data || []).length > 50 });
   } catch { return json({ error: "Akses atau data belum dapat diperiksa. Coba lagi." }, 503); }
 }
 export async function POST(req: NextRequest) {
@@ -70,9 +84,19 @@ export async function POST(req: NextRequest) {
   if (!session) return json({ error: "Silakan login kembali." }, 401);
   const db = getSupabaseServerClient(session.email);
   if (!db) return json({ error: "Penyimpanan belum siap." }, 503);
+  let uploaded:SanctionPhoto[]=[], attempted=false;
   try {
     let body: Record<string, unknown>;
-    try { body = await req.json(); } catch { return json({ error: "Permintaan tidak valid." }, 400); }
+    let files:File[]=[];
+    if(Number(req.headers.get("content-length")||0)>4*1024*1024)return json({error:"Total unggahan terlalu besar."},413);
+    try {
+      if(req.headers.get("content-type")?.includes("multipart/form-data")){
+        const form=await req.formData();body=Object.fromEntries(form.entries());
+        const parts=form.getAll("photos");
+        if(parts.some(part=>!(part instanceof File)))return json({error:"Foto tidak valid."},400);
+        files=parts as File[];
+      } else body = await req.json();
+    } catch { return json({ error: "Permintaan tidak valid." }, 400); }
     if (!body || typeof body !== "object" || Array.isArray(body)) return json({ error: "Permintaan tidak valid." }, 400);
     const admin = body.scope === "admin";
     if (!await access(db, session, admin)) return json({ error: "Anda tidak memiliki akses untuk tindakan ini." }, 403);
@@ -85,28 +109,40 @@ export async function POST(req: NextRequest) {
     const existing = await existingQuery.maybeSingle();
     if (existing.error) return json({ error: dbMessage(existing.error) }, 503);
     if (action === "update" && !existing.data) return json({ error: "Catatan tidak ditemukan." }, 404);
-    if (action === "create" && existing.data) return json({ ok: true, item: existing.data });
+    if (action === "create" && existing.data) return json({ ok: true, item:{...existing.data,photos:sanctionPhotoView(existing.data,admin?"admin":"mine")} });
     let values;
     try { values = sanctionValues(body); } catch (e) { return json({ error: e instanceof Error ? e.message : "Isian tidak valid." }, 400); }
+    const oldPhotos:SanctionPhoto[]=existing.data?.photos||[];
+    try { await validateSanctionPhotos(files,oldPhotos.length); } catch(error) {return json({error:error instanceof Error?error.message:"Foto tidak valid."},400);}
+    // Explicit readiness check avoids uploading assets before the photos column exists.
+    const ready=await db.from(TABLE).select("photos").limit(1);
+    if(ready.error)return json({error:dbMessage(ready.error)},503);
     if (action === "update") {
       const version = String(body.updated_at || "");
       if (!version || Number.isNaN(Date.parse(version))) return json({ error: "Versi catatan tidak valid." }, 400);
-      const result = await db.from(TABLE).update({ ...values, updated_by: email }).eq("id", id).eq("updated_at", version).select().maybeSingle();
+      if(existing.data.updated_at!==version)return json({error:"Catatan berubah. Muat ulang sebelum menyimpan."},409);
+      uploaded=await uploadSanctionPhotos(files,id);
+      attempted=true;
+      const result = await db.from(TABLE).update({ ...values, photos:[...oldPhotos,...uploaded], updated_by: email }).eq("id", id).eq("updated_at", version).select().maybeSingle();
       if (result.error) return json({ error: dbMessage(result.error) }, 503);
-      if (!result.data) return json({ error: "Catatan berubah. Muat ulang sebelum menyimpan." }, 409);
-      return json({ ok: true, item: result.data });
+      if (!result.data) {await discardSanctionPhotos(uploaded);return json({ error: "Catatan berubah. Muat ulang sebelum menyimpan." }, 409);}
+      return json({ ok: true, item:{...result.data,photos:sanctionPhotoView(result.data,admin?"admin":"mine")} });
     }
     const person = (await employees(db, session, admin)).find(row => row.nik === String(body.employee_nik || ""));
     if (!person) return json({ error: "Pilih karyawan aktif dalam tim yang dapat Anda kelola." }, 403);
-    const result = await db.from(TABLE).insert({ ...values, id, employee_nik: person.nik, employee_name: person.name, position: person.position, superior_nik: person.superior_nik || null, superior_name: person.superior || "", hub: person.hub, created_by: email, updated_by: email }).select().single();
+    uploaded=await uploadSanctionPhotos(files,id);
+    attempted=true;
+    const result = await db.from(TABLE).insert({ ...values, photos:uploaded, id, employee_nik: person.nik, employee_name: person.name, position: person.position, superior_nik: person.superior_nik || null, superior_name: person.superior || "", hub: person.hub, created_by: email, updated_by: email }).select().single();
     if (result.error) {
       if (result.error.code === "23505") {
+        await discardSanctionPhotos(uploaded);
         const retry = await db.from(TABLE).select("*").eq("id", id).eq("created_by", email).maybeSingle();
-        if (!retry.error && retry.data) return json({ ok: true, item: retry.data });
+        if (!retry.error && retry.data) return json({ ok: true, item:{...retry.data,photos:sanctionPhotoView(retry.data,admin?"admin":"mine")} });
         return json({ error: "ID catatan tidak tersedia. Buka form baru." }, 409);
       }
       return json({ error: dbMessage(result.error) }, 503);
     }
-    return json({ ok: true, item: result.data });
-  } catch { return json({ error: "Penyimpanan belum terkonfirmasi. Coba kembali dengan form yang sama." }, 503); }
+    return json({ ok: true, item:{...result.data,photos:sanctionPhotoView(result.data,admin?"admin":"mine")} });
+  } catch(error) { return json({ error: !attempted&&error instanceof Error?error.message:"Penyimpanan belum terkonfirmasi. Coba kembali dengan form yang sama." }, 503); }
+  finally { if(!attempted)await discardSanctionPhotos(uploaded); }
 }

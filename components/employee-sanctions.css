@@ -13,3 +13,6 @@
 .legut-pwa .sanctions-pwa .sanctions-actions{margin-top:6px}
 .legut-pwa .sanctions-pwa .sanctions-actions .mobile-submit{width:100%;min-height:50px;margin:0;border-radius:12px;font-size:15px}
 .legut-pwa .sanctions-pwa .sanctions-success{margin-top:16px}
+.sanctions-evidence{margin:16px 0}.sanctions-evidence h3{font-size:15px;margin:0 0 8px}.sanctions-evidence p{font-size:13px;line-height:1.5;color:#607086}
+.sanctions-photo-actions{display:flex;gap:10px;flex-wrap:wrap}.sanctions-photo-actions label{position:relative;overflow:hidden;min-height:44px;display:flex;align-items:center;cursor:pointer}.sanctions-photo-actions input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.sanctions-photo-grid{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.sanctions-photo-grid img{width:80px;height:80px;object-fit:cover;border:1px solid #d7e2ef;border-radius:8px}.sanctions-photo-grid>div{display:flex;flex-direction:column;gap:4px}.sanctions-photo-grid button{min-height:36px;border:1px solid #d7e2ef;background:#fff;border-radius:6px;color:#a42525;cursor:pointer}
