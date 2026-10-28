@@ -12,6 +12,7 @@ import { after } from "next/server";
 import { dispatchPush } from "@/lib/web-push";
 import { scopeHistory } from "@/lib/history-scope";
 import { employeeState, employeeStatus } from "@/lib/employee-status";
+import { employeeBulkRows } from "@/lib/employee-bulk";
 import { employeeEditPayload } from "@/lib/employee-edit";
 import {createProblemReport} from "@/lib/create-problem-report";
 
@@ -387,29 +388,17 @@ export async function POST(req: NextRequest) {
   }
   const photoFiles = multipart ? multipart.getAll("photos").filter((x): x is File => x instanceof File) : [];
   if (body.action === "bulkEmployees") {
-    const incoming = (Array.isArray(body.rows) ? body.rows : []).map((row: any) => ({
-      nik: String(row.nik || "").trim(), name: String(row.name || "").trim(), position: row.position || "", dept: row.dept || "", hub: row.hub || "", level: row.level || "", superior: row.superior || "", ...employeeState(row),
-    })).filter((row: any) => row.nik && row.name);
-    if (!incoming.length) return NextResponse.json({ ok: false, error: "Tidak ada baris karyawan valid. Pastikan NIK dan nama terisi." }, { status: 400 });
-    const merged = incoming;
-    const existing = await supabase.from("ops_employees").select("nik,active,employment").limit(1000);
-    if (existing.error) return NextResponse.json({ ok: false, error: existing.error.message }, { status: 500 });
-    const incomingNiks = new Set(merged.map((row: any) => row.nik));
-    // An omitted resignation does not prove that a replacement has arrived.
-    const missingNiks = (existing.data || []).filter((row: any) => employeeStatus(row) !== "resigned").map((row: any) => String(row.nik || "").trim()).filter((nik: string) => nik && !incomingNiks.has(nik));
-    let result: any = { error: null };
-    for (let i = 0; i < merged.length; i += 100) {
-      result = await supabase.from("ops_employees").upsert(merged.slice(i, i + 100), { onConflict: "nik" });
-      if (result.error) break;
+    if (!["super_admin", "admin", "spv"].includes(session.role)) return NextResponse.json({ ok:false,error:"Akses pengelola diperlukan." },{status:403});
+    if (req.headers.get("origin") !== req.nextUrl.origin) return NextResponse.json({ok:false,error:"Permintaan tidak valid."},{status:403});
+    try {
+      const rows = employeeBulkRows(body.rows);
+      const result = await supabase.rpc("ops_merge_employee_batch", {p_rows:rows,p_actor:session.email});
+      if (result.error) return NextResponse.json({ok:false,error:["PGRST202","42883"].includes(result.error.code) ? "Update massal belum siap. Jalankan migration 20261028_employee_bulk_merge.sql terlebih dahulu." : result.error.message},{status:409});
+      await audit(supabase,session,"bulk_upsert","employee",undefined,{rows:rows.length,...result.data});
+      return NextResponse.json({ok:true,...result.data},{headers:{"Cache-Control":"no-store"}});
+    } catch (error) {
+      return NextResponse.json({ok:false,error:error instanceof Error?error.message:"File karyawan tidak valid."},{status:400});
     }
-    if (!result.error) {
-      for (let i = 0; i < missingNiks.length; i += 100) {
-        result = await supabase.from("ops_employees").update({ active: false, employment: "Nonaktif" }).in("nik", missingNiks.slice(i, i + 100));
-        if (result.error) break;
-      }
-    }
-    if (!result.error) await audit(supabase, session, "bulk_upsert", "employee", undefined, { rows: merged.length });
-    return NextResponse.json({ ok: !result.error, imported: merged.length, deactivated: missingNiks.length, error: result.error?.message });
   }
   if (body.action === "updateEmployee" || body.action === "employee") {
     if (!["admin", "super_admin", "spv"].includes(session.role)) return NextResponse.json({ ok: false, error: "Hanya Super Admin, Admin Pengelola, atau SPV yang dapat mengubah data karyawan." }, { status: 403 });

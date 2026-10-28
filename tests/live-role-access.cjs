@@ -11,7 +11,7 @@ for(const [file,key] of [['lib/damage-case.ts','DAMAGE_ADMINS'],['lib/inbox.ts',
  assert.equal(roles.includes('viewer'),false);
 }
 const db={from(){return{select(){return this},limit:async()=>({data:[],error:null})}},rpc:async()=>({data:{courier_synced:false},error:null})};
-const api=load('app/api/ops-desk/route.ts',{'@/lib/create-problem-report':{},'@/lib/auth-token':tokens,'@/lib/supabase':{getSupabaseServerClient:()=>db},'@/lib/employee-edit':{employeeEditPayload:body=>body},'@/lib/imagekit':{},'@/lib/request-report':{},'@/lib/problem-records':{},'@/lib/employee-access':{},'@/lib/web-push':{},'@/lib/history-scope':{},'@/lib/employee-status':{}});
+const api=load('app/api/ops-desk/route.ts',{'@/lib/employee-bulk':load('lib/employee-bulk.ts'),'@/lib/create-problem-report':{},'@/lib/auth-token':tokens,'@/lib/supabase':{getSupabaseServerClient:()=>db},'@/lib/employee-edit':{employeeEditPayload:body=>body},'@/lib/imagekit':{},'@/lib/request-report':{},'@/lib/problem-records':{},'@/lib/employee-access':{},'@/lib/web-push':{},'@/lib/history-scope':{},'@/lib/employee-status':{}});
 (async()=>{
  const cookie=await tokens.createSessionToken('staff@example.test','viewer',env.INTERNAL_AUTH_SECRET,'00123');
  for(const role of ['super_admin','spv','admin']){
