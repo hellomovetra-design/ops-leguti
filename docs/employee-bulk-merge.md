@@ -19,6 +19,14 @@ Perbaikan insiden 28 Oktober 2026. Upload 84 baris pada 10:55 WIB menjalankan al
 - Seluruh batch satu transaksi. Kesalahan satu baris membatalkan semuanya. Trigger sinkronisasi master kurir tetap bekerja; area/kecamatan/shift dan metadata operasional tersimpan dipertahankan.
 - Pesan hasil membedakan baru, diperbarui, dan tetap. Rumus/kuota ringkasan tidak diubah.
 
+## Tanggal masuk
+
+Jalankan tambahan migration `20261028_employee_bulk_start_date.sql`, lalu deploy aplikasi. Tidak perlu menjalankan ulang SQL pemulihan insiden.
+
+Pembaca Excel meneruskan `TGL MASUK`, `TANGGAL MASUK`, atau `START_DATE` ke `start_date`. Tanggal Excel sistem 1900/1904, `DD/MM/YYYY`, dan `YYYY-MM-DD` dinormalisasi menjadi `YYYY-MM-DD`. Tanggal kosong mempertahankan data lama; tanggal tidak valid menggagalkan unggahan. Tanggal baru atau koreksi tanggal ikut dalam penghitung diperbarui dan riwayat perubahan; tanggal yang sama dilewati. Ekspor HR membaca nilai database ini.
+
+API memakai RPC `ops_merge_employee_batch_v2` agar pemasangan SQL lama menghasilkan pesan migration belum siap, bukan sukses dengan tanggal yang diam-diam diabaikan.
+
 ## Validasi
 
 `node tests/employee-bulk-merge-db.cjs` menjalankan migration PostgreSQL lokal dengan trigger master/hierarki/audit asli. Cakupan: upload parsial, jabatan/atasan, status/identitas/kontak tetap, master sinkron, tidak menulis ulang, penolakan NIK ganda, transaksi rollback, serta hak akses.

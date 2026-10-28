@@ -392,8 +392,8 @@ export async function POST(req: NextRequest) {
     if (req.headers.get("origin") !== req.nextUrl.origin) return NextResponse.json({ok:false,error:"Permintaan tidak valid."},{status:403});
     try {
       const rows = employeeBulkRows(body.rows);
-      const result = await supabase.rpc("ops_merge_employee_batch", {p_rows:rows,p_actor:session.email});
-      if (result.error) return NextResponse.json({ok:false,error:["PGRST202","42883"].includes(result.error.code) ? "Update massal belum siap. Jalankan migration 20261028_employee_bulk_merge.sql terlebih dahulu." : result.error.message},{status:409});
+      const result = await supabase.rpc("ops_merge_employee_batch_v2", {p_rows:rows,p_actor:session.email});
+      if (result.error) return NextResponse.json({ok:false,error:["PGRST202","42883"].includes(result.error.code) ? "Update massal tanggal masuk belum siap. Jalankan migration 20261028_employee_bulk_start_date.sql terlebih dahulu." : result.error.message},{status:409});
       await audit(supabase,session,"bulk_upsert","employee",undefined,{rows:rows.length,...result.data});
       return NextResponse.json({ok:true,...result.data},{headers:{"Cache-Control":"no-store"}});
     } catch (error) {
