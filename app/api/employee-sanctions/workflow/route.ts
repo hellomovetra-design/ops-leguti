@@ -47,9 +47,9 @@ export async function GET(req:NextRequest){
    return new NextResponse(response.body,{headers:{...headers,"Content-Type":file.content_type,"Content-Disposition":`attachment; filename="FINAL_${id}.${ext}"`}});
   }
   if(!record.recorder_name)record.recorder_name=(await linkedEmployee(c.db!,record.created_by))?.name||"";
-  const coaching=record.kind==="coaching",logo=coaching?null:await readFile(path.join(process.cwd(),"assets/templates/sanction-jne-logo.jpg"));
+  const coaching=record.kind==="coaching",logo=await readFile(path.join(process.cwd(),"assets/templates/sanction-jne-logo.jpg"));
   if(type==="print")return new NextResponse(coaching?coachingPrintHtml(record):sanctionPrintHtml(record,logo!),{headers:{...headers,"Content-Type":"text/html; charset=utf-8","Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; img-src data:; frame-ancestors 'none'; base-uri 'none'"}});
-  const doc=coaching?await coachingDocx(record):await sanctionDocx(record,logo!);
+  const doc=coaching?await coachingDocx(record,logo):await sanctionDocx(record,logo!);
   return new NextResponse(new Uint8Array(doc),{headers:{...headers,"Content-Type":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","Content-Disposition":`attachment; filename="FORM_${coaching?"COACHING":"SANKSI"}_${id}.docx"`}});
  }catch(error){return json({error:error instanceof Error&&error.message==="Lengkapi form sesi coaching."?"Catatan ini belum memiliki form coaching lengkap. Klik Edit untuk melengkapi sebelum unduh/cetak. Dokumen yang sudah ditandatangani tetap dapat diunggah melalui Unggah hasil TTD.":error instanceof Error?error.message:"Dokumen belum dapat dibuat."},409)}
 }

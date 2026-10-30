@@ -33,10 +33,12 @@ const post=(extra={},origin='https://ops.test',count=1)=>{const body=new FormDat
  assert.equal((await post({kind:'invalid'})).status,400);assert.equal((await post({incident_date:'2026-02-30'})).status,400);assert.equal((await post({coaching_details:'{}'})).status,400);
  let result=await(await post({employee_name:'Spoof',position:'Spoof',created_by:'evil'})).json();assert.equal(result.item.employee_name,'Kurir A');assert.equal(result.item.position,'Kurir Motor');assert.equal(result.item.created_by,session.email);assert.equal(result.item.recorder_name,'Leader A');assert.equal(result.item.coaching_details.targets,'Target');
  assert.equal((await post()).status,200);assert.equal(records.length,1,'stable ID prevents duplicates');
- assert.equal((await post({action:'update',updated_at:records[0].updated_at})).status,403);
+ assert.equal((await post({action:'update',updated_at:records[0].updated_at},'https://ops.test',0)).status,200);
  assert.equal(uploads,1,'Idempotent create retry must not reupload photos');assert.equal((await get('?type=photo&id='+id+'&index=0')).status,200);assert.equal((await get('?type=photo&id=22222222-2222-4222-8222-222222222222&index=0')).status,404);
  records.push({...records[0],id:'22222222-2222-4222-8222-222222222222',created_by:'other@test.invalid',recorder_name:''});
  assert.equal((await get('?type=photo&id=22222222-2222-4222-8222-222222222222&index=0')).status,404,'Other owner evidence stays private');
+ assert.equal((await get('?type=record&id='+id)).status,200);assert.equal((await get('?type=record&id=22222222-2222-4222-8222-222222222222')).status,404);assert.equal((await post({id:'22222222-2222-4222-8222-222222222222',action:'update',updated_at:records[1].updated_at},'https://ops.test',0)).status,404);
+ records[0].workflow_status='final';assert.equal((await post({action:'update',updated_at:records[0].updated_at},'https://ops.test',0)).status,409);records[0].workflow_status='awaiting_signatures';
  const own=(await(await get()).json());assert.equal(own.items.length,1,'PWA own records only');assert.equal(own.items[0].recorder_name,'Leader A');assert(own.items[0].photos[0].url.includes('type=photo'));assert(!Object.hasOwn(own.items[0].photos[0],'path'));assert.equal((await(await get('?type=employees')).json()).recorder_name,'Leader A');
  session={email:'admin@test.invalid',role:'admin'};owner=null;
  assert.equal((await get('?scope=admin&type=photo&id='+id+'&index=0')).status,200,'Admin can read evidence');

@@ -56,6 +56,13 @@ export async function GET(req: NextRequest) {
       const file=await fetchFromImageKit(photo.path);
       return new NextResponse(file.body,{headers:{"Content-Type":photo.content_type||"image/jpeg","Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
     }
+    if(type==="record"){
+      const id=p.get("id")||"";if(!uuid.test(id))return json({error:"Catatan tidak valid."},400);
+      let query=db.from(TABLE).select("*").eq("id",id);if(!admin)query=query.eq("created_by",session.email.toLowerCase());
+      const result=await query.maybeSingle();if(result.error)return json({error:dbMessage(result.error)},503);
+      if(!result.data)return json({error:"Catatan tidak ditemukan."},404);
+      const row=result.data;return json({item:{...sanctionRecordView(row,admin?"admin":"mine"),can_edit:!row.workflow_status||row.workflow_status==="awaiting_signatures"}});
+    }
     if (type === "employees") return json({ items: await employees(db, session, admin), recorder_name: (await linkedEmployee(db, session.email))?.name || "" });
     if (type !== "list") return json({ error: "Permintaan tidak valid." }, 400);
     const offset = Number(p.get("offset") || 0), kind = p.get("kind") || "", search = (p.get("q") || "").trim();
@@ -81,7 +88,7 @@ export async function GET(req: NextRequest) {
         for (const link of links.data || []) names.set(link.email.toLowerCase(), byNik.get(link.employee_nik) || "");
       }
     }
-    return json({ items: rows.map(row => ({ ...sanctionRecordView(row,admin?"admin":"mine"), recorder_name: row.recorder_name||names.get(String(row.created_by).toLowerCase()) || "", can_edit: admin&&(!row.workflow_status||row.workflow_status==="awaiting_signatures") })), has_more: (result.data || []).length > 50 });
+    return json({ items: rows.map(row => ({ ...sanctionRecordView(row,admin?"admin":"mine"), recorder_name: row.recorder_name||names.get(String(row.created_by).toLowerCase()) || "", can_edit: (!row.workflow_status||row.workflow_status==="awaiting_signatures") })), has_more: (result.data || []).length > 50 });
   } catch { return json({ error: "Akses atau data belum dapat diperiksa. Coba lagi." }, 503); }
 }
 export async function POST(req: NextRequest) {
@@ -108,7 +115,6 @@ export async function POST(req: NextRequest) {
     if (!await access(db, session, admin)) return json({ error: "Anda tidak memiliki akses untuk tindakan ini." }, 403);
     const id = String(body.id || ""), action = String(body.action || "");
     if (!uuid.test(id) || !["create", "update"].includes(action)) return json({ error: "Catatan tidak valid." }, 400);
-    if (action === "update" && !admin) return json({ error: "Koreksi catatan hanya dapat dilakukan admin atau SPV." }, 403);
     const email = session.email.toLowerCase();
     let existingQuery = db.from(TABLE).select("*").eq("id", id);
     if (!admin) existingQuery = existingQuery.eq("created_by", email);
