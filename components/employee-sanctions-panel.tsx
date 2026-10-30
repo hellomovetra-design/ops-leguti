@@ -4,6 +4,7 @@ import { VIOLATION_TYPES,emptySanction } from "@/lib/sanction-form";
 import { employeeEmployment,EMPLOYMENT_LABELS } from "@/lib/employee-employment";
 import { COACHING_FIELDS,emptyCoaching } from "@/lib/coaching-workflow";
 import { MySanctionDocuments,SanctionDocumentActions } from "./sanction-document-actions";
+import { fetchSanctionRecap, RECAP_HEADERS, sanctionRecapRows } from "@/lib/sanction-recap";
 import { PersonPicker } from "./person-picker";
 import { visiblePoll } from "@/lib/visible-poll";
 import { prepareCourierPhoto } from "@/lib/courier-photo";
@@ -14,6 +15,8 @@ import "./team-transfer.css";
 import "./employee-sanctions.css";
 const blank = () => ({ id: crypto.randomUUID(), employee_nik: "", kind: "" as SanctionKind | "", incident_date: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()), description: "", coaching_result: "", updated_at: "",coaching_details:emptyCoaching(),sanction_details:emptySanction() });
 export function EmployeeSanctionsPanel({ admin = false }: { admin?: boolean }) {
+  const [exporting,setExporting]=useState(false);
+  const exportLock=useRef(false);
   const [recorderName,setRecorderName] = useState("");
   const [photos,setPhotos]=useState<File[]>([]),[previews,setPreviews]=useState<string[]>([]),[processing,setProcessing]=useState(false),[upload,setUpload]=useState(idleUpload);
   const processingLock=useRef(false);
@@ -33,6 +36,21 @@ export function EmployeeSanctionsPanel({ admin = false }: { admin?: boolean }) {
   },[admin,scope,search,kind,offset]);
   useEffect(()=>{if(!admin)return;const stop=visiblePoll(async()=>{if(!lock.current)await load()});return()=>{sequence.current++;stop()}},[admin,load]);
   const start=(record:EmployeeSanction|null)=>{if(lock.current||processingLock.current)return;setPhotos([]);setUpload(idleUpload);setEditing(record);setForm(record?{id:record.id,employee_nik:record.employee_nik,kind:record.kind,incident_date:record.incident_date,description:record.description,coaching_result:record.coaching_result,updated_at:record.updated_at,coaching_details:{...emptyCoaching(),...record.coaching_details},sanction_details:{...emptySanction(),...record.sanction_details}}:blank());setShow(true);setNotice("");setSaveError("");setTimeout(()=>formTop.current?.scrollIntoView({block:"start",behavior:"smooth"}),0)};
+  async function downloadRecap(){
+    if(exportLock.current)return;exportLock.current=true;setExporting(true);setError("");setNotice("");
+    try{
+      const rows=await fetchSanctionRecap(q.trim(),kind);
+      if(!rows.length)throw Error("Tidak ada catatan pada filter ini untuk diunduh.");
+      const XLSX=await import("xlsx"),now=new Date(),stamp=now.toLocaleString("id-ID",{timeZone:"Asia/Jakarta"});
+      const sheet=XLSX.utils.aoa_to_sheet([["REKAP SANKSI DAN COACHING"],[`Diperbarui: ${stamp} WIB`],[`Jenis: ${kind?SANCTION_KINDS[kind as SanctionKind]:"Semua"} | Pencarian: ${q.trim()||"Semua"} | ${rows.length} catatan`],[],RECAP_HEADERS,...sanctionRecapRows(rows)]);
+      sheet["!merges"]=[0,1,2].map(r=>({s:{r,c:0},e:{r,c:RECAP_HEADERS.length-1}}));
+      sheet["!cols"]=RECAP_HEADERS.map((_,i)=>({wch:[8,14,28,20,28,28,20,22,60,60,28,32,24,14,18,16,...Array(7).fill(55),40,40,28,24,22,24,28,28,55][i]||25}));
+      sheet["!autofilter"]={ref:`A5:${XLSX.utils.encode_col(RECAP_HEADERS.length-1)}${rows.length+5}`};
+      const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,sheet,"Sanksi dan Coaching");
+      XLSX.writeFile(book,`rekap-sanksi-coaching-${new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Jakarta"}).format(now)}.xlsx`);
+      setNotice(`${rows.length} catatan berhasil diunduh.`);
+    }catch(e){setError(e instanceof Error?e.message:"Unduhan gagal. Silakan coba kembali.");}finally{exportLock.current=false;setExporting(false);}
+  }
   async function pickPhotos(files:File[]){
     if(lock.current||processingLock.current||!files.length)return;
     if(photos.length+(editing?.photos?.length||0)+files.length>3){setSaveError("Maksimal 3 foto bukti.");return;}
@@ -48,7 +66,7 @@ export function EmployeeSanctionsPanel({ admin = false }: { admin?: boolean }) {
     try{const data=new FormData();for(const [key,value]of Object.entries({...form,scope,action:editing?"update":"create"}))data.set(key,typeof value==="object"?JSON.stringify(value):String(value));for(const file of photos)data.append("photos",file);await uploadReport("/api/employee-sanctions",data,setUpload);setNotice(editing?"Perubahan berhasil disimpan.":"Catatan dan bukti berhasil disimpan.");setPhotos([]);setForm(blank());setEditing(null);if(admin)setShow(false);await load();}catch(e){setSaveError(e instanceof Error?e.message:"Penyimpanan belum terkonfirmasi. Coba kembali dengan form yang sama.")}finally{lock.current=false;setSaving(false)}
   }
   return <section className={`sanctions-module ${admin?"sanctions-admin":"sanctions-pwa"}`}>
-    <div className="section-head"><div><div className="eyebrow">PEMBINAAN KARYAWAN</div><h1 className="headline">Sanksi & Coaching</h1><p className="subtitle">{admin?"Kelola catatan pembinaan dan tindak lanjut karyawan.":"Catat pembinaan karyawan dalam tim Anda."}</p></div>{admin&&<button type="button" className="primary" disabled={saving||processing} onClick={()=>start(null)}>Tambah catatan</button>}</div>
+    <div className="section-head"><div><div className="eyebrow">PEMBINAAN KARYAWAN</div><h1 className="headline">Sanksi & Coaching</h1><p className="subtitle">{admin?"Kelola catatan pembinaan dan tindak lanjut karyawan.":"Catat pembinaan karyawan dalam tim Anda."}</p></div>{admin&&<div className="sanctions-actions"><button type="button" className="btn" disabled={exporting||saving||processing} onClick={()=>void downloadRecap()}>{exporting?"Mengunduh…":"Unduh rekap"}</button><button type="button" className="primary" disabled={saving||processing} onClick={()=>start(null)}>Tambah catatan</button></div>}</div>
     <div ref={formTop} className="sanctions-form-anchor"/>
     {show&&<form className={admin?"card sanctions-form":"mobile-card pwa-form sanctions-form"} onSubmit={submit}>
       <h2>{editing?"Edit catatan":"Catat pembinaan karyawan"}</h2><fieldset disabled={saving||processing}>
