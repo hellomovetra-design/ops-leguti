@@ -1,4 +1,4 @@
-import { AlignmentType, BorderStyle, Document, Footer, HeadingLevel, ImageRun, Packer, PageNumber, Paragraph, Table,TableCell,TableRow,TextRun,WidthType } from "docx";
+import { AlignmentType, BorderStyle, Document, HeightRule, Packer, Paragraph, Table,TableCell,TableRow,TableLayoutType,TextRun,VerticalAlign,WidthType } from "docx";
 import { COACHING_FIELDS, coachingDetails, CoachingDetails } from "./coaching-workflow";
 export type CoachingRecord={id:string;kind:string;employee_name:string;employee_nik:string;position:string;hub:string;superior_name:string;recorder_name:string;incident_date:string;coaching_details:CoachingDetails|null;workflow_status?:string};
 export function coachingDocumentData(record:CoachingRecord){
@@ -8,34 +8,45 @@ export function coachingDocumentData(record:CoachingRecord){
  return details;
 }
 const displayDate=(date:string)=>date.split("-").reverse().join("/");
-export async function coachingDocx(record:CoachingRecord,logo?:Uint8Array){
- const d=coachingDocumentData(record);
- const text=(value:string,bold=false)=>new Paragraph({spacing:{after:50},children:[new TextRun({text:value,bold})]});
- const border={style:BorderStyle.SINGLE,size:5,color:"A7B8CE"};
- const borders={top:border,bottom:border,left:border,right:border,insideHorizontal:border,insideVertical:border};
- const cell=(value:string,label=false)=>new TableCell({shading:label?{fill:"EDF2F8"}:undefined,margins:{top:75,bottom:75,left:110,right:110},children:value.split(/\r?\n/).map(line=>text(line,label))});
- const identity=new Table({width:{size:100,type:WidthType.PERCENTAGE},columnWidths:[2800,6800],borders,rows:[
- ["Nama Coachee",record.employee_name],["NIK",record.employee_nik],["Jabatan / Hub",`${record.position} / ${record.hub}`],["Tanggal / Waktu / Durasi",`${displayDate(record.incident_date)} / ${d.session_time} WIB / ${d.duration_minutes} menit`],["Nama Leader / Coach",record.recorder_name]
- ].map(([label,value])=>new TableRow({cantSplit:true,children:[cell(label,true),cell(value)]}))});
- const children:(Paragraph|Table)[]=[
- ...(logo?[new Paragraph({children:[new ImageRun({type:"jpg",data:logo,transformation:{width:110,height:44}})],spacing:{after:80}})]:[]),
- new Paragraph({text:"FORM SESI COACHING",heading:HeadingLevel.TITLE,alignment:AlignmentType.CENTER,spacing:{after:120}}),
- new Paragraph({alignment:AlignmentType.CENTER,spacing:{after:140},children:[new TextRun({text:"PEMBINAAN DAN PENGEMBANGAN KARYAWAN",size:17,color:"153B68"})]}),identity,new Paragraph({spacing:{after:40}})
- ];
- children.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},columnWidths:[9600],borders,rows:Object.entries(COACHING_FIELDS).flatMap(([key,label],index)=>[
- new TableRow({cantSplit:true,children:[new TableCell({shading:{fill:"153B68"},margins:{top:65,bottom:65,left:110,right:110},children:[new Paragraph({keepNext:true,spacing:{after:0},children:[new TextRun({text:`${index+1}. ${label}`,bold:true,color:"FFFFFF",size:19})]})]})]}),
- new TableRow({children:[cell(d[key as keyof typeof COACHING_FIELDS]||"________________________________________________________________")]})
- ])}));
- children.push(new Paragraph({text:"Tanda tangan",heading:HeadingLevel.HEADING_2,spacing:{before:140,after:80},keepNext:true}));
- const roles=[["Leader / Koordinator / Coach",record.recorder_name],["Karyawan / Coachee",record.employee_name]];
- children.push(new Table({width:{size:100,type:WidthType.PERCENTAGE},columnWidths:[4800,4800],borders,rows:[
- new TableRow({cantSplit:true,children:roles.map(([role])=>new TableCell({shading:{fill:"EDF2F8"},children:[new Paragraph({text:role,alignment:AlignmentType.CENTER,spacing:{after:70,before:70}})]}))}),
- new TableRow({cantSplit:true,children:roles.map(([,name])=>new TableCell({margins:{top:80,bottom:80,left:100,right:100},children:[new Paragraph({text:" ",spacing:{after:550}}),new Paragraph({text:name||"________________________",alignment:AlignmentType.CENTER,spacing:{after:60}}),new Paragraph({text:"Tanggal: ________________",alignment:AlignmentType.CENTER})]}))})]}));
- const doc=new Document({creator:"Movetra",title:"Form Sesi Coaching",description:"Form sesi coaching untuk ditandatangani Leader/Koordinator dan karyawan",styles:{default:{document:{run:{font:"Arial",size:19,color:"000000"},paragraph:{spacing:{line:220}}},title:{run:{font:"Arial",size:28,bold:true,color:"000000"}},heading2:{run:{font:"Arial",size:20,bold:true,color:"000000"}}}},sections:[{properties:{page:{size:{width:11906,height:16838},margin:{top:650,right:850,bottom:650,left:850}}},footers:{default:new Footer({children:[new Paragraph({alignment:AlignmentType.RIGHT,children:[new TextRun({text:`movetra.id   |   ${record.id.slice(0,8)}   |   `,size:16,color:"555555"}),new TextRun({children:[PageNumber.CURRENT],size:16})]})]})},children}]});
+const TEMPLATE_LABELS={obstacles:"Kendala kinerja yang dialami oleh coachee :",targets:"Target kinerja yang ingin dicapai oleh coachee:",challenges:"Tantangan atau Kendala kinerja yang di alami oleh coachee dalam mencapai target :",action_plan:"Rencana Aksi Coachee dalam mencapai target kinerja :",summary:"Summary Coaching",agreement:"Agreement : (Diisi oleh coachee)",support:"Support yang dibutuhkan : (Optional)"};
+type Cell={text:string;span:number;fill?:string;white?:boolean;bold?:boolean;italic?:boolean;center?:boolean;edge?:boolean;top?:boolean;bottom?:boolean;size?:number};
+type Row={height:number;cells:Cell[];split?:boolean};
+const colWidths=[1093,1260,1093,1093,1093,1093,1093,1093,1093],width=10004;
+function templateRows(record:CoachingRecord):Row[]{
+ const d=coachingDocumentData(record),rows:Row[]=[];
+ const full=(text:string,height:number,opts:Partial<Cell>={})=>rows.push({height,cells:[{text,span:9,...opts}]});
+ full("FORM SESI COACHING",30,{fill:"305496",white:true,bold:true,center:true,size:19,top:true,bottom:true});
+ full("",5.25);
+ rows.push({height:24.95,cells:[{text:"Coach : Leader yang memberikan coaching",span:3,fill:"FFFF00",italic:true},{text:"",span:1},{text:"Coachee: Karyawan yang diberikan coaching",span:4,fill:"FFFF00",italic:true,center:true},{text:"",span:1}]});
+ full("",5.25,{bottom:true});
+ for(const [label,value] of [["Nama peserta diskusi / Coachee",record.employee_name],["Tanggal / Waktu  / Durasi",`${displayDate(record.incident_date)} / ${d.session_time} / ${d.duration_minutes} menit`],["Nama Leader / Coach",record.recorder_name]])rows.push({height:24.95,cells:[{text:label,span:2},{text:': '+value,span:7}]});
+ full("",15);
+ const lines=(value:string,count:number)=>{const all=value.split(/\r?\n/).map(v=>v.replace(/^\s*\d+[.)]\s*/,""));return Array.from({length:count},(_,i)=>i===count-1?all.slice(i).join("\n"):all[i]||"");};
+ for(const key of ["obstacles","targets","challenges"] as const){full(TEMPLATE_LABELS[key],24.95,{top:true,italic:true});for(const [i,value]of lines(d[key],3).entries())full(`${i+1}. ${value}`,30);}
+ full(TEMPLATE_LABELS.action_plan,24.95,{top:true,italic:true});
+ const actions=lines(d.action_plan,6);for(let i=0;i<3;i++)rows.push({height:39.95,cells:[{text:`${i+1}. ${actions[i]}`,span:4},{text:`${i+4}. ${actions[i+3]}`,span:5}]});
+ full(TEMPLATE_LABELS.summary,31.5,{center:true,top:true,bottom:true});full(d.summary,119.85);
+ rows.push({height:149.7,cells:[{text:TEMPLATE_LABELS.agreement+"\n"+d.agreement,span:4,edge:true,top:true,bottom:true},{text:"",span:1},{text:TEMPLATE_LABELS.support+"\n"+d.support,span:4,edge:true,top:true,bottom:true}]});
+ rows.push({height:15,cells:[{text:"",span:4,edge:true},{text:"",span:1},{text:"",span:4,edge:true}]});
+ rows.push({height:15,cells:[{text:"Karyawan/ Coachee",span:4,center:true,edge:true,italic:true},{text:"",span:1},{text:"Leader/ Coach",span:4,center:true,edge:true,italic:true}]});
+ rows.push({height:60,cells:[{text:"",span:4,edge:true},{text:"",span:1},{text:"",span:4,edge:true}]});
+ rows.push({height:15,cells:[{text:record.employee_name,span:4,center:true,edge:true},{text:"",span:1},{text:record.recorder_name,span:4,center:true,edge:true}]});
+ rows.push({height:15,cells:[{text:"_________________________________",span:4,center:true,edge:true},{text:"",span:1},{text:"_________________________________",span:4,center:true,edge:true}]});
+ rows.push({height:15,cells:[{text:"Tanggal:",span:4,edge:true},{text:"",span:1},{text:"Tanggal:",span:4,edge:true}]});
+ rows.push({height:15.75,cells:[{text:"",span:4,edge:true,bottom:true},{text:"",span:1},{text:"",span:4,edge:true,bottom:true}]});
+ return rows;
+}
+export async function coachingDocx(record:CoachingRecord,_logo?:Uint8Array){
+ const thin={style:BorderStyle.SINGLE,size:5,color:"000000"},outer={style:BorderStyle.SINGLE,size:10,color:"000000"},none={style:BorderStyle.NONE,size:0,color:"FFFFFF"};
+ const table=new Table({width:{size:width,type:WidthType.DXA},columnWidths:colWidths,layout:TableLayoutType.FIXED,borders:{top:none,bottom:none,left:none,right:none,insideHorizontal:none,insideVertical:none},rows:templateRows(record).map(row=>{
+ let start=0;
+ return new TableRow({height:{value:Math.round(row.height*0.63*20),rule:HeightRule.ATLEAST},children:row.cells.map((c,index)=>{
+ const w=colWidths.slice(start,start+c.span).reduce((a,b)=>a+b,0);start+=c.span;
+ return new TableCell({columnSpan:c.span,width:{size:w,type:WidthType.DXA},verticalAlign:c.center||/^\d+[.]/.test(c.text)?VerticalAlign.CENTER:VerticalAlign.TOP,margins:{top:0,bottom:0,left:25,right:25},shading:c.fill?{fill:c.fill}:undefined,borders:{left:c.edge||index===0?outer:none,right:c.edge||index===row.cells.length-1?outer:none,top:c.top?thin:none,bottom:c.bottom?thin:none},children:c.text.split(/\r?\n/).map((line,i)=>new Paragraph({alignment:c.center?AlignmentType.CENTER:AlignmentType.LEFT,spacing:{before:0,after:0,line:175},children:[new TextRun({text:line||" ",bold:c.bold,italics:c.italic,color:c.white?"FFFFFF":"000000",size:c.size||15})]}))});})});})});
+ const doc=new Document({creator:"Movetra",title:"FORM SESI COACHING",styles:{default:{document:{run:{font:"Calibri",size:15,color:"000000"},paragraph:{spacing:{before:0,after:0,line:175}}}}},sections:[{properties:{page:{size:{width:11906,height:16838},margin:{top:850,bottom:700,left:951,right:951}}},children:[table]}]});
  return Packer.toBuffer(doc);
 }
 export function coachingPrintHtml(record:CoachingRecord){
- const d=coachingDocumentData(record),escape=(v:unknown)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!));
- const field=(label:string,value:string)=>`<p><strong>${escape(label)}:</strong> ${escape(value)}</p>`;
- return `<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Form Sesi Coaching</title><style>@page{size:A4;margin:20mm}body{font:11pt Arial,sans-serif;color:#000;max-width:170mm;margin:30px auto;line-height:1.5}h1{text-align:center;font-size:16pt}h2{font-size:11pt;break-after:avoid;margin:18px 0 6px}p{margin:6px 0;white-space:pre-wrap;overflow-wrap:anywhere}.sign{break-inside:avoid;margin-top:20px}.space{height:60px}footer{margin-top:30px;font-size:9pt;color:#555}.hint{background:#eef3f8;padding:12px}@media print{.hint{display:none}body{margin:0;max-width:none}}</style></head><body><p class="hint">Gunakan menu Cetak browser atau Ctrl+P. Isi tanda tangan pada dokumen cetak.</p><h1>FORM SESI COACHING</h1>${field("Nama peserta diskusi / Coachee",record.employee_name)}${field("NIK",record.employee_nik)}${field("Jabatan / Hub",record.position+" / "+record.hub)}${field("Tanggal / Waktu / Durasi",displayDate(record.incident_date)+" / "+d.session_time+" WIB / "+d.duration_minutes+" menit")}${field("Nama Leader / Coach",record.recorder_name)}${Object.entries(COACHING_FIELDS).map(([key,label])=>`<h2>${escape(label)}</h2><p>${escape(d[key as keyof typeof COACHING_FIELDS]||"________________________________________________________________")}</p>`).join("")}${[["Leader / Koordinator / Coach",record.recorder_name],["Karyawan / Coachee",record.employee_name]].map(([role,name])=>`<section class="sign"><strong>${escape(role)}</strong><div class="space"></div><p>${escape(name||"________________________________")}</p><p>Tanggal: ________________________</p></section>`).join("")}<footer>movetra.id · ${escape(record.id)}</footer></body></html>`;
+ const escape=(v:unknown)=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!));
+ return `<!doctype html><html lang="id"><head><meta charset="utf-8"><title>FORM SESI COACHING</title><style>@page{size:A4;margin:15mm}body{margin:0;font:7.5pt Calibri,Arial,sans-serif;color:#000}table{width:100%;table-layout:fixed;border-collapse:collapse}td{vertical-align:top;padding:0 1pt;white-space:pre-wrap;overflow-wrap:anywhere}tr{break-inside:auto}p{margin:0}</style></head><body><table><colgroup>${colWidths.map(w=>`<col style="width:${w/width*100}%">`).join("")}</colgroup>${templateRows(record).map(row=>`<tr style="height:${row.height*0.63}pt">${row.cells.map((c,i)=>`<td colspan="${c.span}" style="border-left:${c.edge||i===0?"1pt solid black":"none"};border-right:${c.edge||i===row.cells.length-1?"1pt solid black":"none"};border-top:${c.top?".5pt solid black":"none"};border-bottom:${c.bottom?".5pt solid black":"none"};background:${c.fill?'#'+c.fill:'white'};color:${c.white?'white':'black'};text-align:${c.center?'center':'left'};font-style:${c.italic?'italic':'normal'};font-weight:${c.bold?'bold':'normal'};font-size:${(c.size||15)/2}pt">${escape(c.text)}</td>`).join("")}</tr>`).join("")}</table></body></html>`;
 }

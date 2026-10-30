@@ -12,8 +12,8 @@ assert.throws(()=>workflow.workflowTransition({kind:'sp1',updated_at:'v',workflo
  const record={id:'11111111-1111-4111-8111-111111111111',kind,employee_name:'Nama <script>bad</script>',employee_nik:'00123',position:'Kurir Motor',recorder_name:'Coach',incident_date:'2026-10-30',description:'Alasan pengajuan',sanction_details:input};
  const zip=await JSZip.loadAsync(await document.sanctionDocx(record,logo)),xml=await zip.file('word/document.xml').async('string');
  for(const text of ['Formulir Permintaan Pemberian Sanksi','00123','Operational Inbound','Tanggal Kontrak/Tetap','Alasan pengajuan','Atasan Satu','Atasan Dua','CATATAN HCO','Panduan Alur Proses Pengajuan Sanksi','Deputy DM / BM'])assert(xml.includes(text),text);
- assert.equal((xml.match(/☒/g)||[]).length,3,'Exactly one proposed sanction and two violation categories checked');assert(!xml.includes('PHK'),'GA per user means agreement; never invent termination');assert(xml.includes('&lt;script&gt;'));assert(zip.file('word/media/')||Object.keys(zip.files).some(k=>k.startsWith('word/media/')),'Source logo embedded');
+ assert.equal((xml.match(/×/g)||[]).length,3,'Exactly one proposed sanction and two violation categories checked');assert(xml.includes('PHK/Perjanjian Bersama'),'Preserve source form label');assert(!xml.includes('153B68'));assert(!xml.includes('movetra.id'));assert(!zip.file('word/footer1.xml'));assert(xml.includes('&lt;script&gt;'));assert(zip.file('word/media/')||Object.keys(zip.files).some(k=>k.startsWith('word/media/')),'Source logo embedded');
  const html=document.sanctionPrintHtml(record,logo);assert(!html.includes('<script>'));assert(html.includes('&lt;script&gt;'));assert(html.includes('image/jpeg;base64,'));
  }
- console.log('PASS: ST/SP1/SP2/SP3/GA forms and native DOCX, source logo/checklists/approvals, required violation/reason fields, contract date, no invented PHK, print escaping.');
+ console.log('PASS: ST/SP1/SP2/SP3/GA forms and native DOCX, source logo/checklists/approvals, required violation/reason fields, contract date, source PDF layout and labels, print escaping.');
 })().catch(e=>{console.error(e);process.exitCode=1});
