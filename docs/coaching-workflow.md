@@ -18,9 +18,13 @@ Setiap isian naratif maksimal 4.000 karakter. Bukti kegiatan/dokumen awal tetap 
 
 ## Tahapan
 
-- **Menunggu tanda tangan:** catatan dapat dilengkapi admin. Unduh Word / Cetak form tersedia untuk coaching yang lengkap. Unduh tidak otomatis menyatakan dokumen ditandatangani.
-- **Dikirim ke HRD:** pemberi catatan atau pengelola mengonfirmasi tanda tangan karyawan dan Leader/Koordinator, lalu mencatat pengiriman. Dokumen dikirim secara manual lewat saluran kerja yang biasa digunakan; aplikasi tidak mengirim email otomatis. Isi dokumen dikunci agar sesuai dengan versi yang sedang ditandatangani.
-- **Final ditandatangani HRD:** setelah dokumen kembali, unggah satu scan PDF atau foto dan konfirmasi tanda tangan HRD. PDF maksimal 3 MB. Foto HP dikompresi sebelum kirim. Untuk banyak halaman, gabungkan menjadi PDF. Dokumen final dan data asal dikunci.
+Revisi alur: jalankan `supabase/migrations/20261030_sanction_signed_completion.sql` setelah dua migration 20261030 sebelumnya.
+
+- **Menunggu tanda tangan:** unduh/cetak, isi dan minta tanda tangan pada dokumen.
+- **Unggah hasil TTD:** langsung tersedia di dashboard dan arsip milik sendiri pada PWA. Unggah satu PDF/foto maksimal 3 MB dan konfirmasi tanda tangan lengkap sesuai form. Tidak perlu tahap Kirim ke HRD.
+- **Selesai:** file bertanda tangan disimpan privat, catatan dan dokumen dikunci. `signed_complete` merekam konfirmasi kelengkapan, tanpa mengarang konfirmasi HRD atau waktu pengiriman HRD.
+
+Status `sent_hrd` historis tetap dibaca dan dapat diselesaikan dengan unggah yang sama. Endpoint lama tetap kompatibel. Form lama yang belum memiliki coaching_details perlu dilengkapi melalui Edit agar Word/cetak dapat dibuat; unggah dokumen lengkap bertanda tangan tetap diperbolehkan tanpa mengarang data form lama.
 
 Admin/SPV dapat mengelola seluruh catatan di dashboard. Pemberi coaching dapat menindaklanjuti **hanya catatan buatannya sendiri** lewat **Dokumen dan scan final saya** di PWA. Daftar ini dimuat saat dibuka dengan pagination 10 baris, tanpa polling global atau pemuatan saat menu belum dibuka. Pencatatan coaching baru tetap mengikuti aturan jabatan; akses arsip milik sendiri tidak berubah menjadi akses dashboard.
 

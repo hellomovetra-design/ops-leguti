@@ -31,5 +31,11 @@ const post=(extra={},file=null,origin='https://ops.test')=>{const form=new FormD
  const uploadedBefore=uploaded;assert.equal((await post({action:'finalize',request_id:finalId,hrd_signed:'true',updated_at:'stale'},pdf)).status,200);assert.equal(uploaded,uploadedBefore,'Final retry does not reupload');
  assert.equal((await post({action:'finalize',request_id:'55555555-5555-4555-8555-555555555555',hrd_signed:'true'},pdf)).status,409,'Final locked');
  session={email:'admin@test',role:'admin'};assert.equal((await get('type=final&scope=admin&id='+id)).status,200);records[1].kind='sp1';records[1].sanction_details={violations:['negligence'],location:'Tangerang'};assert.equal((await get('type=word&scope=admin&id='+records[1].id)).status,200,'Sanction template now available');assert.equal((await post({id:records[1].id,scope:'admin',updated_at:records[1].updated_at})).status,409,'Sanction needs both approval signatures');assert.equal((await post({id:records[1].id,scope:'admin',updated_at:records[1].updated_at,approver_one_signed:'true',approver_two_signed:'true'})).status,200);
+ records.push({...record,id:'66666666-6666-4666-8666-666666666666',kind:'coaching',created_by:'coach@test',workflow_status:'awaiting_signatures',workflow_request_id:null,coaching_details:null,final_document:null});
+ session={email:'coach@test',role:'viewer'};
+ const directId=records[2].id;
+ assert.equal((await post({id:directId,action:'finalize',signed_complete:'false',hrd_signed:'false'},pdf)).status,409);
+ assert.equal((await post({id:directId,action:'finalize',signed_complete:'true',hrd_signed:'false'},pdf)).status,200);
+ assert.equal(records[2].signed_complete,true);assert.equal(records[2].hrd_signed,false);
  console.log('PASS: own PWA documents, admin scope, cross-user denial, private downloads, signature stages, final scan, immutable final, optimistic conflict cleanup and safe retry.');
 })().catch(e=>{console.error(e);process.exitCode=1});

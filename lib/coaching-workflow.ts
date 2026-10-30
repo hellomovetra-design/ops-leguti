@@ -9,7 +9,7 @@ export const COACHING_FIELDS = {
 } as const;
 export type CoachingDetails = {session_time:string;duration_minutes:string} & Record<keyof typeof COACHING_FIELDS,string>;
 export const emptyCoaching = ():CoachingDetails => ({session_time:"",duration_minutes:"",obstacles:"",targets:"",challenges:"",action_plan:"",summary:"",agreement:"",support:""});
-export const SANCTION_STAGES = {awaiting_signatures:"Menunggu tanda tangan",sent_hrd:"Dikirim ke HRD",final:"Final ditandatangani HRD"} as const;
+export const SANCTION_STAGES = {awaiting_signatures:"Menunggu tanda tangan",sent_hrd:"Dikirim ke HRD",final:"Selesai · dokumen bertanda tangan"} as const;
 export type SanctionStage=keyof typeof SANCTION_STAGES;
 export function coachingDetails(value:unknown,kind:string):CoachingDetails|null {
   if(kind!=="coaching")return null;
@@ -38,8 +38,8 @@ export function workflowTransition(record:{workflow_status?:string;updated_at:st
     return "sent_hrd" as const;
   }
   if(body.action==="finalize") {
-    if(current!=="sent_hrd")throw Error("Kirim dokumen yang ditandatangani karyawan dan atasan ke HRD terlebih dahulu.");
-    if(body.hrd_signed!=="true")throw Error("Konfirmasi dokumen sudah ditandatangani HRD.");
+    if(body.signed_complete==="true")return "final" as const;
+    if(current!=="sent_hrd"||body.hrd_signed!=="true")throw Error("Konfirmasi dokumen sudah lengkap ditandatangani sebelum menyelesaikan.");
     return "final" as const;
   }
   throw Error("Tindakan alur dokumen tidak valid.");

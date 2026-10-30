@@ -51,7 +51,7 @@ export async function GET(req:NextRequest){
   if(type==="print")return new NextResponse(coaching?coachingPrintHtml(record):sanctionPrintHtml(record,logo!),{headers:{...headers,"Content-Type":"text/html; charset=utf-8","Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; img-src data:; frame-ancestors 'none'; base-uri 'none'"}});
   const doc=coaching?await coachingDocx(record):await sanctionDocx(record,logo!);
   return new NextResponse(new Uint8Array(doc),{headers:{...headers,"Content-Type":"application/vnd.openxmlformats-officedocument.wordprocessingml.document","Content-Disposition":`attachment; filename="FORM_${coaching?"COACHING":"SANKSI"}_${id}.docx"`}});
- }catch(error){return json({error:error instanceof Error?error.message:"Dokumen belum dapat dibuat."},409)}
+ }catch(error){return json({error:error instanceof Error&&error.message==="Lengkapi form sesi coaching."?"Catatan ini belum memiliki form coaching lengkap. Klik Edit untuk melengkapi sebelum unduh/cetak. Dokumen yang sudah ditandatangani tetap dapat diunggah melalui Unggah hasil TTD.":error instanceof Error?error.message:"Dokumen belum dapat dibuat."},409)}
 }
 export async function POST(req:NextRequest){
  if(req.headers.get("origin")!==req.nextUrl.origin)return json({error:"Permintaan tidak valid."},403);
@@ -73,8 +73,10 @@ export async function POST(req:NextRequest){
   let stage;
   try{stage=workflowTransition(record,body)}catch(error){return json({error:error instanceof Error?error.message:"Tahap tidak valid."},409)}
   if(!record.photos?.length)return json({error:"Lengkapi minimal satu foto bukti pada catatan sebelum diproses."},400);
-  if(record.kind==="coaching")coachingDetails(record.coaching_details,"coaching");
-  else sanctionDetails(record.sanction_details,record.kind);
+  if(stage!=="final"){
+   if(record.kind==="coaching")coachingDetails(record.coaching_details,"coaching");
+   else sanctionDetails(record.sanction_details,record.kind);
+  }
   const email=c.session!.email.toLowerCase(),now=new Date().toISOString();
   const values:Record<string,unknown>={workflow_status:stage,updated_by:email,workflow_request_id:requestId};
   if(!record.recorder_name){
@@ -90,7 +92,7 @@ export async function POST(req:NextRequest){
    const ext=file.type==="application/pdf"?"pdf":file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpg";
    const image=await uploadToImageKit(file,`sanctions-final/${id}/${requestId}-${crypto.randomUUID()}.${ext}`);
    uploaded={name:file.name.slice(0,200),path:image.path,fileId:image.fileId,content_type:file.type};
-   Object.assign(values,{final_document:uploaded,hrd_signed:true,finalized_at:now,finalized_by:email});
+   Object.assign(values,{final_document:uploaded,signed_complete:body.signed_complete==="true",hrd_signed:body.hrd_signed==="true",finalized_at:now,finalized_by:email});
   }
   attempted=true;
   const saved=await c.db!.from(TABLE).update(values).eq("id",id).eq("updated_at",record.updated_at).eq("workflow_status",record.workflow_status).select("id").maybeSingle();
