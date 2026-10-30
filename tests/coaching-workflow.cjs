@@ -1,0 +1,14 @@
+const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
+const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/coaching-workflow.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:m,exports:m.exports,Uint8Array});
+const {coachingDetails,workflowTransition,validateFinalDocument}=m.exports;
+const details={session_time:'09:00',duration_minutes:'30',obstacles:'Kendala',targets:'Target',challenges:'Tantangan',action_plan:'Rencana',summary:'Summary'};
+assert.equal(coachingDetails(JSON.stringify(details),'coaching').targets,'Target');assert.equal(coachingDetails(null,'sp1'),null);
+for(const body of [null,'not json',{}, {...details,duration_minutes:'0'}, {...details,duration_minutes:'481'}, {...details,session_time:'25:00'}, {...details,targets:''}])assert.throws(()=>coachingDetails(body,'coaching'));
+const record={workflow_status:'awaiting_signatures',updated_at:'version'};
+assert.throws(()=>workflowTransition(record,{action:'finalize',updated_at:'version',hrd_signed:'true'}));
+assert.throws(()=>workflowTransition(record,{action:'send_hrd',updated_at:'version',employee_signed:'true'}));
+assert.throws(()=>workflowTransition(record,{action:'send_hrd',updated_at:'old',employee_signed:'true',coach_signed:'true'}));
+assert.equal(workflowTransition(record,{action:'send_hrd',updated_at:'version',employee_signed:'true',coach_signed:'true'}),'sent_hrd');
+assert.equal(workflowTransition({...record,workflow_status:'sent_hrd'},{action:'finalize',updated_at:'version',hrd_signed:'true'}),'final');
+assert.throws(()=>workflowTransition({...record,workflow_status:'final'},{action:'finalize',updated_at:'version',hrd_signed:'true'}));
+(async()=>{await validateFinalDocument(new File(['%PDF-1.7\n'],'signed.pdf',{type:'application/pdf'}));await assert.rejects(()=>validateFinalDocument(new File(['not pdf'],'signed.pdf',{type:'application/pdf'})));await assert.rejects(()=>validateFinalDocument(new File(['<html>'],'signed.html',{type:'text/html'})));await assert.rejects(()=>validateFinalDocument(new File([new Uint8Array(3*1024*1024+1)],'large.pdf',{type:'application/pdf'})));console.log('PASS: coaching fields and session validation, explicit signature stages, stale/final locks and scan content/size validation.');})().catch(e=>{console.error(e);process.exitCode=1});
