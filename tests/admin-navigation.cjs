@@ -8,11 +8,11 @@ assert(inAdministrator('/settings/ops-access'));assert(inAdministrator('/setting
 assert(!inAdministrator('/master/structure'));assert(!inAdministrator('/master/employees-other'));assert(!inAdministrator('/dashboard/ops-desk'));
 const shell=fs.readFileSync('components/app-shell.tsx','utf8'),groups=shell.split('export function AppShell')[0];
 assert(!groups.includes('href: "/master/employees"'));assert(!groups.includes('href: "/master/couriers"'));assert(!groups.includes('href: "/master/personnel-changes"'));
-assert(shell.includes('ADMIN_MENUS.map'));assert(!shell.includes('ibadnarpatih@gmail.com'));
+assert(shell.includes('items={ADMIN_MENUS}'));assert(shell.includes('items={SHIPMENT_MENUS}'));assert(shell.includes('SidebarMenuGroup'));assert(!shell.includes('ibadnarpatih@gmail.com'));
 const entry=fs.readFileSync('app/settings/ops-access/page.tsx','utf8');
 assert(entry.includes('redirect(ADMIN_MENUS[0].href)'));
 assert(!entry.includes('AdministratorHome'));
 assert.equal(ADMIN_MENUS[0].href,'/master/employees');
 assert(fs.readFileSync('app/settings/ops-access/users/page.tsx','utf8').includes('AdminRoleManager'));
 assert(fs.readFileSync('app/api/ops-desk/route.ts','utf8').includes('role: session.role'));
-console.log('PASS: Administrator opens Data Karyawan directly, nested navigation remains available and role label follows server role.');
+console.log('PASS: Administrator uses expandable sidebar group, legacy direct URL remains valid and role label follows server role.');

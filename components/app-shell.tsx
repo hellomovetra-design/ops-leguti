@@ -10,6 +10,8 @@ import "./admin-header.css";
 import "./inbox.css";
 import { useInboxIndicator } from "./use-inbox-indicator";
 import { AdminReportNotifications } from "./admin-report-notifications";
+import { SHIPMENT_MENUS, inShipment } from "@/lib/shipment-navigation";
+import { SidebarMenuGroup } from "./sidebar-menu-group";
 import { ADMIN_MENUS, inAdministrator } from "@/lib/admin-navigation";
 import "./administrator.css";
 
@@ -19,10 +21,8 @@ const navGroups = [
     items: [
       { href: "/dashboard/ops-desk", label: "Ringkasan", icon: LayoutDashboard },
       { href: "/master/structure", label: "Struktur Tim", icon: Network },
-      { href: "/dashboard/ops-desk/ots", label: "Monitoring OTS", icon: PackageSearch },
+      { href: "shipment-group", label: "ALL CASE Shipment", icon: PackageSearch },
       { href: "/dashboard/ops-desk/courier-carry", label: "Bawaan Kurir", icon: Boxes },
-      { href: "/dashboard/ops-desk/problems", label: "Problem Barang", icon: Boxes },
-      { href: "/dashboard/ops-desk/damage-cases", label: "Damage Case", icon: PackageSearch },
       { href: "/dashboard/ops-desk/problem-solving-daily", label: "Problem Solving Daily", icon: ClipboardList },
       { href: "/dashboard/ops-desk/employee-sanctions", label: "Sanksi & Coaching", icon: ClipboardList },
       { href: "/dashboard/ops-desk/requests", label: "Request Helpdesk", icon: Headphones },
@@ -68,12 +68,14 @@ export function AppShell({ title, children }: { title: string; children: React.R
             <div key={group.label}>
               <div className="nav-label">{group.label}</div>
               {group.items.map((item) => {
+                if(item.href==="shipment-group")return <SidebarMenuGroup key={item.href} label={item.label} icon={item.icon} items={SHIPMENT_MENUS} active={inShipment(pathname)} onNavigate={()=>setOpen(false)}/>;
+                if(item.href==="/settings/ops-access")return <SidebarMenuGroup key={item.href} label={item.label} icon={item.icon} items={ADMIN_MENUS} active={inAdministrator(pathname)} onNavigate={()=>setOpen(false)}/>;
                 const active = item.href === "/settings/ops-access" ? inAdministrator(pathname) : item.href === "/dashboard/ops-desk" ? pathname === item.href : pathname.startsWith(item.href);
                 return (
                   <div key={item.href}><Link className={cn("nav-item", active && "active")} href={item.href} onClick={() => setOpen(false)}>
                     <item.icon size={16} strokeWidth={active ? 2.4 : 1.8} />
                     <span>{item.label}</span>
-                  </Link>{item.href === "/settings/ops-access" && active && <div className="administrator-subnav">{ADMIN_MENUS.map(menu=><Link key={menu.href} href={menu.href} onClick={()=>setOpen(false)} className={cn("nav-item",pathname===menu.href&&"active")}>{menu.label}</Link>)}</div>}</div>
+                  </Link></div>
                 );
               })}
             </div>
