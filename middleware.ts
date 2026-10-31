@@ -33,7 +33,7 @@ export async function middleware(request: NextRequest) {
   const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
   const finish = async (response: NextResponse) => {
     if (session && session.exp - Math.floor(Date.now() / 1000) < SESSION_MAX_AGE - 24 * 60 * 60) {
-      const token = await createSessionToken(session.email, session.role, process.env.INTERNAL_AUTH_SECRET!, session.employee_nik);
+      const token = await createSessionToken(session.email, session.role, process.env.INTERNAL_AUTH_SECRET!, session.employee_nik, session.mfa_verified_at);
       response.cookies.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "strict", secure: process.env.NODE_ENV === "production", path: "/", maxAge: SESSION_MAX_AGE });
     }
     return withSecurityHeaders(response);

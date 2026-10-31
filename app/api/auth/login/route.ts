@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSessionToken, decodeBase64Url, encodeBase64Url, SESSION_COOKIE, SESSION_MAX_AGE } from "@/lib/auth-token";
+import { createSessionToken, SESSION_COOKIE, SESSION_MAX_AGE, requiresDashboardMfa, SessionPayload } from "@/lib/auth-token";
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseServerClient } from "@/lib/supabase";
+import { sealMfaPending,MFA_COOKIE,MFA_TTL,mfaCookieOptions } from "@/lib/mfa-login";
 import { loginDestination } from "@/lib/access-policy";
 
 export const runtime = "nodejs";
@@ -10,26 +11,9 @@ const attempts = new Map<string, { count: number; resetAt: number }>();
 const IS_LOCAL_DEV = process.env.NODE_ENV !== "production";
 const MAX_ATTEMPTS = IS_LOCAL_DEV ? 50 : 5;
 const WINDOW_MS = IS_LOCAL_DEV ? 2 * 60 * 1000 : 15 * 60 * 1000;
-const encoder = new TextEncoder();
-
-function constantTimeEqual(left: Uint8Array, right: Uint8Array) {
-  if (left.length !== right.length) return false;
-  let difference = 0;
-  for (let index = 0; index < left.length; index++) difference |= left[index] ^ right[index];
-  return difference === 0;
-}
-
-async function derivePasswordHash(password: string, salt: string) {
-  const material = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt: decodeBase64Url(salt), iterations: 210_000 },
-    material,
-    256,
-  );
-  return new Uint8Array(bits);
-}
-
 export async function POST(request: NextRequest) {
+  if(request.headers.get("origin")!==request.nextUrl.origin)return NextResponse.json({error:"Permintaan tidak valid."},{status:403});
+  if(Number(request.headers.get("content-length")||0)>8192)return NextResponse.json({error:"Permintaan terlalu besar."},{status:413});
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
   let body: { email?: unknown; identifier?: unknown; password?: unknown; next?: unknown };
   try { body = await request.json(); } catch { return NextResponse.json({ error: "Permintaan tidak valid." }, { status: 400 }); }
@@ -48,6 +32,7 @@ export async function POST(request: NextRequest) {
       { status: 429, headers: { "Retry-After": String(retrySeconds), "Cache-Control": "no-store" } },
     );
   }
+  if(attempts.size>=10000)attempts.delete(attempts.keys().next().value!);
   if (!record || record.resetAt <= now) attempts.set(attemptKey, { count: 0, resetAt: now + WINDOW_MS });
   let email = identifier.toLowerCase();
   const password = typeof body.password === "string" ? body.password : "";
@@ -85,7 +70,12 @@ export async function POST(request: NextRequest) {
   }
 
   const superAdminEmail = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
-  const role = email === superAdminEmail ? "super_admin" : ((data.user.app_metadata?.role || "viewer") as "admin" | "spv" | "jr_spv" | "coordinator" | "viewer");
+  let role:SessionPayload["role"] = email === superAdminEmail ? "super_admin" : ((data.user.app_metadata?.role || "viewer") as "admin" | "spv" | "jr_spv" | "coordinator" | "viewer");
+  const roleDb=getSupabaseServerClient();
+  if(!roleDb)return NextResponse.json({error:"Data akun belum dapat dimuat."},{status:503});
+  const live=await roleDb.from("ops_users").select("role").eq("email",email).maybeSingle();
+  if(live.error)return NextResponse.json({error:"Data akun belum dapat dimuat."},{status:503});
+  role=email===superAdminEmail?"super_admin":live.data?.role as SessionPayload["role"];
   // Email and NIK resolve to the same employee identity and structural permissions.
   // Resolve email links only after authenticating to avoid exposing account details.
   if (role !== "super_admin" && !employeeNik) {
@@ -102,6 +92,19 @@ export async function POST(request: NextRequest) {
   if ((email === superAdminEmail && employeeNik) || (role !== "super_admin" && !employeeNik)) return failed();
   if (!["super_admin", "admin", "spv", "jr_spv", "coordinator", "viewer"].includes(role)) return failed();
   attempts.delete(attemptKey);
+  if(requiresDashboardMfa(role)){
+    if(!data.session)return NextResponse.json({error:"Sesi verifikasi belum tersedia."},{status:503});
+    const id=crypto.randomUUID(),exp=Math.floor(Date.now()/1000)+MFA_TTL;
+    const pending={id,user_id:data.user.id,email,role,employee_nik:employeeNik,next:loginDestination(role,body.next),access_token:data.session.access_token,refresh_token:data.session.refresh_token,exp};
+    try{
+      const saved=await roleDb.from("ops_mfa_login_challenges").insert({id,user_id:data.user.id,email,expires_at:new Date(exp*1000).toISOString()});
+      if(saved.error)return NextResponse.json({error:"Verifikasi dua langkah belum siap. Hubungi administrator untuk mengaktifkannya."},{status:503});
+      const response=NextResponse.json({mfa_required:true},{headers:{"Cache-Control":"private, no-store"}});
+      response.cookies.set(MFA_COOKIE,await sealMfaPending(pending,secret),mfaCookieOptions);
+      response.cookies.set(SESSION_COOKIE,"",{httpOnly:true,sameSite:"strict",secure:process.env.NODE_ENV==="production",path:"/",maxAge:0});
+      return response;
+    }catch{return NextResponse.json({error:"Sesi verifikasi belum tersedia."},{status:503});}
+  }
   const token = await createSessionToken(email, role, secret, employeeNik);
   const response = NextResponse.json({ ok: true, role, redirect: loginDestination(role, body.next) }, { headers: { "Cache-Control": "no-store" } });
   response.cookies.set(SESSION_COOKIE, token, {

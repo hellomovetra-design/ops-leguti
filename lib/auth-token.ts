@@ -5,10 +5,17 @@ export const SESSION_MAX_AGE = 60 * 60 * 24 * 365;
 export type SessionPayload = {
   email: string;
   employee_nik?: string;
+  mfa_verified_at?: number;
   role: "super_admin" | "admin" | "spv" | "jr_spv" | "coordinator" | "viewer";
   exp: number;
 };
 
+export const MFA_VALID_SECONDS = 30 * 24 * 60 * 60;
+export const requiresDashboardMfa = (role:string) => ["super_admin","admin","spv","jr_spv","coordinator"].includes(role);
+function validMfaTime(value:unknown){
+  const now=Date.now()/1000;
+  return typeof value==="number"&&Number.isFinite(value)&&value<=now+30&&value>now-MFA_VALID_SECONDS;
+}
 const encoder = new TextEncoder();
 
 export function encodeBase64Url(bytes: Uint8Array) {
@@ -42,9 +49,10 @@ function constantTimeEqual(left: Uint8Array, right: Uint8Array) {
   return difference === 0;
 }
 
-export async function createSessionToken(email: string, role: SessionPayload["role"], secret: string, employeeNik?: string) {
+export async function createSessionToken(email: string, role: SessionPayload["role"], secret: string, employeeNik?: string, mfaVerifiedAt?: number) {
   const payload: SessionPayload = {
     email,
+    ...(mfaVerifiedAt ? {mfa_verified_at:mfaVerifiedAt} : {}),
     ...(employeeNik ? { employee_nik: employeeNik } : {}),
     role,
     exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE,
@@ -80,9 +88,11 @@ export async function verifySessionToken(token: string | undefined, secret: stri
       const primary = (process.env.INTERNAL_SUPER_ADMIN_EMAIL || "ibadnarpatih@gmail.com").trim().toLowerCase();
       const role = payload.email.toLowerCase() === primary ? "super_admin" : records[0]?.role;
       if (!["super_admin", "admin", "spv", "jr_spv", "coordinator", "viewer"].includes(role)) return null;
+      if(requiresDashboardMfa(role)&&!validMfaTime(payload.mfa_verified_at))return null;
       return { ...payload, role } as SessionPayload;
     }
     if (process.env.NODE_ENV === "production") return null;
+    if(requiresDashboardMfa(payload.role)&&!validMfaTime(payload.mfa_verified_at))return null;
     return payload;
   } catch {
     return null;

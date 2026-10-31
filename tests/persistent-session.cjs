@@ -21,7 +21,7 @@ const mw=load('middleware.ts',{'@/lib/auth-token':{...tokens,verifySessionToken:
  assert.equal(response.cookies.get(tokens.SESSION_COOKIE),undefined);assert.equal(renewals,1);
  session=null;response=await mw.middleware(new NextRequest('https://ops.movetra.id/pwa'));
  assert.equal(response.status,307);assert.equal(response.cookies.get(tokens.SESSION_COOKIE),undefined);
- const logout=load('app/api/auth/logout/route.ts',{'@/lib/auth-token':tokens});
- response=await logout.POST();assert.equal(response.cookies.get(tokens.SESSION_COOKIE).maxAge,0);
+ const logout=load('app/api/auth/logout/route.ts',{'@/lib/auth-token':tokens,'@/lib/mfa-login':{MFA_COOKIE:'pending',mfaCookieOptions:{path:'/api/auth'}}});
+ response=await logout.POST(new NextRequest('https://ops.movetra.id/api/auth/logout',{method:'POST',headers:{origin:'https://ops.movetra.id'}}));assert.equal(response.cookies.get(tokens.SESSION_COOKIE).maxAge,0);
  console.log('PASS: persistent signed session, tamper rejection, renewal of short/old sessions, no renewal churn, anonymous redirect and explicit logout.');
 })().catch(e=>{console.error(e);process.exitCode=1});

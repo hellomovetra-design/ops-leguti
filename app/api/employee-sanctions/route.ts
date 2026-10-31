@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken, SessionPayload } from "@/lib/auth-token";
 import { getSupabaseServerClient } from "@/lib/supabase";
+import { sanctionRecorderIdentity } from "@/lib/sanction-recorder";
 import { linkedEmployee } from "@/lib/employee-access";
 import { SANCTION_ADMINS, SANCTION_KINDS, sanctionRecorder, sanctionTeam, sanctionValues, SanctionEmployee } from "@/lib/employee-sanctions";
 import { employeeStatus } from "@/lib/employee-status";
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest) {
       if(!result.data)return json({error:"Catatan tidak ditemukan."},404);
       const row=result.data;return json({item:{...sanctionRecordView(row,admin?"admin":"mine"),can_edit:!row.workflow_status||row.workflow_status==="awaiting_signatures"}});
     }
-    if (type === "employees") return json({ items: await employees(db, session, admin), recorder_name: (await linkedEmployee(db, session.email))?.name || "" });
+    if (type === "employees") return json({ items: await employees(db, session, admin), recorder_name: (await sanctionRecorderIdentity(db, session.email, session))?.name || "" });
     if (type !== "list") return json({ error: "Permintaan tidak valid." }, 400);
     const offset = Number(p.get("offset") || 0), kind = p.get("kind") || "", search = (p.get("q") || "").trim();
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000 || search.length > 160 || (kind && !Object.hasOwn(SANCTION_KINDS, kind))) return json({ error: "Filter tidak valid." }, 400);
@@ -139,7 +140,7 @@ export async function POST(req: NextRequest) {
       const version = String(body.updated_at || "");
       if (!version || Number.isNaN(Date.parse(version))) return json({ error: "Versi catatan tidak valid." }, 400);
       if(existing.data.updated_at!==version)return json({error:"Catatan berubah. Muat ulang sebelum menyimpan."},409);
-      const originalRecorder=existing.data.recorder_name?null:await linkedEmployee(db,existing.data.created_by);
+      const originalRecorder=existing.data.recorder_name?null:await sanctionRecorderIdentity(db,existing.data.created_by,session);
       const recorderSnapshot=originalRecorder?.name?{recorder_name:originalRecorder.name,recorder_nik:originalRecorder.nik}:{};
       if(values.sanction_details){
         const person=await db.from("ops_employees").select("dept,employment,employment_type").eq("nik",existing.data.employee_nik).maybeSingle();
@@ -156,7 +157,7 @@ export async function POST(req: NextRequest) {
     }
     const person = (await employees(db, session, admin)).find(row => row.nik === String(body.employee_nik || ""));
     if (!person) return json({ error: "Pilih karyawan aktif dalam tim yang dapat Anda kelola." }, 403);
-    const recorder=await linkedEmployee(db,session.email);
+    const recorder=await sanctionRecorderIdentity(db,session.email,session);
     if(!recorder?.name)return json({error:"Akun pemberi coaching/sanksi belum terhubung ke data karyawan. Hubungi administrator untuk mengaitkan NIK."},409);
     if(values.sanction_details){values.sanction_details.department=person.dept||"";values.sanction_details.employment_status=EMPLOYMENT_LABELS[employeeEmployment(person)];}
     uploaded=await uploadSanctionPhotos(files,id);

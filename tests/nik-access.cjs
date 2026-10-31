@@ -22,13 +22,13 @@ const cyclic = [...rows, employee('8', 'Child cycle', 'Leader', 'Kurir A')];
 cyclic[0] = { ...rows[0], superior: 'Child cycle' };
 assert.equal(access.structuralCouriers(cyclic, '1').length, 3);
 let mapping = { email: 'staff@test.example', employee_nik: '00123' }, active = true, authRole = 'viewer', authCalls = 0, lastEmail;
-const db = { from(table) { const query = { select() { return query; }, eq() { return query; }, async maybeSingle() { return { data: table === 'ops_user_employee_links' ? mapping : { nik: '00123', active }, error: null }; } }; return query; } };
+const db = { from(table) { const query = { insert:async()=>({error:null}),select() { return query; }, eq() { return query; }, async maybeSingle() { return { data: table === 'ops_user_employee_links' ? mapping : table === 'ops_users' ? {role:authRole} : { nik: '00123', active }, error: null }; } }; return query; } };
 const env = { NODE_ENV: 'production', NEXT_PUBLIC_SUPABASE_URL: 'https://example.test', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test', INTERNAL_AUTH_SECRET: 'x'.repeat(40), INTERNAL_SUPER_ADMIN_EMAIL: 'super@test.example' };
 const tokens = load('lib/auth-token.ts', {});
 const policy = load('lib/access-policy.ts', {});
-const login = load('app/api/auth/login/route.ts', { '@/lib/access-policy': policy, '@/lib/auth-token': tokens, '@/lib/supabase': { getSupabaseServerClient: () => db }, '@supabase/supabase-js': { createClient: () => ({ auth: { async signInWithPassword({ email, password }) { authCalls++; lastEmail = email; return password === 'password123' ? { data: { user: { app_metadata: { role: authRole } } } } : { error: {}, data: {} }; } } }) } }, env);
+const login = load('app/api/auth/login/route.ts', { '@/lib/mfa-login':{MFA_COOKIE:'pending',MFA_TTL:600,mfaCookieOptions:{path:'/api/auth'},sealMfaPending:async()=> 'encrypted'}, '@/lib/access-policy': policy, '@/lib/auth-token': tokens, '@/lib/supabase': { getSupabaseServerClient: () => db }, '@supabase/supabase-js': { createClient: () => ({ auth: { async signInWithPassword({ email, password }) { authCalls++; lastEmail = email; return password === 'password123' ? { data: { user: { id:'11111111-1111-4111-8111-111111111111',app_metadata: { role: authRole } },session:{access_token:'access',refresh_token:'refresh'} } } : { error: {}, data: {} }; } } }) } }, env);
 let ip = 0;
-async function sign(identifier, password = 'password123', sameIp) { return login.POST(new NextRequest('http://localhost/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': sameIp || String(++ip) }, body: JSON.stringify({ identifier, password }) })); }
+async function sign(identifier, password = 'password123', sameIp) { return login.POST(new NextRequest('http://localhost/api/auth/login', { method: 'POST', headers: { origin:'http://localhost','content-type': 'application/json', 'x-forwarded-for': sameIp || String(++ip) }, body: JSON.stringify({ identifier, password }) })); }
 (async () => {
   let response = await sign('00123'); assert.equal(response.status, 200); assert.equal(lastEmail, 'staff@test.example');
   assert.equal((await response.clone().json()).redirect, '/pwa');
@@ -40,9 +40,9 @@ async function sign(identifier, password = 'password123', sameIp) { return login
   active = false; const before = authCalls; assert.equal((await sign('00123')).status, 401); assert.equal(authCalls, before); active = true;
   mapping = null; assert.equal((await sign('missing')).status, 401); mapping = { email: 'staff@test.example', employee_nik: '00123' };
   assert.equal((await sign('00123', 'wrongpass')).status, 401);
-  authRole = 'super_admin'; assert.equal((await sign('00123')).status, 200, 'Promoted Super Admin can keep using linked NIK');
+  authRole = 'super_admin'; response=await sign('00123');assert.equal((await response.json()).mfa_required,true);assert.equal(response.cookies.get(tokens.SESSION_COOKIE).value,'');
   response = await sign('super@test.example'); assert.equal(response.status, 200);
-  cookie = response.cookies.get(tokens.SESSION_COOKIE).value; assert.equal((await tokens.verifySessionToken(cookie, env.INTERNAL_AUTH_SECRET)).employee_nik, undefined);
+  assert.equal((await response.json()).mfa_required,true);assert.equal(response.cookies.get(tokens.SESSION_COOKIE).value,'');
   for (let i = 0; i < 5; i++) assert.equal((await sign('missing', 'wrongpass', 'ratelimit')).status, 401);
   assert.equal((await sign('missing', 'wrongpass', 'ratelimit')).status, 429);
   authRole = 'viewer';

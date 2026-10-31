@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE,verifySessionToken } from "@/lib/auth-token";
 import { getSupabaseServerClient } from "@/lib/supabase";
-import { linkedEmployee } from "@/lib/employee-access";
+import { sanctionRecorderIdentity } from "@/lib/sanction-recorder";
 import { SANCTION_ADMINS } from "@/lib/employee-sanctions";
 import { coachingDetails,validateFinalDocument,workflowTransition,FinalDocument } from "@/lib/coaching-workflow";
 import { coachingDocx,coachingPrintHtml } from "@/lib/coaching-document";
@@ -46,7 +46,7 @@ export async function GET(req:NextRequest){
    const ext=file.content_type==="application/pdf"?"pdf":file.content_type==="image/png"?"png":file.content_type==="image/webp"?"webp":"jpg";
    return new NextResponse(response.body,{headers:{...headers,"Content-Type":file.content_type,"Content-Disposition":`attachment; filename="FINAL_${id}.${ext}"`}});
   }
-  if(!record.recorder_name)record.recorder_name=(await linkedEmployee(c.db!,record.created_by))?.name||"";
+  if(!record.recorder_name)record.recorder_name=(await sanctionRecorderIdentity(c.db!,record.created_by,c.session!))?.name||"";
   const coaching=record.kind==="coaching",logo=await readFile(path.join(process.cwd(),"assets/templates/sanction-jne-logo.jpg"));
   if(type==="print")return new NextResponse(coaching?coachingPrintHtml(record):sanctionPrintHtml(record,logo!),{headers:{...headers,"Content-Type":"text/html; charset=utf-8","Content-Security-Policy":"default-src 'none'; style-src 'unsafe-inline'; img-src data:; frame-ancestors 'none'; base-uri 'none'"}});
   const doc=coaching?await coachingDocx(record,logo):await sanctionDocx(record,logo!);
@@ -80,7 +80,7 @@ export async function POST(req:NextRequest){
   const email=c.session!.email.toLowerCase(),now=new Date().toISOString();
   const values:Record<string,unknown>={workflow_status:stage,updated_by:email,workflow_request_id:requestId};
   if(!record.recorder_name){
-   const recorder=await linkedEmployee(c.db!,record.created_by);
+   const recorder=await sanctionRecorderIdentity(c.db!,record.created_by,c.session!);
    if(!recorder?.name)return json({error:"Akun pemberi catatan belum terhubung ke data karyawan. Kaitkan NIK terlebih dahulu."},409);
    Object.assign(values,{recorder_name:recorder.name,recorder_nik:recorder.nik});
   }

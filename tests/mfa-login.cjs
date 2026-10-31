@@ -1,0 +1,34 @@
+const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
+const {NextRequest}=require('next/server');
+const env={NODE_ENV:'production',NEXT_PUBLIC_SUPABASE_URL:'https://db.test',NEXT_PUBLIC_SUPABASE_ANON_KEY:'anon',SUPABASE_SERVICE_ROLE_KEY:'service',INTERNAL_AUTH_SECRET:'x'.repeat(40),INTERNAL_SUPER_ADMIN_EMAIL:'super@test'};
+let role='super_admin',providerValid=false,aal='aal2',setup=false,enrolls=0,claims=0,dbFail=false;
+function load(file,mocks={}){const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:m,exports:m.exports,require:n=>mocks[n]||require(n),process:{env},crypto:globalThis.crypto,TextEncoder,TextDecoder,Uint8Array,btoa,atob,Date,URL,AbortSignal,fetch:async()=>({ok:true,json:async()=>[{role}]})});return m.exports}
+const tokens=load('lib/auth-token.ts'),pending=load('lib/mfa-login.ts',{'./auth-token':tokens}),policy=load('lib/access-policy.ts');
+const records=[];
+const db={from(table){let filters=[],mode='select',payload;const q={select(){return q},eq(k,v){filters.push(r=>r[k]===v);return q},is(k,v){filters.push(r=>(r[k]??null)===v);return q},gt(k,v){filters.push(r=>r[k]>v);return q},update(v){mode='update';payload=v;return q},insert(v){mode='insert';payload=v;return q},maybeSingle:()=>run(true),then:(a,b)=>run(false).then(a,b)};async function run(one){if(dbFail)return{data:null,error:{}};let rows=table==='ops_users'?[{email:'super@test',role}]:records;if(mode==='insert'){records.push({...payload,attempts:0,consumed_at:null,factor_id:null});return{data:null,error:null}}rows=rows.filter(r=>filters.every(f=>f(r)));if(mode==='update')rows.forEach(r=>Object.assign(r,payload));return{data:one?rows[0]||null:rows,error:null}}return q},async rpc(name,args){claims++;const r=records.find(r=>r.id===args.challenge&&r.email===args.account_email);if(dbFail)return{error:{}};if(!r||r.attempts>=5||r.consumed_at)return{data:false};r.attempts++;return{data:true}}};
+const user={id:'11111111-1111-4111-8111-111111111111',email:'super@test',app_metadata:{role:'viewer'}};
+const sdk={createClient:()=>({auth:{signInWithPassword:async({password})=>password==='password123'?{data:{user,session:{access_token:'private-access',refresh_token:'private-refresh'}},error:null}:{data:{},error:{}},setSession:async()=>({data:{user},error:null}),mfa:{listFactors:async()=>({data:{totp:setup?[]:[{id:'22222222-2222-4222-8222-222222222222',status:'verified'}],all:[]},error:null}),enroll:async()=>{enrolls++;return{data:{id:'22222222-2222-4222-8222-222222222222',totp:{qr_code:'<svg></svg>',secret:'PRIVATE-SETUP-KEY'}},error:null}},unenroll:async()=>({error:null}),challengeAndVerify:async()=>({error:providerValid?null:{}}),getAuthenticatorAssuranceLevel:async()=>({data:{currentLevel:aal},error:null})}}})};
+const mocks={'@/lib/auth-token':tokens,'@/lib/mfa-login':pending,'@/lib/access-policy':policy,'@/lib/supabase':{getSupabaseServerClient:()=>db},'@supabase/supabase-js':sdk};
+const login=load('app/api/auth/login/route.ts',mocks),mfa=load('app/api/auth/mfa/route.ts',mocks);
+const req=(path,body,cookie='',origin='https://ops.test')=>new NextRequest('https://ops.test'+path,{method:'POST',headers:{origin,cookie,'content-type':'application/json'},body:JSON.stringify(body)});
+const sign=()=>login.POST(req('/api/auth/login',{identifier:'super@test',password:'password123'}));
+(async()=>{
+ assert.equal((await login.POST(req('/api/auth/login',{},'','https://evil.test'))).status,403);
+ const weak=await tokens.createSessionToken('super@test','super_admin',env.INTERNAL_AUTH_SECRET);assert.equal(await tokens.verifySessionToken(weak,env.INTERNAL_AUTH_SECRET),null,'Legacy/password-only dashboard session denied');
+ const future=await tokens.createSessionToken('super@test','super_admin',env.INTERNAL_AUTH_SECRET,undefined,Math.floor(Date.now()/1000)+100);assert.equal(await tokens.verifySessionToken(future,env.INTERNAL_AUTH_SECRET),null);
+ const old=await tokens.createSessionToken('super@test','super_admin',env.INTERNAL_AUTH_SECRET,undefined,Math.floor(Date.now()/1000)-31*86400);assert.equal(await tokens.verifySessionToken(old,env.INTERNAL_AUTH_SECRET),null);
+ let response=await sign();assert.equal(response.status,200);assert.equal((await response.json()).mfa_required,true);assert.equal(response.cookies.get(tokens.SESSION_COOKIE).value,'');
+ const sealed=response.cookies.get(pending.MFA_COOKIE).value;assert(!sealed.includes('private-access'));assert(!sealed.includes('private-refresh'));assert.equal(await pending.openMfaPending(sealed+'bad',env.INTERNAL_AUTH_SECRET),null);
+ const cookie=`${pending.MFA_COOKIE}=${sealed}`;
+ assert.equal((await mfa.POST(req('/api/auth/mfa',{action:'start'},cookie,'https://evil.test'))).status,403);
+ response=await mfa.POST(req('/api/auth/mfa',{action:'start'},cookie));assert.equal((await response.json()).setup,false);assert.equal(enrolls,0,'Do not replace an enrolled factor');
+ response=await mfa.POST(req('/api/auth/mfa',{action:'verify',code:'123456',factor_id:'ATTACKER'},cookie));assert.equal(response.status,401);assert.equal(response.cookies.get(tokens.SESSION_COOKIE),undefined);
+ providerValid=true;aal='aal1';assert.equal((await mfa.POST(req('/api/auth/mfa',{action:'verify',code:'123456'},cookie))).status,401);
+ aal='aal2';response=await mfa.POST(req('/api/auth/mfa',{action:'verify',code:'123456'},cookie));assert.equal(response.status,200);
+ assert((await tokens.verifySessionToken(response.cookies.get(tokens.SESSION_COOKIE).value,env.INTERNAL_AUTH_SECRET)).mfa_verified_at);assert.match(response.headers.get('set-cookie'),/HttpOnly/);assert.match(response.headers.get('set-cookie'),/Secure/);
+ assert.equal((await mfa.POST(req('/api/auth/mfa',{action:'verify',code:'123456'},cookie))).status,401,'Challenge cannot be replayed after consumption');
+ setup=true;response=await sign();const setupCookie=`${pending.MFA_COOKIE}=${response.cookies.get(pending.MFA_COOKIE).value}`;
+ response=await mfa.POST(req('/api/auth/mfa',{action:'start'},setupCookie));const enrollment=await response.json();assert.equal(enrollment.setup,true);assert(enrollment.qr.startsWith('data:image/svg+xml'));assert.equal(enrollment.secret,'PRIVATE-SETUP-KEY');assert.equal(response.cookies.get(tokens.SESSION_COOKIE),undefined);
+ providerValid=false;for(let i=0;i<5;i++)assert.equal((await mfa.POST(req('/api/auth/mfa',{action:'verify',code:'123456'},setupCookie))).status,401);assert.equal((await mfa.POST(req('/api/auth/mfa',{action:'verify',code:'123456'},setupCookie))).status,429);
+ console.log('PASS: password-only denied, encrypted short pending cookie, verified-factor preservation, setup QR, AAL2 required, immutable server factor, one-use completion, MFA attempt limits and CSRF.');
+})().catch(e=>{console.error(e);process.exitCode=1});

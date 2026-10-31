@@ -13,7 +13,7 @@ for(const [file,key] of [['lib/damage-case.ts','DAMAGE_ADMINS'],['lib/inbox.ts',
 const db={from(){return{select(){return this},limit:async()=>({data:[],error:null})}},rpc:async()=>({data:{courier_synced:false},error:null})};
 const api=load('app/api/ops-desk/route.ts',{'@/lib/employee-bulk':load('lib/employee-bulk.ts'),'@/lib/create-problem-report':{},'@/lib/auth-token':tokens,'@/lib/supabase':{getSupabaseServerClient:()=>db},'@/lib/employee-edit':{employeeEditPayload:body=>body},'@/lib/imagekit':{},'@/lib/request-report':{},'@/lib/problem-records':{},'@/lib/employee-access':{},'@/lib/web-push':{},'@/lib/history-scope':{},'@/lib/employee-status':{}});
 (async()=>{
- const cookie=await tokens.createSessionToken('staff@example.test','viewer',env.INTERNAL_AUTH_SECRET,'00123');
+ const cookie=await tokens.createSessionToken('staff@example.test','viewer',env.INTERNAL_AUTH_SECRET,'00123',Math.floor(Date.now()/1000));
  for(const role of ['super_admin','spv','admin']){
   records=[{role}];const session=await tokens.verifySessionToken(cookie,env.INTERNAL_AUTH_SECRET);
   assert.equal(session.role,role);assert.equal(session.employee_nik,'00123');
@@ -21,7 +21,7 @@ const api=load('app/api/ops-desk/route.ts',{'@/lib/employee-bulk':load('lib/empl
   const result=await api.POST(new NextRequest('http://localhost/api/ops-desk',{method:'POST',headers:{cookie:`jne_session=${cookie}`,'content-type':'application/json'},body:JSON.stringify({action:'updateEmployee',nik:'00123',name:'Test'})}));
   assert.equal(result.status,200,role+' can edit employee');
  }
- const oldAdminCookie=await tokens.createSessionToken('staff@example.test','super_admin',env.INTERNAL_AUTH_SECRET,'00123');
+ const oldAdminCookie=await tokens.createSessionToken('staff@example.test','super_admin',env.INTERNAL_AUTH_SECRET,'00123',Math.floor(Date.now()/1000));
  records=[{role:'viewer'}];assert.equal((await tokens.verifySessionToken(oldAdminCookie,env.INTERNAL_AUTH_SECRET)).role,'viewer');
  const denied=await api.POST(new NextRequest('http://localhost/api/ops-desk',{method:'POST',headers:{cookie:`jne_session=${oldAdminCookie}`,'content-type':'application/json'},body:JSON.stringify({action:'updateEmployee',nik:'00123',name:'Test'})}));assert.equal(denied.status,403);
  unavailable=true;assert.equal(await tokens.verifySessionToken(cookie,env.INTERNAL_AUTH_SECRET),null);unavailable=false;
