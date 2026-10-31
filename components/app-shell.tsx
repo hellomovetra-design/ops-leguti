@@ -3,8 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Bell, LogOut, Menu, RefreshCw, Settings, X, PackageSearch, Boxes, LayoutDashboard, Network, ArrowLeftRight, UserRound, Headphones, MessageCircle, ClipboardList } from "lucide-react";
-import { useApp } from "@/app/providers";
+import { LogOut, Menu, Settings, X, PackageSearch, Boxes, LayoutDashboard, Network, ArrowLeftRight, UserRound, Headphones, MessageCircle, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/utils";
 import "./admin-header.css";
 import "./inbox.css";
@@ -37,7 +36,6 @@ export function AppShell({ title, children }: { title: string; children: React.R
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [profile, setProfile] = useState<{ email?: string; display_name?: string; role?: string }>({});
-  const { toast } = useApp();
   const inbox = useInboxIndicator(true);
   const displayTitle = title;
   useEffect(() => { fetch("/api/ops-desk?type=profile").then(r => r.json()).then(x => setProfile(x.profile || {})).catch(() => {}); }, []);
@@ -103,15 +101,12 @@ export function AppShell({ title, children }: { title: string; children: React.R
             </div>
           </div>
           <div className="top-actions">
-            <button className="icon-btn" aria-label="Refresh" onClick={() => toast("OPS Desk siap diperbarui")}>
-              <RefreshCw size={15} />
-            </button>
-            <Link className="icon-btn inbox-admin-shortcut" href="/dashboard/ops-desk/inbox" aria-label={`Inbox${inbox.unread ? `, ${inbox.unread} pesan belum dibaca` : ""}`}><MessageCircle size={15}/>{inbox.unread > 0 && <span className="inbox-unread">{inbox.unread > 99 ? "99+" : inbox.unread}</span>}</Link>
             <AdminReportNotifications/>
           </div>
         </header>
         <div className="content">{children}</div>
       </main>
+      <Link className="admin-inbox-float" href="/dashboard/ops-desk/inbox" aria-label={`Buka Inbox${inbox.unread?`, ${inbox.unread} pesan belum dibaca`:""}`} title="Inbox"><span className="admin-inbox-portrait"><img src="/default-employee.jpg" alt="Petugas JNE"/></span><span className="admin-inbox-cs">Inbox</span>{inbox.unread>0&&<span className="admin-inbox-badge">{inbox.unread>99?"99+":inbox.unread}</span>}</Link>
     </div>
   );
 }
