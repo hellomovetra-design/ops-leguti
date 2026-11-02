@@ -2,12 +2,12 @@ const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),asser
 const m={exports:{}};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/admin-navigation.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{module:m,exports:m.exports});
 const {ADMIN_MENUS,inAdministrator}=m.exports;
-assert.equal(ADMIN_MENUS.length,4);
+assert.equal(ADMIN_MENUS.length,3);
 for(const item of ADMIN_MENUS)assert(inAdministrator(item.href));
 assert(inAdministrator('/settings/ops-access'));assert(inAdministrator('/settings/ops-access/users'));
 assert(!inAdministrator('/master/structure'));assert(!inAdministrator('/master/employees-other'));assert(!inAdministrator('/dashboard/ops-desk'));
 const shell=fs.readFileSync('components/app-shell.tsx','utf8'),groups=shell.split('export function AppShell')[0];
-assert(!groups.includes('href: "/master/employees"'));assert(!groups.includes('href: "/master/couriers"'));assert(!groups.includes('href: "/master/personnel-changes"'));
+assert(!groups.includes('href: "/master/employees"'));assert(groups.includes('href: "/master/couriers"'));assert(!inAdministrator("/master/couriers"));assert(!groups.includes('href: "/master/personnel-changes"'));
 assert(shell.includes('items={ADMIN_MENUS}'));assert(shell.includes('items={SHIPMENT_MENUS}'));assert(shell.includes('SidebarMenuGroup'));assert(!shell.includes('ibadnarpatih@gmail.com'));
 const entry=fs.readFileSync('app/settings/ops-access/page.tsx','utf8');
 assert(entry.includes('redirect(ADMIN_MENUS[0].href)'));

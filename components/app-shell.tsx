@@ -20,6 +20,7 @@ const navGroups = [
     items: [
       { href: "/dashboard/ops-desk", label: "Ringkasan", icon: LayoutDashboard },
       { href: "/master/structure", label: "Struktur Tim", icon: Network },
+      { href: "/master/couriers", label: "Master Kurir", icon: Boxes },
       { href: "shipment-group", label: "ALL CASE Shipment", icon: PackageSearch },
       { href: "/dashboard/ops-desk/courier-carry", label: "Bawaan Kurir", icon: Boxes },
       { href: "/dashboard/ops-desk/problem-solving-daily", label: "Problem Solving Daily", icon: ClipboardList },
