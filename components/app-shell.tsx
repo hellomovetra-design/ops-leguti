@@ -69,7 +69,7 @@ export function AppShell({ title, children }: { title: string; children: React.R
               {group.items.map((item) => {
                 if(item.href==="shipment-group")return <SidebarMenuGroup key={item.href} label={item.label} icon={item.icon} items={SHIPMENT_MENUS} active={inShipment(pathname)} onNavigate={()=>setOpen(false)}/>;
                 if(item.href==="/settings/ops-access")return <SidebarMenuGroup key={item.href} label={item.label} icon={item.icon} items={ADMIN_MENUS} active={inAdministrator(pathname)} onNavigate={()=>setOpen(false)}/>;
-                const active = item.href === "/settings/ops-access" ? inAdministrator(pathname) : item.href === "/dashboard/ops-desk" ? pathname === item.href : pathname.startsWith(item.href);
+                const active = item.href === "/settings/ops-access" ? inAdministrator(pathname) : item.href === "/dashboard/ops-desk" ? pathname === item.href : (item.href === "/master/couriers" ? pathname === item.href : pathname.startsWith(item.href));
                 return (
                   <div key={item.href}><Link className={cn("nav-item", active && "active")} href={item.href} onClick={() => setOpen(false)}>
                     <item.icon size={16} strokeWidth={active ? 2.4 : 1.8} />

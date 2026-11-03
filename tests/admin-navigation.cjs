@@ -2,7 +2,7 @@ const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),asser
 const m={exports:{}};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/admin-navigation.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{module:m,exports:m.exports});
 const {ADMIN_MENUS,inAdministrator}=m.exports;
-assert.equal(ADMIN_MENUS.length,3);
+assert.equal(ADMIN_MENUS.length,4);
 for(const item of ADMIN_MENUS)assert(inAdministrator(item.href));
 assert(inAdministrator('/settings/ops-access'));assert(inAdministrator('/settings/ops-access/users'));
 assert(!inAdministrator('/master/structure'));assert(!inAdministrator('/master/employees-other'));assert(!inAdministrator('/dashboard/ops-desk'));
