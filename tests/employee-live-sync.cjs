@@ -48,7 +48,7 @@ const {PGlite}=require('../.tmp/report-workflow-validation/node_modules/@electri
  await db.exec("insert into ops_employees(nik,name,position,active) values('NO-TGR','Belum Ada TGR','Kurir Motor Staff',true)");
  assert.equal((await one("select count(*)::int n from ops_courier_master where employee_nik='NO-TGR'")).n,0,'No invented TGR');
  assert.equal((await one("select count(*)::int n from ops_courier_master where employee_nik='N1FIX'")).n,1);
- for (const migration of ['20261010_personnel_history.sql','20261105_employee_status_history.sql']) {
+ for (const migration of ['20261010_personnel_history.sql','20261105_employee_status_history.sql','20261106_employee_status_note_only.sql']) {
    await db.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8'));
  }
  await db.exec("insert into ops_employees(nik,name,active) values('REPLACEMENT','Pengganti Aktif',true)");
@@ -66,5 +66,10 @@ const {PGlite}=require('../.tmp/report-workflow-validation/node_modules/@electri
  assert.equal(history.find(row=>row.after_data.status_reason==='resign').after_data.status_note,'Mengundurkan diri');
  assert.equal(history.find(row=>row.after_data.status_reason==='replacement').after_data.replacement_name,'Pengganti Aktif');
  assert.equal(history.find(row=>row.after_data.status_reason==='replacement').after_data.replacement_nik,'REPLACEMENT');
+ await changeStatus('Resign',{note:'Resign kembali'});
+ await changeStatus('Nonaktif',{reason:'replacement',note:'Digantikan oleh Budi Santoso'});
+ const manualHistory=await one("select after_data from ops_personnel_changes where after_data->>'status_note'='Digantikan oleh Budi Santoso'");
+ assert.equal(manualHistory.after_data.status_reason,'replacement');
+ assert.equal(manualHistory.after_data.replacement_nik,undefined);
  await db.close();console.log('PASS: actual SQL manual + bulk live sync, duplicate supervisor names via NIK, canonical names, coordinator transfer, self/missing supervisors, role/status changes, preserved operational fields, NIK/TGR changes and aliases, no duplicate master, no contact churn, no invented IDs and migration reapply.');
 })().catch(e=>{console.error(e);process.exit(1);});
