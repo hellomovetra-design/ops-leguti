@@ -48,5 +48,23 @@ const {PGlite}=require('../.tmp/report-workflow-validation/node_modules/@electri
  await db.exec("insert into ops_employees(nik,name,position,active) values('NO-TGR','Belum Ada TGR','Kurir Motor Staff',true)");
  assert.equal((await one("select count(*)::int n from ops_courier_master where employee_nik='NO-TGR'")).n,0,'No invented TGR');
  assert.equal((await one("select count(*)::int n from ops_courier_master where employee_nik='N1FIX'")).n,1);
+ for (const migration of ['20261010_personnel_history.sql','20261105_employee_status_history.sql']) {
+   await db.exec(fs.readFileSync('supabase/migrations/'+migration,'utf8'));
+ }
+ await db.exec("insert into ops_employees(nik,name,active) values('REPLACEMENT','Pengganti Aktif',true)");
+ const changeStatus=(employment,detail)=>db.query(
+   'select ops_save_employee_with_status_history($1,false,$2,$3)',
+   [JSON.stringify({...base,nik:'C1',name:'Koordinator',position:'Inbound Delivery Coordinator',superior_nik:null,superior:'',tgrid:'',active:false,employment}), 'admin@test', JSON.stringify(detail)]
+ );
+ await assert.rejects(changeStatus('Resign',{}),/Isi keterangan/);
+ assert.equal((await one("select active from ops_employees where nik='C1'")).active,true);
+ await changeStatus('Resign',{note:'Mengundurkan diri'});
+ await assert.rejects(changeStatus('Nonaktif',{reason:'replacement',note:'Serah terima',replacement_nik:'C1'}),/pengganti yang aktif/);
+ await changeStatus('Nonaktif',{reason:'replacement',note:'Serah terima',replacement_nik:'REPLACEMENT'});
+ const history=await rows("select after_data from ops_personnel_changes where employee_nik='C1'");
+ assert.equal(history.length,2);
+ assert.equal(history.find(row=>row.after_data.status_reason==='resign').after_data.status_note,'Mengundurkan diri');
+ assert.equal(history.find(row=>row.after_data.status_reason==='replacement').after_data.replacement_name,'Pengganti Aktif');
+ assert.equal(history.find(row=>row.after_data.status_reason==='replacement').after_data.replacement_nik,'REPLACEMENT');
  await db.close();console.log('PASS: actual SQL manual + bulk live sync, duplicate supervisor names via NIK, canonical names, coordinator transfer, self/missing supervisors, role/status changes, preserved operational fields, NIK/TGR changes and aliases, no duplicate master, no contact churn, no invented IDs and migration reapply.');
 })().catch(e=>{console.error(e);process.exit(1);});

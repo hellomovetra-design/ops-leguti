@@ -8,6 +8,10 @@ export function personnelDiff(row:PersonnelChange){
  const add=(field:string,a:unknown,b:unknown)=>{if(String(a??'')!==String(b??''))result.push({field,before:String(a??''),after:String(b??'')});};
  for(const [key,label] of Object.entries(PERSONNEL_FIELDS))add(label,before?.[key],after?.[key]);
  add('Status karyawan',before?EMPLOYEE_STATUS_LABELS[employeeStatus(before)]:null,after?EMPLOYEE_STATUS_LABELS[employeeStatus(after)]:null);
+ const reasons: Record<string, string> = {resign: "Resign", replacement: "Sudah ada pengganti", transfer: "Mutasi", other: "Alasan lain"};
+ add("Alasan perubahan status", null, reasons[after?.status_reason]);
+ add("Keterangan status", null, after?.status_note);
+ add("Karyawan pengganti", null, after?.replacement_name ? `${after.replacement_name} · NIK ${after.replacement_nik}` : null);
  add('Kepegawaian',before?EMPLOYMENT_LABELS[employeeEmployment(before)]:null,after?EMPLOYMENT_LABELS[employeeEmployment(after)]:null);
  return result;
 }

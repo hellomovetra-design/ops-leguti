@@ -412,8 +412,13 @@ export async function POST(req: NextRequest) {
         const ready = await supabase.from("ops_employees").select("phone,email").limit(1);
         if (ready.error) return NextResponse.json({ ok: false, error: "Kolom kontak belum siap. Terapkan migration kontak karyawan terlebih dahulu." }, { status: 503 });
       }
-      const result = await supabase.rpc("ops_save_employee_and_courier", { p_employee: payload, p_create: body.action === "employee", p_actor: session.email });
-      if (result.error) return NextResponse.json({ ok: false, error: ["PGRST202", "42883"].includes(result.error.code) ? "Sinkronisasi belum siap. Terapkan migration 20261008_employee_courier_edit.sql terlebih dahulu." : result.error.message }, { status: 409 });
+      const result = await supabase.rpc("ops_save_employee_with_status_history", {
+        p_employee: payload,
+        p_create: body.action === "employee",
+        p_actor: session.email,
+        p_detail: { reason: body.status_reason ?? null, note: body.status_note ?? null, replacement_nik: body.replacement_nik ?? null },
+      });
+      if (result.error) return NextResponse.json({ ok: false, error: ["PGRST202", "42883"].includes(result.error.code) ? "Riwayat status belum siap. Terapkan migration 20261105_employee_status_history.sql terlebih dahulu." : result.error.message }, { status: 409 });
       return NextResponse.json({ ok: true, ...result.data }, { headers: { "Cache-Control": "no-store" } });
     } catch (error) { return NextResponse.json({ ok: false, error: error instanceof Error ? error.message : "Data karyawan tidak valid." }, { status: 400 }); }
   }
