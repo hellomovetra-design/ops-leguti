@@ -68,10 +68,19 @@ export async function GET(req: NextRequest) {
     if (type !== "list") return json({ error: "Permintaan tidak valid." }, 400);
     const offset = Number(p.get("offset") || 0), kind = p.get("kind") || "", search = (p.get("q") || "").trim();
     if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000 || search.length > 160 || (kind && !Object.hasOwn(SANCTION_KINDS, kind))) return json({ error: "Filter tidak valid." }, 400);
+    const from = p.get("from") || "", to = p.get("to") || "";
+    const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value)
+      && !Number.isNaN(Date.parse(value))
+      && new Date(value).toISOString().slice(0,10) === value;
+    if ((from && !validDate(from)) || (to && !validDate(to)) || (from && to && from > to)) {
+      return json({error:"Rentang tanggal tidak valid."},400);
+    }
     let query = db.from(TABLE).select("*").order("created_at", { ascending: false }).order("id");
     // Leadership does not grant global visibility. PWA sees only its own records.
     if (!admin) query = query.eq("created_by", session.email.toLowerCase());
     if (kind) query = query.eq("kind", kind);
+    if (from) query = query.gte("incident_date", from);
+    if (to) query = query.lte("incident_date", to);
     if (search) query = query.ilike("employee_name", `%${search.replace(/[\\%_]/g, "\\$&")}%`);
     const result = await query.range(offset, offset + 50);
     if (result.error) return json({ error: dbMessage(result.error) }, 503);
