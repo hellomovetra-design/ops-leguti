@@ -72,7 +72,7 @@ export function AdminDailyPanel() {
     setExporting(true);
     setExportError("");
     try {
-      const params = new URLSearchParams({ scope: "admin", q, status, category, unit, from, to });
+      const params = new URLSearchParams({ scope: "admin", sharePhotos: "1", q, status, category, unit, from, to });
       const records: DailyRecord[] = [];
       const seen = new Set<string>();
       let offset = 0;

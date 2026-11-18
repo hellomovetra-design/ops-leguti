@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { SESSION_COOKIE, verifySessionToken, SessionPayload } from "@/lib/auth-token";
@@ -11,6 +12,14 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const json = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: { "Cache-Control": "no-store" } });
 const canEdit = (session: SessionPayload, record: any) => session.role !== "viewer" || record.created_by === session.email.toLowerCase();
 const decorate = (session: SessionPayload, record: any) => ({ ...record, can_edit: canEdit(session, record), photos: (record.photos || []).map((p: any, index: number) => ({ name: p.name, url: `/api/problem-solving-daily?type=photo&id=${record.id}&index=${index}&v=${encodeURIComponent(record.updated_at)}` })) });
+const PHOTO_SHARE_SECONDS = 7 * 24 * 60 * 60;
+function photoSignature(secret: string, id: string, index: number, expires: number) {
+  return createHmac("sha256", secret).update(`daily-photo-share:${id}:${index}:${expires}`).digest("hex");
+}
+function photoShareUrl(secret: string, id: string, index: number, expires: number) {
+  return `/api/problem-solving-daily?type=photo&id=${id}&index=${index}&expires=${expires}&share=${photoSignature(secret, id, index, expires)}`;
+}
+
 function databaseError(error: any) {
   return error?.code === "42P01" || error?.code === "PGRST205" ? "Fitur belum tersedia. Migration Problem Solving Daily perlu diterapkan oleh administrator." : "Database belum dapat memproses catatan. Silakan coba lagi.";
 }
@@ -20,32 +29,52 @@ async function units(db: NonNullable<ReturnType<typeof getSupabaseServerClient>>
   return [...new Set((data || []).map(row => String(row.hub || "").trim().toUpperCase()).filter(Boolean))].sort();
 }
 export async function GET(req: NextRequest) {
-  const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, process.env.INTERNAL_AUTH_SECRET);
-  if (!session) return json({ error: "Sesi tidak valid." }, 401);
+  const secret = process.env.INTERNAL_AUTH_SECRET;
+  const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value, secret);
+  const params = req.nextUrl.searchParams;
+  const share = params.get("share");
+  const sharedPhoto = params.get("type") === "photo" && share !== null;
+  if (sharedPhoto) {
+    const id = params.get("id") || "";
+    const index = Number(params.get("index") ?? -1);
+    const expires = Number(params.get("expires"));
+    if (!secret || !uuid.test(id) || !Number.isSafeInteger(index) || index < 0 ||
+      !Number.isSafeInteger(expires) || expires <= Math.floor(Date.now() / 1000) ||
+      !/^[a-f0-9]{64}$/.test(share) ||
+      !timingSafeEqual(Buffer.from(share, "hex"), Buffer.from(photoSignature(secret, id, index, expires), "hex"))) {
+      return json({ error: "Link foto tidak valid atau sudah kedaluwarsa." }, 403);
+    }
+  } else if (!session) {
+    return json({ error: "Sesi tidak valid." }, 401);
+  }
   const db = getSupabaseServerClient();
   if (!db) return json({ error: "Penyimpanan belum dikonfigurasi." }, 503);
   try {
     const type = req.nextUrl.searchParams.get("type");
     const adminScope = req.nextUrl.searchParams.get("scope") === "admin";
-    if (adminScope && !DAILY_ADMIN_ROLES.includes(session.role)) return json({ error: "Halaman ini khusus administrator." }, 403);
-    if (type === "units") return json({ units: await units(db) });
+
     if (type === "photo") {
       const id = req.nextUrl.searchParams.get("id") || "";
       const index = Number(req.nextUrl.searchParams.get("index"));
       if (!uuid.test(id) || !Number.isInteger(index) || index < 0) return json({ error: "Foto tidak valid." }, 400);
       const result = await db.from(TABLE).select("created_by,photos").eq("id", id).maybeSingle();
       if (result.error) return json({ error: databaseError(result.error) }, 503);
-      if (!result.data || !canEdit(session, result.data)) return json({ error: "Foto tidak ditemukan." }, 404);
+      if (!result.data || (!sharedPhoto && (!session || !canEdit(session, result.data)))) return json({ error: "Foto tidak ditemukan." }, 404);
       const path = result.data.photos?.[index]?.path;
       if (!path) return json({ error: "Foto tidak ditemukan." }, 404);
       if (path.startsWith("imagekit:")) {
         const file = await fetchFromImageKit(path.slice(9));
-        return new NextResponse(file.body, { headers: { "Content-Type": file.headers.get("content-type") || "image/jpeg", "Cache-Control": "private, max-age=300" } });
+        return new NextResponse(file.body, { headers: { "Content-Type": file.headers.get("content-type") || "image/jpeg", "Cache-Control": sharedPhoto ? "private, no-store" : "private, max-age=300" } });
       }
       const file = await db.storage.from("ops-daily-photos").download(path);
       if (file.error || !file.data) return json({ error: "Foto belum dapat dimuat." }, 404);
-      return new NextResponse(file.data, { headers: { "Content-Type": file.data.type, "Cache-Control": "private, max-age=300" } });
+      return new NextResponse(file.data, { headers: { "Content-Type": file.data.type, "Cache-Control": sharedPhoto ? "private, no-store" : "private, max-age=300" } });
     }
+    if (!session) return json({ error: "Sesi tidak valid." }, 401);
+    if (adminScope && !DAILY_ADMIN_ROLES.includes(session.role)) return json({ error: "Halaman ini khusus administrator." }, 403);
+    if (type === "units") return json({ units: await units(db) });
+    const sharePhotos = adminScope && params.get("sharePhotos") === "1";
+    if (sharePhotos && !secret) return json({ error: "Link berbagi belum dikonfigurasi." }, 503);
     let query = db.from(TABLE).select("*", { count: "exact" }).order("created_at", { ascending: false }).order("id", { ascending: false });
     query = scopeHistory(query, session, req.nextUrl.searchParams);
     let offset = 0;
@@ -68,7 +97,17 @@ export async function GET(req: NextRequest) {
     }
     const result = adminScope ? await query.range(offset, offset + 24) : await query.limit(200);
     if (result.error) return json({ error: databaseError(result.error) }, 503);
-    return json({ items: (result.data || []).map(row => decorate(session, row)), total: result.count || 0 });
+    const expires = Math.floor(Date.now() / 1000) + PHOTO_SHARE_SECONDS;
+    const items = (result.data || []).map(row => {
+      const item = decorate(session, row);
+      if (sharePhotos && secret) {
+        item.photos = item.photos.map((photo: { name: string; url: string }, index: number) => ({
+          ...photo, url: photoShareUrl(secret, row.id, index, expires),
+        }));
+      }
+      return item;
+    });
+    return json({ items, total: result.count || 0 });
   } catch (error) { return json({ error: error instanceof Error ? error.message : "Catatan belum dapat dimuat." }, 503); }
 }
 export async function POST(req: NextRequest) {
