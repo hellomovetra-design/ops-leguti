@@ -1,8 +1,8 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { visiblePoll } from "@/lib/visible-poll";
-import { RefreshCw, X } from "lucide-react";
-import { DAILY_CATEGORIES, DAILY_STATUSES, DailyRecord } from "@/lib/problem-solving-daily";
+import { Download, RefreshCw, X } from "lucide-react";
+import { DAILY_CATEGORIES, DAILY_STATUSES, DailyRecord, jakartaNow } from "@/lib/problem-solving-daily";
 import { PageHeader } from "./app-shell";
 import "./admin-daily-panel.css";
 
@@ -12,6 +12,8 @@ export function AdminDailyPanel() {
   const [page, setPage] = useState(0), [total, setTotal] = useState(0), [loading, setLoading] = useState(true), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [selected, setSelected] = useState<DailyRecord | null>(null), [solution, setSolution] = useState(""), [reviewStatus, setReviewStatus] = useState("open"), [saving, setSaving] = useState(false), [saveError, setSaveError] = useState("");
   const sequence = useRef(0), lock = useRef(false), detail = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   useEffect(() => { const timer = setTimeout(() => { setSearch(q); setPage(0); }, 300); return () => clearTimeout(timer); }, [q]);
   const load = useCallback(async () => {
     const ticket = ++sequence.current; setLoading(true);
@@ -66,9 +68,59 @@ export function AdminDailyPanel() {
     } catch (e) { setSaveError(e instanceof Error ? e.message : "Perubahan belum tersimpan."); }
     finally { lock.current = false; setSaving(false); }
   }
+  async function downloadExcel() {
+    setExporting(true);
+    setExportError("");
+    try {
+      const params = new URLSearchParams({ scope: "admin", q, status, category, unit, from, to });
+      const records: DailyRecord[] = [];
+      const seen = new Set<string>();
+      let offset = 0;
+      while (true) {
+        params.set("offset", String(offset));
+        const response = await fetch(`/api/problem-solving-daily?${params}`, { cache: "no-store" });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Catatan belum dapat diunduh.");
+        const batch: DailyRecord[] = data.items;
+        for (const item of batch) {
+          if (seen.has(item.id)) throw new Error("Daftar berubah saat diunduh. Silakan coba lagi.");
+          seen.add(item.id);
+          records.push(item);
+        }
+        offset += batch.length;
+        if (offset >= data.total) break;
+        if (!batch.length) throw new Error("Daftar berubah saat diunduh. Silakan coba lagi.");
+      }
+      if (!records.length) throw new Error("Belum ada catatan sesuai filter untuk diunduh.");
+      const XLSX = await import("xlsx");
+      const sheet = XLSX.utils.json_to_sheet(records.map(item => ({
+        Kendala: item.title,
+        Kategori: item.category,
+        "Tanggal kejadian": item.incident_date,
+        "Jam kejadian (WIB)": item.incident_time.slice(0, 5),
+        Unit: item.unit,
+        Pengirim: item.created_by,
+        Status: DAILY_STATUSES[item.status],
+        Uraian: item.description,
+        "Tindakan / solusi": item.solution,
+        "Jumlah foto": item.photos.length,
+      })));
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, sheet, "Problem Solving Daily");
+      XLSX.writeFile(workbook, `Problem-Solving-Daily-${jakartaNow().incident_date}.xlsx`);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "Catatan belum dapat diunduh.");
+    } finally {
+      setExporting(false);
+    }
+  }
   const filter = (setter: (value: string) => void, value: string) => { setter(value); setPage(0); };
   return <section className="admin-daily">
-    <PageHeader eyebrow="OPERASIONAL · CATATAN HARIAN" title="Problem Solving Daily" subtitle="Pantau kendala dari PWA dan perbarui tindakan penanganannya." actions={<button disabled={loading} onClick={() => void load()}><RefreshCw size={16}/>Muat ulang</button>}/>
+    <PageHeader eyebrow="OPERASIONAL · CATATAN HARIAN" title="Problem Solving Daily" subtitle="Pantau kendala dari PWA dan perbarui tindakan penanganannya." actions={<>
+      <button type="button" disabled={exporting} onClick={() => void downloadExcel()}><Download size={16}/>{exporting ? "Menyiapkan Excel…" : "Unduh Excel"}</button>
+      <button disabled={loading} onClick={() => void load()}><RefreshCw size={16}/>Muat ulang</button>
+    </>}/>
+    {exportError && <p className="admin-daily-error" role="alert">{exportError}</p>}
     <div className="admin-daily-filters">
       <label>Cari judul<input value={q} onChange={e => setQ(e.target.value)} placeholder="Judul kendala…" maxLength={160}/></label>
       <label>Status<select value={status} onChange={e => filter(setStatus, e.target.value)}><option value="">Semua status</option>{Object.entries(DAILY_STATUSES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
