@@ -105,6 +105,24 @@ export function AdminDailyPanel() {
         "Tindakan / solusi": item.solution,
         "Jumlah foto": item.photos.length,
       })));
+      const firstPhotoColumn = XLSX.utils.decode_range(sheet["!ref"]!).e.c + 1;
+      const photoCount = records.reduce((max, item) => Math.max(max, item.photos.length), 0);
+      if (photoCount > 0) {
+        XLSX.utils.sheet_add_aoa(sheet, [
+          Array.from({ length: photoCount }, (_, index) => `Link Foto ${index + 1}`),
+        ], { origin: { r: 0, c: firstPhotoColumn } });
+        records.forEach((item, row) => {
+          item.photos.forEach((photo, index) => {
+            if (!photo.url) return;
+            const address = XLSX.utils.encode_cell({ r: row + 1, c: firstPhotoColumn + index });
+            sheet[address] = {
+              t: "s",
+              v: photo.name || `Lihat foto ${index + 1}`,
+              l: { Target: new URL(photo.url, window.location.origin).href },
+            };
+          });
+        });
+      }
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, sheet, "Problem Solving Daily");
       XLSX.writeFile(workbook, `Problem-Solving-Daily-${jakartaNow().incident_date}.xlsx`);
