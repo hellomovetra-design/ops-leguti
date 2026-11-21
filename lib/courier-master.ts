@@ -48,6 +48,10 @@ export function planImport(incoming: IncomingCourier[], records: MasterRow[], al
       }
     }
     if (record && personName(record.name)!==personName(input.name)) {
+      if (record.employee_nik) {
+        block("Nama terhubung ke Data Karyawan. Koreksi nama melalui Data Karyawan agar kedua master tersinkron.");
+        continue;
+      }
       entry.identity_confirmation={before:record.name,after:input.name,nik:record.employee_nik};
       if(decisions[input.tgrid]!=="confirm-name"){block("TGRID sama tetapi nama berbeda. Konfirmasi hanya jika ini orang yang sama dengan koreksi nama.");continue;}
     }
