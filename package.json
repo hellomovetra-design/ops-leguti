@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "prebuild": "node -e \"const fs=require('node:fs'),p=require('node:path');function walk(d){for(const e of fs.readdirSync(d,{withFileTypes:true})){const f=p.join(d,e.name);if(e.isDirectory())walk(f);else if(e.name==='route.ts'){const s=fs.readFileSync(f,'utf8'),n=s.replace(/(?<!APP_ORIGIN \\|\\| )\\b(?:req|request)\\.nextUrl\\.origin\\b/g,m=>'(process.env.APP_ORIGIN || '+m+')');if(n!==s)fs.writeFileSync(f,n);}}}walk('app/api');\"",
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "start": "next start -H 127.0.0.1",
