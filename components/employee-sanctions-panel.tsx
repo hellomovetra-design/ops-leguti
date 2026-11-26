@@ -90,7 +90,29 @@ export function EmployeeSanctionsPanel({ admin = false }: { admin?: boolean }) {
     {!admin&&<MySanctionDocuments onEdit={start} revision={documentRevision}/>}
     {notice&&<p className="sanctions-success" role="status">{notice}</p>}
     {admin&&<div className="card sanctions-list"><header><h2>Rekap Sanksi & Coaching</h2><div className="sanctions-filters"><label>Dari tanggal<input type="date" value={from} max={to||undefined} onChange={e=>{setFrom(e.target.value);setOffset(0)}}/></label><label>Sampai tanggal<input type="date" value={to} min={from||undefined} onChange={e=>{setTo(e.target.value);setOffset(0)}}/></label><label>Cari nama<input type="search" value={q} onChange={e=>setQ(e.target.value)} placeholder="Nama karyawan"/></label><label>Jenis catatan<select value={kind} onChange={e=>{setKind(e.target.value);setOffset(0)}}><option value="">Semua jenis</option>{Object.entries(SANCTION_KINDS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</select></label><button type="button" className="btn" disabled={loading||saving} onClick={()=>void load()}>Muat ulang</button></div></header>
-    {error?<p className="sanctions-error" role="alert">{error}</p>:loading?<p role="status">Memuat catatan…</p>:!items.length?<p>Belum ada catatan pada pilihan ini.</p>:<div className="table-wrap"><table><thead><tr><th>Tanggal</th><th>Nama</th><th>NIK</th><th>Jabatan</th><th>Atasan</th><th>Jenis Sanksi / Tindak Lanjut</th><th>Keterangan</th><th>Hasil Coaching</th><th>Pemberi Coaching / Sanksi</th><th>Bukti</th><th>Dokumen dan tanda tangan</th>{admin&&<th>Aksi</th>}</tr></thead><tbody>{items.map(item=><tr key={item.id}><td>{item.incident_date}</td><td>{item.employee_name}</td><td>{item.employee_nik}</td><td>{item.position||"—"}</td><td>{item.superior_name||"—"}</td><td>{SANCTION_KINDS[item.kind]}</td><td className="sanctions-text">{item.description}</td><td className="sanctions-text">{item.coaching_result||"—"}</td><td>{item.recorder_name||"Belum terhubung"}</td><td><div className="sanctions-photo-grid">{item.photos?.map((photo,index)=><a key={photo.url} href={photo.url} target="_blank" rel="noopener noreferrer"><img src={photo.url} alt={`Bukti ${index+1}`} loading="lazy"/></a>)}</div>{!item.photos?.length&&"Belum ada bukti"}</td><td><SanctionDocumentActions record={item} scope="admin" onDone={()=>void load()}/></td>{admin&&<td><button className="btn" disabled={saving||processing||!item.can_edit} onClick={()=>start(item)}>Edit</button></td>}</tr>)}</tbody></table></div>}
+    {error?<p className="sanctions-error" role="alert">{error}</p>:loading?<p role="status">Memuat catatan…</p>:!items.length?<p>Belum ada catatan pada pilihan ini.</p>:<div className="sanctions-records">{items.map(item=><article className="sanctions-record" key={item.id} aria-label={`${SANCTION_KINDS[item.kind]} · ${item.employee_name}`}>
+      <header className="sanctions-record-head">
+        <div><h3>{item.employee_name}</h3><span>{SANCTION_KINDS[item.kind]} · <time dateTime={item.incident_date}>{item.incident_date}</time></span></div>
+        {admin&&<button type="button" className="btn" disabled={saving||processing||!item.can_edit} onClick={()=>start(item)}>Edit</button>}
+      </header>
+      <dl className="sanctions-record-meta">
+        <div><dt>NIK</dt><dd>{item.employee_nik}</dd></div>
+        <div><dt>Jabatan</dt><dd>{item.position||"—"}</dd></div>
+        <div><dt>Atasan</dt><dd>{item.superior_name||"—"}</dd></div>
+        <div><dt>Pemberi coaching / sanksi</dt><dd>{item.recorder_name||"Belum terhubung"}</dd></div>
+      </dl>
+      <div className="sanctions-record-content">
+        <section><h4>Keterangan</h4><p className="sanctions-text">{item.description}</p></section>
+        <section><h4>Hasil coaching</h4><p className="sanctions-text">{item.coaching_result||"—"}</p></section>
+      </div>
+      <details className="sanctions-record-details">
+        <summary>Detail bukti &amp; dokumen{item.photos?.length?` · ${item.photos.length} foto`:""}</summary>
+        <div className="sanctions-record-attachments">
+          <section><h4>Bukti</h4><div className="sanctions-photo-grid">{item.photos?.map((photo,index)=><a key={photo.url} href={photo.url} target="_blank" rel="noopener noreferrer"><img src={photo.url} alt={`Bukti ${index+1}`} loading="lazy"/></a>)}</div>{!item.photos?.length&&<p>Belum ada bukti</p>}</section>
+          <section><h4>Dokumen dan tanda tangan</h4><SanctionDocumentActions record={item} scope="admin" onDone={()=>void load()}/></section>
+        </div>
+      </details>
+    </article>)}</div>}
     <footer><button type="button" className="btn" disabled={!offset||loading||saving} onClick={()=>setOffset(n=>Math.max(0,n-50))}>Sebelumnya</button><span>Halaman {Math.floor(offset/50)+1}</span><button type="button" className="btn" disabled={!more||loading||saving} onClick={()=>setOffset(n=>n+50)}>Berikutnya</button></footer></div>}
   </section>;
 }
